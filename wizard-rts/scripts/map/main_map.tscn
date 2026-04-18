@@ -1,0 +1,44 @@
+[gd_scene format=3 uid="uid://cadog5s2ne74q"]
+
+[ext_resource type="Script" uid="uid://c55e5b81k5mcw" path="res://scripts/map/map_manager.gd" id="1_yq3ld"]
+[ext_resource type="Script" uid="uid://co8oyntpicxw5" path="res://scripts/camera/camera_controller.gd" id="2_v4mqy"]
+[ext_resource type="Script" uid="uid://bvwn3wmb3oqhv" path="res://scripts/map/map_zone.gd" id="3_r0n1a"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_xow3s"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_4k6lx"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_0j1e8"]
+
+[node name="Node2D" type="Node2D" unique_id=2018844996]
+script = ExtResource("1_yq3ld")
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=1773307838]
+position = Vector2(640, 360)
+script = ExtResource("2_v4mqy")
+
+[node name="Zones" type="Node2D" parent="." unique_id=1741720590]
+
+[node name="EconomyPlot_01" type="Area2D" parent="Zones" unique_id=1687658825]
+position = Vector2(320, 320)
+script = ExtResource("3_r0n1a")
+zone_type = 1
+plot_count = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Zones/EconomyPlot_01" unique_id=16376164]
+shape = SubResource("RectangleShape2D_xow3s")
+
+[node name="SpawnSafe_01" type="Area2D" parent="Zones" unique_id=411949014]
+position = Vector2(640, 500)
+script = ExtResource("3_r0n1a")
+zone_type = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Zones/SpawnSafe_01" unique_id=1171785799]
+shape = SubResource("RectangleShape2D_4k6lx")
+
+[node name="HighGround_01" type="Area2D" parent="Zones" unique_id=1501937734]
+position = Vector2(200, 200)
+script = ExtResource("3_r0n1a")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Zones/HighGround_01" unique_id=637161204]
+shape = SubResource("RectangleShape2D_0j1e8")

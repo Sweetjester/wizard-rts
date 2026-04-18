@@ -1,0 +1,36 @@
+[gd_scene load_steps=4 format=3 uid="uid://main_map"]
+
+[ext_resource type="Script" path="res://scripts/map/map_manager.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/camera/camera_controller.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/map/map_zone.gd" id="3"]
+
+[node name="MainMap" type="Node2D" script=ExtResource("1")]
+
+[node name="Camera2D" type="Camera2D" parent="." script=ExtResource("2")]
+position = Vector2(640, 360)
+zoom = Vector2(1, 1)
+
+[node name="TileMap" type="TileMap" parent="."]
+tile_set = null
+
+[node name="Zones" type="Node2D" parent="."]
+
+[node name="EconomyPlot_01" type="Area2D" parent="Zones" script=ExtResource("3")]
+position = Vector2(320, 320)
+zone_type = 0
+plot_count = 2
+difficulty = 1.0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Zones/EconomyPlot_01"]
+
+[node name="SpawnSafe_01" type="Area2D" parent="Zones" script=ExtResource("3")]
+position = Vector2(640, 500)
+zone_type = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Zones/SpawnSafe_01"]
+
+[node name="HighGround_01" type="Area2D" parent="Zones" script=ExtResource("3")]
+position = Vector2(200, 200)
+zone_type = 3
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Zones/HighGround_01"]
