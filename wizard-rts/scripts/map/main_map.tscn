@@ -17,6 +17,7 @@
 [ext_resource type="Texture2D" uid="uid://b6kisbjuqxqft" path="res://assets/tiles/processed/forest_mid_ground_v2.png" id="15_wwvl1"]
 [ext_resource type="Texture2D" uid="uid://csosaataupldx" path="res://assets/tiles/processed/forest_water_v1.png" id="16_v5xod"]
 [ext_resource type="Texture2D" uid="uid://ct5sk4qpk64mx" path="res://assets/tiles/processed/forest_water_v2.png" id="17_ycaju"]
+[ext_resource type="Script" uid="uid://gg25pgpw7q26" path="res://scripts/map/map_generator.gd" id="18_se0pv"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_xow3s"]
 
@@ -215,4 +216,10 @@ shape = SubResource("RectangleShape2D_0j1e8")
 [node name="TileMap" type="TileMap" parent="." unique_id=953309271]
 tile_set = SubResource("TileSet_st8ir")
 format = 2
-layer_0/tile_data = PackedInt32Array(393220, 22, 0, 393219, 22, 0, 458756, 22, 0, 458755, 22, 0, 0, 22, 0, 65536, 22, 0, 131072, 22, 0, 196608, 22, 0, 262144, 22, 0, 1, 22, 0, 65537, 22, 0, 131073, 22, 0, 196609, 22, 0, 262145, 22, 0, 2, 22, 0, 65538, 22, 0, 131074, 22, 0, 196610, 22, 0, 262146, 22, 0, 3, 22, 0, 65539, 22, 0, 131075, 22, 0, 196611, 22, 0, 262147, 22, 0, 4, 22, 0, 65540, 22, 0, 131076, 22, 0, 196612, 22, 0, 262148, 22, 0, 458759, 22, 0, 458760, 22, 0, 393224, 22, 0, 393225, 22, 0, 327689, 22, 0, 327690, 22, 0, 262153, 22, 0, 262152, 22, 0, 262151, 22, 0, 262150, 22, 0, 196614, 22, 0, 196613, 22, 0, 131077, 22, 0, -65535, 22, 0, -65536, 22, 0, -131071, 22, 0, -196607, 22, 0, -196606, 22, 0, -196605, 22, 0, -131068, 22, 0, -65532, 22, 0, 5, 22, 0, 6, 22, 0, 65542, 22, 0, 131078, 22, 0, 196615, 22, 0)
+
+[node name="Layer1" type="TileMapLayer" parent="TileMap" unique_id=1101240586]
+use_parent_material = true
+tile_set = SubResource("TileSet_st8ir")
+
+[node name="MapGenerator" type="Node" parent="." unique_id=2107341182]
+script = ExtResource("18_se0pv")
