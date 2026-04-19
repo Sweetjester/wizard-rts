@@ -12,7 +12,8 @@ var _drag_active: bool = false
 var _drag_origin: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
-	zoom = Vector2(1.0, 1.0)
+	zoom = Vector2(0.2, 0.2)
+	position = Vector2(3800, 2000)
 
 func _process(delta: float) -> void:
 	_handle_keyboard_pan(delta)

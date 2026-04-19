@@ -1,53 +1,49 @@
-[gd_resource type="TileSet" format=3 uid="uid://cfqu2mlvmirkj"]
+[gd_resource type="TileSet" format=3 uid="uid://mpm02ydqrkpf"]
 
-[ext_resource type="Texture2D" uid="uid://cgrsilrauxr8h" path="res://assets/tiles/kenney/processed/cliff_v01.png" id="1"]
-[ext_resource type="Texture2D" uid="uid://b6ljuhvqfwb30" path="res://assets/tiles/kenney/processed/cliff_v02.png" id="2"]
-[ext_resource type="Texture2D" uid="uid://d2lxnvchvd3bo" path="res://assets/tiles/kenney/processed/cliff_v03.png" id="3"]
-[ext_resource type="Texture2D" uid="uid://dwl6pplbhkcuj" path="res://assets/tiles/kenney/processed/cliff_v04.png" id="4"]
-[ext_resource type="Texture2D" uid="uid://tbma5aes0527" path="res://assets/tiles/kenney/processed/corrupted_v01.png" id="5"]
-[ext_resource type="Texture2D" uid="uid://bqva7gcapf742" path="res://assets/tiles/kenney/processed/corrupted_v02.png" id="6"]
-[ext_resource type="Texture2D" uid="uid://x2kmtp6vj8u2" path="res://assets/tiles/kenney/processed/corrupted_v03.png" id="7"]
-[ext_resource type="Texture2D" uid="uid://c033jy2tlq7qy" path="res://assets/tiles/kenney/processed/corrupted_v04.png" id="8"]
-[ext_resource type="Texture2D" uid="uid://dymomxpox7gbp" path="res://assets/tiles/kenney/processed/economy_plot_v01.png" id="9"]
-[ext_resource type="Texture2D" uid="uid://bfwiv27vhjeai" path="res://assets/tiles/kenney/processed/economy_plot_v02.png" id="10"]
-[ext_resource type="Texture2D" uid="uid://bv83w5lf0cajo" path="res://assets/tiles/kenney/processed/economy_plot_v03.png" id="11"]
-[ext_resource type="Texture2D" uid="uid://cb2a7wf4jgrg6" path="res://assets/tiles/kenney/processed/economy_plot_v04.png" id="12"]
-[ext_resource type="Texture2D" uid="uid://dfu8x3h5aqcsv" path="res://assets/tiles/kenney/processed/foliage_v01.png" id="13"]
-[ext_resource type="Texture2D" uid="uid://cs8t4tr3qldbr" path="res://assets/tiles/kenney/processed/foliage_v02.png" id="14"]
-[ext_resource type="Texture2D" uid="uid://cuviway4jlvrn" path="res://assets/tiles/kenney/processed/foliage_v03.png" id="15"]
-[ext_resource type="Texture2D" uid="uid://dpd3te7txen3v" path="res://assets/tiles/kenney/processed/foliage_v04.png" id="16"]
-[ext_resource type="Texture2D" uid="uid://cnjepda8vdjbi" path="res://assets/tiles/kenney/processed/foliage_v05.png" id="17"]
-[ext_resource type="Texture2D" uid="uid://43il8boxh6be" path="res://assets/tiles/kenney/processed/foliage_v06.png" id="18"]
-[ext_resource type="Texture2D" uid="uid://cudxtphmfb3t0" path="res://assets/tiles/kenney/processed/foliage_v07.png" id="19"]
-[ext_resource type="Texture2D" uid="uid://dio3gxijojqbm" path="res://assets/tiles/kenney/processed/foliage_v08.png" id="20"]
-[ext_resource type="Texture2D" uid="uid://dlt0cfhvvpbkn" path="res://assets/tiles/kenney/processed/high_ground_v01.png" id="21"]
-[ext_resource type="Texture2D" uid="uid://bwrclw308eku5" path="res://assets/tiles/kenney/processed/high_ground_v02.png" id="22"]
-[ext_resource type="Texture2D" uid="uid://chu2fvqdddf7y" path="res://assets/tiles/kenney/processed/high_ground_v03.png" id="23"]
-[ext_resource type="Texture2D" uid="uid://blwi2f0jcpj58" path="res://assets/tiles/kenney/processed/high_ground_v04.png" id="24"]
-[ext_resource type="Texture2D" uid="uid://befqv03b47ofr" path="res://assets/tiles/kenney/processed/high_ground_v05.png" id="25"]
-[ext_resource type="Texture2D" uid="uid://cufhjuugie3l4" path="res://assets/tiles/kenney/processed/high_ground_v06.png" id="26"]
-[ext_resource type="Texture2D" uid="uid://dtwv4hb5jmonw" path="res://assets/tiles/kenney/processed/high_ground_v07.png" id="27"]
-[ext_resource type="Texture2D" uid="uid://cqngnfw1psf5v" path="res://assets/tiles/kenney/processed/high_ground_v08.png" id="28"]
-[ext_resource type="Texture2D" uid="uid://bwxj08j7hswj5" path="res://assets/tiles/kenney/processed/low_ground_v01.png" id="29"]
-[ext_resource type="Texture2D" uid="uid://dosg1m3p837dh" path="res://assets/tiles/kenney/processed/low_ground_v02.png" id="30"]
-[ext_resource type="Texture2D" uid="uid://cajty8ouspnw7" path="res://assets/tiles/kenney/processed/low_ground_v03.png" id="31"]
-[ext_resource type="Texture2D" uid="uid://b06obto51olmx" path="res://assets/tiles/kenney/processed/low_ground_v04.png" id="32"]
-[ext_resource type="Texture2D" uid="uid://c2w8xmk4wf5vd" path="res://assets/tiles/kenney/processed/mid_ground_v01.png" id="33"]
-[ext_resource type="Texture2D" uid="uid://x6af31qu4mse" path="res://assets/tiles/kenney/processed/mid_ground_v02.png" id="34"]
-[ext_resource type="Texture2D" uid="uid://wm6be1b3xikf" path="res://assets/tiles/kenney/processed/mid_ground_v03.png" id="35"]
-[ext_resource type="Texture2D" uid="uid://bwduai0way8qy" path="res://assets/tiles/kenney/processed/mid_ground_v04.png" id="36"]
-[ext_resource type="Texture2D" uid="uid://2hnp5cbs07a0" path="res://assets/tiles/kenney/processed/peak_v01.png" id="37"]
-[ext_resource type="Texture2D" uid="uid://bllxncqmffhuc" path="res://assets/tiles/kenney/processed/peak_v02.png" id="38"]
-[ext_resource type="Texture2D" uid="uid://buxj7uituwnte" path="res://assets/tiles/kenney/processed/peak_v03.png" id="39"]
-[ext_resource type="Texture2D" uid="uid://dco03wsqdes7a" path="res://assets/tiles/kenney/processed/peak_v04.png" id="40"]
-[ext_resource type="Texture2D" uid="uid://b47ci6rkqrdqb" path="res://assets/tiles/kenney/processed/water_v01.png" id="41"]
-[ext_resource type="Texture2D" uid="uid://dylbk7c5qvbgm" path="res://assets/tiles/kenney/processed/water_v02.png" id="42"]
-[ext_resource type="Texture2D" uid="uid://b7ttnrpk2n84v" path="res://assets/tiles/kenney/processed/water_v03.png" id="43"]
-[ext_resource type="Texture2D" uid="uid://f8ri4s53aq2x" path="res://assets/tiles/kenney/processed/water_v04.png" id="44"]
-[ext_resource type="Texture2D" uid="uid://prkj2pntyn0m" path="res://assets/tiles/kenney/processed/water_v05.png" id="45"]
-[ext_resource type="Texture2D" uid="uid://gqckberqfasj" path="res://assets/tiles/kenney/processed/water_v06.png" id="46"]
-[ext_resource type="Texture2D" uid="uid://w7rxj7ccwm3a" path="res://assets/tiles/kenney/processed/water_v07.png" id="47"]
-[ext_resource type="Texture2D" uid="uid://yvqjwn11hoed" path="res://assets/tiles/kenney/processed/water_v08.png" id="48"]
+[ext_resource type="Texture2D" uid="uid://boleoalxox2b8" path="res://assets/tiles/kenney/processed/cliff_corner_E.png" id="1"]
+[ext_resource type="Texture2D" uid="uid://2afqq18qlywk" path="res://assets/tiles/kenney/processed/cliff_corner_N.png" id="2"]
+[ext_resource type="Texture2D" uid="uid://w3nggqa50f2" path="res://assets/tiles/kenney/processed/cliff_corner_S.png" id="3"]
+[ext_resource type="Texture2D" uid="uid://c063yk1obx16e" path="res://assets/tiles/kenney/processed/cliff_corner_W.png" id="4"]
+[ext_resource type="Texture2D" uid="uid://cantngt4s250h" path="res://assets/tiles/kenney/processed/cliff_corner_inner_E.png" id="5"]
+[ext_resource type="Texture2D" uid="uid://cnqbai6xoc7u6" path="res://assets/tiles/kenney/processed/cliff_corner_inner_N.png" id="6"]
+[ext_resource type="Texture2D" uid="uid://bjfxmfe040nrp" path="res://assets/tiles/kenney/processed/cliff_corner_inner_S.png" id="7"]
+[ext_resource type="Texture2D" uid="uid://blsf0q3g7lhhi" path="res://assets/tiles/kenney/processed/cliff_corner_inner_W.png" id="8"]
+[ext_resource type="Texture2D" uid="uid://onib0epi5wma" path="res://assets/tiles/kenney/processed/cliff_face_E.png" id="9"]
+[ext_resource type="Texture2D" uid="uid://djsxuv3jpy8vr" path="res://assets/tiles/kenney/processed/cliff_face_N.png" id="10"]
+[ext_resource type="Texture2D" uid="uid://7w56p8q8688l" path="res://assets/tiles/kenney/processed/cliff_face_S.png" id="11"]
+[ext_resource type="Texture2D" uid="uid://bwufkvmtrugxl" path="res://assets/tiles/kenney/processed/cliff_face_W.png" id="12"]
+[ext_resource type="Texture2D" uid="uid://dpgo8fvuj4hb4" path="res://assets/tiles/kenney/processed/cliff_top_E.png" id="13"]
+[ext_resource type="Texture2D" uid="uid://bvday4hg27o13" path="res://assets/tiles/kenney/processed/cliff_top_N.png" id="14"]
+[ext_resource type="Texture2D" uid="uid://cw0lkacvfayl5" path="res://assets/tiles/kenney/processed/cliff_top_S.png" id="15"]
+[ext_resource type="Texture2D" uid="uid://cp6xkvxwqkyww" path="res://assets/tiles/kenney/processed/cliff_top_W.png" id="16"]
+[ext_resource type="Texture2D" uid="uid://bn50kquq14aki" path="res://assets/tiles/kenney/processed/crop_E.png" id="17"]
+[ext_resource type="Texture2D" uid="uid://jj3g1tps3pej" path="res://assets/tiles/kenney/processed/crop_N.png" id="18"]
+[ext_resource type="Texture2D" uid="uid://du1bbxjgtbfjd" path="res://assets/tiles/kenney/processed/crop_S.png" id="19"]
+[ext_resource type="Texture2D" uid="uid://cyab57r3b0bxp" path="res://assets/tiles/kenney/processed/crop_W.png" id="20"]
+[ext_resource type="Texture2D" uid="uid://b5ay6wc5f4nr1" path="res://assets/tiles/kenney/processed/dirt_E.png" id="21"]
+[ext_resource type="Texture2D" uid="uid://mii74gh0euuj" path="res://assets/tiles/kenney/processed/dirt_N.png" id="22"]
+[ext_resource type="Texture2D" uid="uid://cvw7e87yaj3x7" path="res://assets/tiles/kenney/processed/dirt_S.png" id="23"]
+[ext_resource type="Texture2D" uid="uid://diryc3hehv1y8" path="res://assets/tiles/kenney/processed/dirt_W.png" id="24"]
+[ext_resource type="Texture2D" uid="uid://cx472wsxto4p4" path="res://assets/tiles/kenney/processed/ground_E.png" id="25"]
+[ext_resource type="Texture2D" uid="uid://plpl2q22idwm" path="res://assets/tiles/kenney/processed/ground_N.png" id="26"]
+[ext_resource type="Texture2D" uid="uid://daq13uvpnd8f1" path="res://assets/tiles/kenney/processed/ground_S.png" id="27"]
+[ext_resource type="Texture2D" uid="uid://c7gc60ax28526" path="res://assets/tiles/kenney/processed/ground_W.png" id="28"]
+[ext_resource type="Texture2D" uid="uid://xybem76r06sl" path="res://assets/tiles/kenney/processed/tree_large_E.png" id="29"]
+[ext_resource type="Texture2D" uid="uid://dvylesbnwedg2" path="res://assets/tiles/kenney/processed/tree_large_N.png" id="30"]
+[ext_resource type="Texture2D" uid="uid://b7mp3hh6mj1si" path="res://assets/tiles/kenney/processed/tree_large_S.png" id="31"]
+[ext_resource type="Texture2D" uid="uid://bsd3hihgwu4gn" path="res://assets/tiles/kenney/processed/tree_large_W.png" id="32"]
+[ext_resource type="Texture2D" uid="uid://doaqmob0sj4tb" path="res://assets/tiles/kenney/processed/tree_small_E.png" id="33"]
+[ext_resource type="Texture2D" uid="uid://dd5llv2oa8ei2" path="res://assets/tiles/kenney/processed/tree_small_N.png" id="34"]
+[ext_resource type="Texture2D" uid="uid://c2fhgpkb2gf8c" path="res://assets/tiles/kenney/processed/tree_small_S.png" id="35"]
+[ext_resource type="Texture2D" uid="uid://rvssbe4i14ce" path="res://assets/tiles/kenney/processed/tree_small_W.png" id="36"]
+[ext_resource type="Texture2D" uid="uid://c44fglsbv4d8x" path="res://assets/tiles/kenney/processed/water_curve_E.png" id="37"]
+[ext_resource type="Texture2D" uid="uid://bra2uhgp1mcc8" path="res://assets/tiles/kenney/processed/water_curve_N.png" id="38"]
+[ext_resource type="Texture2D" uid="uid://0nnf5jk53lfg" path="res://assets/tiles/kenney/processed/water_curve_S.png" id="39"]
+[ext_resource type="Texture2D" uid="uid://dvwxbpa4ggdnq" path="res://assets/tiles/kenney/processed/water_curve_W.png" id="40"]
+[ext_resource type="Texture2D" uid="uid://bosn8vg8v6vcx" path="res://assets/tiles/kenney/processed/water_river_E.png" id="41"]
+[ext_resource type="Texture2D" uid="uid://dbivdq4m7dfx1" path="res://assets/tiles/kenney/processed/water_river_N.png" id="42"]
+[ext_resource type="Texture2D" uid="uid://bl3miul4bq5wb" path="res://assets/tiles/kenney/processed/water_river_S.png" id="43"]
+[ext_resource type="Texture2D" uid="uid://8ep3qcjfk5eu" path="res://assets/tiles/kenney/processed/water_river_W.png" id="44"]
 
 [sub_resource type="TileSetAtlasSource" id="Source_0"]
 texture = ExtResource("1")
@@ -244,26 +240,6 @@ texture = ExtResource("44")
 texture_region_size = Vector2i(256, 352)
 0:0/0 = 0
 
-[sub_resource type="TileSetAtlasSource" id="Source_44"]
-texture = ExtResource("45")
-texture_region_size = Vector2i(256, 352)
-0:0/0 = 0
-
-[sub_resource type="TileSetAtlasSource" id="Source_45"]
-texture = ExtResource("46")
-texture_region_size = Vector2i(256, 352)
-0:0/0 = 0
-
-[sub_resource type="TileSetAtlasSource" id="Source_46"]
-texture = ExtResource("47")
-texture_region_size = Vector2i(256, 352)
-0:0/0 = 0
-
-[sub_resource type="TileSetAtlasSource" id="Source_47"]
-texture = ExtResource("48")
-texture_region_size = Vector2i(256, 352)
-0:0/0 = 0
-
 [sub_resource type="TileSetAtlasSource" id="Source_5"]
 texture = ExtResource("6")
 texture_region_size = Vector2i(256, 352)
@@ -337,7 +313,3 @@ sources/40 = SubResource("Source_40")
 sources/41 = SubResource("Source_41")
 sources/42 = SubResource("Source_42")
 sources/43 = SubResource("Source_43")
-sources/44 = SubResource("Source_44")
-sources/45 = SubResource("Source_45")
-sources/46 = SubResource("Source_46")
-sources/47 = SubResource("Source_47")

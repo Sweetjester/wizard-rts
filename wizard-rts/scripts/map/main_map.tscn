@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://c55e5b81k5mcw" path="res://scripts/map/map_manager.gd" id="1_yq3ld"]
 [ext_resource type="Script" uid="uid://co8oyntpicxw5" path="res://scripts/camera/camera_controller.gd" id="2_v4mqy"]
 [ext_resource type="Script" uid="uid://bvwn3wmb3oqhv" path="res://scripts/map/map_zone.gd" id="3_r0n1a"]
-[ext_resource type="TileSet" uid="uid://cfqu2mlvmirkj" path="res://assets/tiles/kenney/tilesets/sunken_grove.tres" id="5_r0n1a"]
+[ext_resource type="TileSet" uid="uid://cgj14ge86d4v" path="res://assets/tiles/voxel/voxel_tileset.tres" id="5_r0n1a"]
 [ext_resource type="Script" uid="uid://gg25pgpw7q26" path="res://scripts/map/map_generator.gd" id="18_se0pv"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_xow3s"]
@@ -13,6 +13,7 @@
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_0j1e8"]
 
 [node name="Node2D" type="Node2D" unique_id=2018844996]
+y_sort_enabled = true
 script = ExtResource("1_yq3ld")
 
 [node name="Camera2D" type="Camera2D" parent="." unique_id=1773307838]
@@ -49,5 +50,6 @@ shape = SubResource("RectangleShape2D_0j1e8")
 script = ExtResource("18_se0pv")
 
 [node name="TileMapLayer" type="TileMapLayer" parent="." unique_id=1062693612]
+y_sort_enabled = true
 tile_map_data = PackedByteArray("AAAGAAEAAgAAAAAAAAAFAP//AgAAAAAAAAAGAP7/AgAAAAAAAAAHAP7/AgAAAAAAAAAHAP//AgAAAAAAAAAIAAAAAgAAAAAAAAAEAAMAAgAAAAAAAAAEAAIAAgAAAAAAAAADAAAAAgAAAAAAAAADAP//AgAAAAAAAAAHAAMAAgAAAAAAAAAHAAIAAgAAAAAAAAA=")
 tile_set = ExtResource("5_r0n1a")
