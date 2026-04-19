@@ -322,7 +322,7 @@ texture_region_size = Vector2i(111, 128)
 [resource]
 tile_shape = 1
 tile_layout = 5
-tile_size = Vector2i(111, 55)
+tile_size = Vector2i(111, 64)
 sources/0 = SubResource("Source_0")
 sources/1 = SubResource("Source_1")
 sources/2 = SubResource("Source_2")
