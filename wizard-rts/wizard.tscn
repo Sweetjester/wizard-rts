@@ -1,0 +1,14 @@
+[gd_scene format=3 uid="uid://yvd6jodnc1yg"]
+
+[ext_resource type="Script" uid="uid://bq12wewf4uwma" path="res://scripts/wizard.gd" id="1_0isxx"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_xxhrx"]
+radius = 12.0
+
+[node name="Wizard" type="CharacterBody2D" unique_id=1123077442]
+collision_layer = 2
+collision_mask = 2
+script = ExtResource("1_0isxx")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=693806092]
+shape = SubResource("CircleShape2D_xxhrx")

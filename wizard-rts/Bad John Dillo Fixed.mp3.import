@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://chn6dc4d1upb2"
+path="res://.godot/imported/Bad John Dillo Fixed.mp3-a44a7e03561c61b7c6913e9caa57869b.mp3str"
+
+[deps]
+
+source_file="res://Bad John Dillo Fixed.mp3"
+dest_files=["res://.godot/imported/Bad John Dillo Fixed.mp3-a44a7e03561c61b7c6913e9caa57869b.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

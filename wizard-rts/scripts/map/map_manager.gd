@@ -6,8 +6,11 @@ var economy_zones: Array = []
 var spawn_safe_zones: Array = []
 var enemy_spawn_zones: Array = []
 var high_ground_zones: Array = []
+@export var selection_seed: int = 20260425
+var _rng := DeterministicRng.new()
 
 func _ready() -> void:
+	_rng = DeterministicRng.new(selection_seed)
 	call_deferred("_register_zones")
 
 func _register_zones() -> void:
@@ -38,7 +41,7 @@ func get_random_spawn_position() -> Vector2:
 	if spawn_safe_zones.is_empty():
 		push_warning("[MapManager] No spawn safe zones found — defaulting to origin")
 		return Vector2.ZERO
-	var zone = spawn_safe_zones[randi() % spawn_safe_zones.size()]
+	var zone = spawn_safe_zones[_rng.range_int(0, spawn_safe_zones.size() - 1)]
 	return zone["position"]
 
 func get_economy_plots() -> Array:
