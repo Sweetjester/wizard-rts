@@ -1,6 +1,7 @@
 extends "res://scripts/units/rts_unit.gd"
 
 func _ready() -> void:
+	unit_archetype = &"life_treant"
 	super()
 	move_speed = 145.0
 	selection_radius = 20.0

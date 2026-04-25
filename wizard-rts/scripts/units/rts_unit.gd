@@ -6,6 +6,12 @@ extends CharacterBody2D
 @export var terrain_path: NodePath = NodePath("../MapGenerator")
 @export var collision_separation: float = 18.0
 @export var separation_bucket_size: float = 96.0
+@export var owner_player_id: int = 1
+@export var unit_archetype: StringName = &"life_treant"
+@export var max_health: int = 80
+@export var attack_damage: int = 8
+@export var attack_range: float = 96.0
+@export var attack_cooldown: float = 1.0
 
 static var _registered_units: Array[Node2D] = []
 static var _spatial_frame := -1
@@ -17,10 +23,20 @@ var target_pos := Vector2.ZERO
 var moving := false
 var path: Array[Vector2] = []
 var terrain: Node
+var simulation_entity_id: int = 0
+var health: int = 80
+var unit_state: StringName = &"idle"
+var attack_target: Node2D = null
+var evolution_xp: float = 0.0
+var evolution_level: int = 1
+var stunned_until_msec: int = 0
+var _attack_elapsed: float = 0.0
 var _last_z_cell_y := 999999
 
 func _ready() -> void:
 	target_pos = global_position
+	_apply_catalog_definition()
+	health = max_health
 	terrain = get_node_or_null(terrain_path)
 	add_to_group("selectable_units")
 	add_to_group("units")
@@ -38,6 +54,8 @@ func is_inside_selection_rect(rect: Rect2) -> bool:
 	return rect.has_point(global_position)
 
 func issue_move_order(world_pos: Vector2) -> void:
+	attack_target = null
+	unit_state = &"moving"
 	if terrain == null:
 		path = [world_pos]
 	else:
@@ -51,6 +69,8 @@ func issue_move_order_offset(world_pos: Vector2, offset: Vector2) -> void:
 	issue_move_order(world_pos + offset)
 
 func issue_shared_path_order(shared_path: Array[Vector2], offset: Vector2) -> void:
+	attack_target = null
+	unit_state = &"moving"
 	path.clear()
 	for point in shared_path:
 		path.append(point + offset)
@@ -60,10 +80,16 @@ func issue_shared_path_order(shared_path: Array[Vector2], offset: Vector2) -> vo
 	queue_redraw()
 
 func _physics_process(delta: float) -> void:
+	if _is_stunned():
+		velocity = Vector2.ZERO
+		move_and_slide()
+		return
 	_update_z_index()
 	if path.is_empty():
 		velocity = _separation_velocity()
 		moving = false
+		if attack_target == null:
+			unit_state = &"idle"
 		move_and_slide()
 		return
 
@@ -75,11 +101,152 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector2.ZERO
 		path.pop_front()
 		moving = not path.is_empty()
+		if not moving:
+			unit_state = &"idle"
 		queue_redraw()
 		return
 
 	velocity = dir.normalized() * move_speed + _separation_velocity()
 	move_and_slide()
+
+func issue_attack_target(target: Node2D) -> void:
+	if target == null or not is_instance_valid(target):
+		return
+	attack_target = target
+	path.clear()
+	moving = false
+	unit_state = &"attacking"
+
+func issue_attack_move_order(world_pos: Vector2) -> void:
+	issue_move_order(world_pos)
+	unit_state = &"attack_move"
+
+func rts_combat_tick(delta: float, nearby_units: Array[Node2D]) -> void:
+	if health <= 0 or _is_stunned():
+		return
+	_attack_elapsed += delta
+	if attack_target != null and (not is_instance_valid(attack_target) or not _is_enemy_unit(attack_target)):
+		attack_target = null
+	if attack_target == null:
+		attack_target = _find_nearest_enemy(nearby_units)
+	if attack_target == null:
+		return
+	var distance := global_position.distance_to(attack_target.global_position)
+	if distance > attack_range:
+		if unit_state == &"attacking" or unit_state == &"attack_move":
+			_chase_attack_target()
+		return
+	path.clear()
+	moving = false
+	unit_state = &"attacking"
+	if _attack_elapsed < attack_cooldown:
+		return
+	_attack_elapsed = 0.0
+	if attack_target.has_method("take_damage"):
+		var casts := 2 if bool(UnitCatalog.get_definition(unit_archetype).get("dual_cast", false)) else 1
+		for _i in casts:
+			if is_instance_valid(attack_target):
+				attack_target.take_damage(attack_damage, self)
+				_gain_evolution_xp(float(attack_damage) * 0.6)
+		var heal := int(UnitCatalog.get_definition(unit_archetype).get("heal_per_attack", 0))
+		if heal > 0:
+			heal_damage(heal)
+
+func _chase_attack_target() -> void:
+	if attack_target == null:
+		return
+	if terrain == null:
+		path = [attack_target.global_position]
+	else:
+		path = terrain.find_path_world(global_position, attack_target.global_position)
+	moving = not path.is_empty()
+	if moving:
+		target_pos = path[0]
+	unit_state = &"attacking"
+
+func take_damage(amount: int, _source: Node = null) -> void:
+	health = maxi(0, health - amount)
+	_gain_evolution_xp(float(amount) * 0.35)
+	queue_redraw()
+	if health <= 0:
+		queue_free()
+
+func is_alive() -> bool:
+	return health > 0
+
+func heal_damage(amount: int) -> void:
+	health = mini(max_health, health + amount)
+	queue_redraw()
+
+func stun_for_seconds(seconds: float) -> void:
+	stunned_until_msec = Time.get_ticks_msec() + int(seconds * 1000.0)
+	path.clear()
+	moving = false
+	unit_state = &"stunned"
+	queue_redraw()
+
+func salvage_value() -> int:
+	return int(float(UnitCatalog.cost_bio(unit_archetype)) * 0.6) + int(float(max_health) * 0.12)
+
+func _gain_evolution_xp(amount: float) -> void:
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	var needed := float(definition.get("evolution_xp_required", 0.0))
+	if needed <= 0.0:
+		return
+	evolution_xp += amount
+	while evolution_xp >= needed:
+		evolution_xp -= needed
+		_evolve(definition)
+		definition = UnitCatalog.get_definition(unit_archetype)
+		needed = float(definition.get("evolution_xp_required", 0.0))
+		if needed <= 0.0:
+			break
+
+func _evolve(definition: Dictionary) -> void:
+	var evolves_to := StringName(definition.get("evolves_to", ""))
+	if not String(evolves_to).is_empty():
+		unit_archetype = evolves_to
+	_apply_catalog_definition()
+	evolution_level += 1
+	max_health = int(float(max_health) * (1.18 + float(evolution_level) * 0.03))
+	health = max_health
+	move_speed += float(definition.get("evolution_speed_bonus", 0.0))
+	attack_damage = int(float(attack_damage) * 1.15)
+	queue_redraw()
+
+func _is_stunned() -> bool:
+	if stunned_until_msec <= 0:
+		return false
+	if Time.get_ticks_msec() <= stunned_until_msec:
+		return true
+	stunned_until_msec = 0
+	if unit_state == &"stunned":
+		unit_state = &"idle"
+	return false
+
+func _is_enemy_unit(other: Node) -> bool:
+	return other != self and other is Node2D and other.get("owner_player_id") != owner_player_id and other.has_method("take_damage")
+
+func _find_nearest_enemy(units: Array[Node2D]) -> Node2D:
+	var best: Node2D = null
+	var best_distance := INF
+	for unit in units:
+		if not is_instance_valid(unit) or not _is_enemy_unit(unit):
+			continue
+		var distance := global_position.distance_squared_to(unit.global_position)
+		if distance < best_distance:
+			best = unit
+			best_distance = distance
+	return best
+
+func _apply_catalog_definition() -> void:
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	if definition.is_empty():
+		return
+	max_health = int(definition.get("max_hp", max_health))
+	attack_damage = int(definition.get("attack_damage", attack_damage))
+	attack_range = float(definition.get("attack_range_cells", 1)) * 64.0
+	attack_cooldown = float(definition.get("attack_cooldown_ticks", 20)) / 20.0
 
 func _separation_velocity() -> Vector2:
 	var push := Vector2.ZERO

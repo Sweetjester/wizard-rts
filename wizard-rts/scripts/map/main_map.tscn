@@ -1,4 +1,4 @@
-[gd_scene format=4 uid="uid://cadog5s2ne74q"]
+[gd_scene load_steps=25 format=4 uid="uid://cadog5s2ne74q"]
 
 [ext_resource type="Script" uid="uid://c55e5b81k5mcw" path="res://scripts/map/map_manager.gd" id="1_yq3ld"]
 [ext_resource type="Script" uid="uid://co8oyntpicxw5" path="res://scripts/camera/camera_controller.gd" id="2_v4mqy"]
@@ -15,6 +15,12 @@
 [ext_resource type="Script" path="res://scripts/map/lighting_layer.gd" id="16_light"]
 [ext_resource type="Script" path="res://scripts/map/sunlight_shadows.gd" id="17_sun"]
 [ext_resource type="Script" uid="uid://gg25pgpw7q26" path="res://scripts/map/map_generator.gd" id="18_se0pv"]
+[ext_resource type="Script" path="res://scripts/core/command_dispatcher.gd" id="19_cmd"]
+[ext_resource type="Script" path="res://scripts/core/combat_system.gd" id="20_combat"]
+[ext_resource type="Script" path="res://scripts/core/economy_manager.gd" id="21_economy"]
+[ext_resource type="Script" path="res://scripts/core/build_system.gd" id="22_build"]
+[ext_resource type="Script" path="res://scripts/core/wave_director.gd" id="23_wave"]
+[ext_resource type="Script" path="res://scripts/ui/rts_hud.gd" id="24_hud"]
 
 [node name="Node2D" type="Node2D" unique_id=2018844996]
 script = ExtResource("1_yq3ld")
@@ -29,6 +35,21 @@ script = ExtResource("8_iuo1j")
 [node name="MultiplayerSession" type="Node" parent="." unique_id=1679202663]
 script = ExtResource("9_pmc20")
 simulation_runner_path = NodePath("../SimulationRunner")
+
+[node name="CommandDispatcher" type="Node" parent="."]
+script = ExtResource("19_cmd")
+
+[node name="CombatSystem" type="Node" parent="."]
+script = ExtResource("20_combat")
+
+[node name="EconomyManager" type="Node" parent="."]
+script = ExtResource("21_economy")
+
+[node name="BuildSystem" type="Node2D" parent="."]
+script = ExtResource("22_build")
+
+[node name="WaveDirector" type="Node" parent="."]
+script = ExtResource("23_wave")
 
 [node name="MapGenerator" type="Node" parent="." unique_id=2107341182]
 script = ExtResource("18_se0pv")
@@ -73,3 +94,6 @@ script = ExtResource("14_plot")
 
 [node name="MapBootstrap" type="Node" parent="." unique_id=1262281657]
 script = ExtResource("13_boot")
+
+[node name="RTSHud" type="CanvasLayer" parent="."]
+script = ExtResource("24_hud")

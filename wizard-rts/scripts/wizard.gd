@@ -3,10 +3,6 @@ extends "res://scripts/units/rts_unit.gd"
 const LIFE_WIZARD_SHEET: Texture2D = preload("res://assets/units/vampire_mushroom_forest/life_wizard_sheet.png")
 const FIRE_WIZARD_SHEET: Texture2D = preload("res://assets/units/vampire_mushroom_forest/fire_wizard_sheet.png")
 
-@export var treant_scene: PackedScene = preload("res://scenes/units/treant.tscn")
-@export var summon_count: int = 12
-@export var summon_radius_cells: int = 3
-
 @onready var art_sprite: Sprite2D = get_node_or_null("ArtSprite")
 
 var _anim_elapsed := 0.0
@@ -14,6 +10,7 @@ var _anim_frame := 0
 var _wizard_class_id := "bad_kon_willow"
 
 func _ready() -> void:
+	unit_archetype = &"fire_wizard" if _get_session_wizard_class() == "hellfire_baby" else &"life_wizard"
 	super()
 	move_speed = 190.0
 	selection_radius = 26.0
@@ -21,15 +18,19 @@ func _ready() -> void:
 	_apply_wizard_art()
 	print("[Wizard] Ready at ", global_position)
 
+func _get_session_wizard_class() -> String:
+	var session := get_node_or_null("/root/GameSession")
+	if session == null:
+		return _wizard_class_id
+	return String(session.get("wizard_class_id"))
+
 func _process(delta: float) -> void:
 	_update_sprite_animation(delta)
 
 func _apply_wizard_art() -> void:
 	if art_sprite == null:
 		return
-	var session := get_node_or_null("/root/GameSession")
-	if session != null:
-		_wizard_class_id = String(session.get("wizard_class_id"))
+	_wizard_class_id = _get_session_wizard_class()
 	art_sprite.texture = FIRE_WIZARD_SHEET if _wizard_class_id == "hellfire_baby" else LIFE_WIZARD_SHEET
 	art_sprite.hframes = 4
 	art_sprite.vframes = 2
@@ -46,36 +47,6 @@ func _update_sprite_animation(delta: float) -> void:
 	_anim_frame = (_anim_frame + 1) % 4
 	var row := 1 if moving else 0
 	art_sprite.frame = row * 4 + _anim_frame
-
-func summon_treants() -> Array[Node]:
-	var summoned: Array[Node] = []
-	if terrain == null or treant_scene == null:
-		return summoned
-
-	var origin: Vector2i = terrain.world_to_cell(global_position)
-	var cells := _summon_cells(origin)
-	var parent := get_parent()
-	for cell in cells:
-		var treant := treant_scene.instantiate()
-		parent.add_child(treant)
-		treant.global_position = terrain.cell_to_world(cell)
-		summoned.append(treant)
-	print("[Wizard] Summoned ", summoned.size(), " treants")
-	return summoned
-
-func _summon_cells(origin: Vector2i) -> Array[Vector2i]:
-	var cells: Array[Vector2i] = []
-	for radius in range(1, summon_radius_cells + 1):
-		for x in range(origin.x - radius, origin.x + radius + 1):
-			for y in range(origin.y - radius, origin.y + radius + 1):
-				if cells.size() >= summon_count:
-					return cells
-				if abs(x - origin.x) != radius and abs(y - origin.y) != radius:
-					continue
-				var cell := Vector2i(x, y)
-				if terrain.is_walkable_cell(cell):
-					cells.append(cell)
-	return cells
 
 func _draw() -> void:
 	if has_node("ArtSprite"):

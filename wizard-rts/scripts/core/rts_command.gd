@@ -6,7 +6,11 @@ enum Type {
 	SPAWN_ENTITY,
 	MOVE_UNITS,
 	STOP_UNITS,
-	ATTACK_MOVE
+	ATTACK_MOVE,
+	ATTACK_TARGET,
+	BUILD_STRUCTURE,
+	PRODUCE_UNIT,
+	SMART_ORDER
 }
 
 var command_id: int = 0
@@ -16,6 +20,7 @@ var type: Type = Type.NONE
 var entity_ids: Array[int] = []
 var target_cell: Vector2i = Vector2i.ZERO
 var archetype: StringName = &"worker"
+var target_entity_id: int = 0
 var payload: Dictionary = {}
 
 func to_dict() -> Dictionary:
@@ -27,6 +32,7 @@ func to_dict() -> Dictionary:
 		"entity_ids": entity_ids.duplicate(),
 		"target_cell": [target_cell.x, target_cell.y],
 		"archetype": String(archetype),
+		"target_entity_id": target_entity_id,
 		"payload": payload.duplicate(true),
 	}
 
@@ -42,6 +48,7 @@ static func from_dict(data: Dictionary) -> RTSCommand:
 	if target is Array and target.size() >= 2:
 		command.target_cell = Vector2i(int(target[0]), int(target[1]))
 	command.archetype = StringName(data.get("archetype", "worker"))
+	command.target_entity_id = int(data.get("target_entity_id", 0))
 	command.payload = data.get("payload", {}).duplicate(true)
 	return command
 

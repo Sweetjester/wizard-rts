@@ -4,14 +4,17 @@ extends Node2D
 @export var drag_threshold: float = 8.0
 @export var formation_spacing: float = 34.0
 @export var shared_path_threshold: int = 16
+@export var command_dispatcher_path: NodePath = NodePath("../CommandDispatcher")
 
 var selected_units: Array[Node] = []
+var command_dispatcher: CommandDispatcher
 var _dragging := false
 var _drag_start := Vector2.ZERO
 var _drag_end := Vector2.ZERO
 
 func _ready() -> void:
 	z_index = 3500
+	command_dispatcher = get_node_or_null(command_dispatcher_path)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
@@ -38,14 +41,10 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		_order_selected_units(get_global_mouse_position())
 
 func _handle_key(event: InputEventKey) -> void:
-	if event.physical_keycode == KEY_Q:
-		for unit in selected_units:
-			if unit.has_method("summon_treants"):
-				var summoned: Array = unit.call("summon_treants")
-				for new_unit in summoned:
-					if new_unit.has_method("set_selected"):
-						new_unit.set_selected(true)
-						selected_units.append(new_unit)
+	if event.physical_keycode == KEY_S:
+		if command_dispatcher != null:
+			command_dispatcher.submit_stop(selected_units)
+		return
 
 func _select_units(rect: Rect2) -> void:
 	for unit in selected_units:
@@ -74,6 +73,9 @@ func _order_selected_units(target: Vector2) -> void:
 	var shared_path: Array[Vector2] = []
 	if selected_units.size() >= shared_path_threshold:
 		shared_path = _shared_group_path(target)
+	if command_dispatcher != null:
+		command_dispatcher.submit_move(selected_units, target, offsets, shared_path)
+		return
 	for i in selected_units.size():
 		var unit: Node = selected_units[i]
 		if is_instance_valid(unit) and not shared_path.is_empty() and unit.has_method("issue_shared_path_order"):

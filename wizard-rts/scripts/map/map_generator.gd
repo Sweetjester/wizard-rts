@@ -71,6 +71,7 @@ var lakes: Array[Dictionary] = []
 var ramps: Array[Rect2i] = []
 var landmarks: Array[Dictionary] = []
 var road_cells: Dictionary = {}
+var dynamic_blocked_cells: Dictionary = {}
 
 var spawn_positions: Array = []
 var enemy_spawns:    Array = []
@@ -334,7 +335,22 @@ func is_in_bounds(cell: Vector2i) -> bool:
 func is_walkable_cell(cell: Vector2i) -> bool:
 	if not is_in_bounds(cell):
 		return false
+	if dynamic_blocked_cells.has(cell):
+		return false
 	return grid[cell.x][cell.y] != E_WATER and grid[cell.x][cell.y] != E_BLOCKED
+
+func add_dynamic_blockers(cells: Array[Vector2i]) -> void:
+	for cell in cells:
+		if is_in_bounds(cell):
+			dynamic_blocked_cells[cell] = true
+			if _pathfinder.is_in_boundsv(cell):
+				_pathfinder.set_point_solid(cell, true)
+
+func remove_dynamic_blockers(cells: Array[Vector2i]) -> void:
+	for cell in cells:
+		dynamic_blocked_cells.erase(cell)
+		if is_in_bounds(cell) and _pathfinder.is_in_boundsv(cell):
+			_pathfinder.set_point_solid(cell, not is_walkable_cell(cell))
 
 func world_to_cell(world_position: Vector2) -> Vector2i:
 	return layer_low.local_to_map(layer_low.to_local(world_position))

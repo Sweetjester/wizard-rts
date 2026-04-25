@@ -1,6 +1,8 @@
 extends "res://scripts/units/rts_unit.gd"
 
 func _ready() -> void:
+	owner_player_id = 2
+	unit_archetype = &"vampire_mushroom_thrall"
 	super()
 	move_speed = 130.0
 	selection_radius = 18.0
