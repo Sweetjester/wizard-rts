@@ -3,10 +3,10 @@ extends Node2D
 
 @export var map_path: NodePath = NodePath("../MapGenerator")
 @export var style_seed: int = 0
-@export var mushroom_density: int = 170
-@export var canopy_density: int = 230
-@export var wisp_density: int = 18
-@export var redraw_interval: float = 0.16
+@export var mushroom_density: int = 34
+@export var canopy_density: int = 48
+@export var wisp_density: int = 5
+@export var redraw_interval: float = 0.75
 
 const ABYSSAL_MOSS := Color("#0A1612")
 const DAMP_EARTH := Color("#142420")
@@ -35,6 +35,7 @@ const PALE_MUSHROOM := Color("#D6C7AE")
 var map: Node
 var mushrooms: Array[Dictionary] = []
 var canopies: Array[Dictionary] = []
+var giant_mushrooms: Array[Dictionary] = []
 var blood_blooms: Array[Dictionary] = []
 var wisps: Array[Dictionary] = []
 var pools: Array[Dictionary] = []
@@ -50,7 +51,7 @@ func _ready() -> void:
 		mushroom_density = int(float(mushroom_density) * 0.55)
 		canopy_density = int(float(canopy_density) * 0.55)
 		wisp_density = int(float(wisp_density) * 0.5)
-		redraw_interval = 0.32
+		redraw_interval = 1.0
 	call_deferred("_rebuild")
 
 func _process(delta: float) -> void:
@@ -84,6 +85,7 @@ func _apply_tile_palette() -> void:
 func _build_features() -> void:
 	mushrooms.clear()
 	canopies.clear()
+	giant_mushrooms.clear()
 	blood_blooms.clear()
 	wisps.clear()
 	pools.clear()
@@ -109,8 +111,15 @@ func _build_features() -> void:
 
 	for zone in map.get_economy_zones():
 		_seed_economy_bloom(zone["rect"])
+	var choke_index := 0
 	for choke in map.get_chokepoints():
-		_add_wisp(choke)
+		if choke_index % 14 == 0:
+			_add_wisp(choke)
+		choke_index += 1
+	if map.has_method("get_landmarks"):
+		for landmark in map.get_landmarks():
+			if String(landmark.get("kind", "")) == "giant_mushroom":
+				_add_giant_mushroom(landmark)
 
 func _draw() -> void:
 	if map == null:
@@ -124,6 +133,8 @@ func _draw() -> void:
 		_draw_blood_bloom(bloom)
 	for canopy in canopies:
 		_draw_canopy(canopy)
+	for giant in giant_mushrooms:
+		_draw_giant_mushroom(giant)
 	for mushroom in mushrooms:
 		_draw_mushroom(mushroom)
 	for wisp in wisps:
@@ -167,6 +178,19 @@ func _draw_mushroom(mushroom: Dictionary) -> void:
 	draw_circle(pos + Vector2(-cap_w * 0.24, -stem_h - 1), cap_h * 0.4, _alpha(SPORE_BLOOM, 0.75))
 	if mushroom["glow"]:
 		draw_circle(pos + Vector2(0, -stem_h + 1), cap_w * 0.75, _alpha(SPORE_GLOW, 0.16))
+
+func _draw_giant_mushroom(mushroom: Dictionary) -> void:
+	var pos: Vector2 = mushroom["pos"]
+	var radius: float = mushroom["radius"]
+	var stem_h: float = mushroom["height"]
+	draw_line(pos + Vector2(0, 20), pos + Vector2(0, -stem_h), PALE_MUSHROOM.darkened(0.08), max(10.0, radius * 0.16))
+	draw_circle(pos + Vector2(0, -stem_h), radius, _alpha(VAMPIRE_BLOOM, 0.96))
+	draw_circle(pos + Vector2(-radius * 0.26, -stem_h - radius * 0.12), radius * 0.45, _alpha(SPORE_BLOOM, 0.64))
+	draw_circle(pos + Vector2(radius * 0.12, -stem_h + radius * 0.02), radius * 0.18, _alpha(SOUL_SPARK, 0.34))
+	for i in 9:
+		var angle := float(i) * TAU / 9.0
+		var dot := pos + Vector2(cos(angle) * radius * 0.46, -stem_h + sin(angle) * radius * 0.22)
+		draw_circle(dot, radius * 0.035, _alpha(PALE_MUSHROOM, 0.75))
 
 func _draw_blood_bloom(bloom: Dictionary) -> void:
 	var pos: Vector2 = bloom["pos"]
@@ -222,6 +246,14 @@ func _add_mushroom(cell: Vector2i, elevation: int) -> void:
 		"glow": h % 9 == 0,
 	})
 
+func _add_giant_mushroom(landmark: Dictionary) -> void:
+	var cell: Vector2i = landmark["cell"]
+	giant_mushrooms.append({
+		"pos": map.cell_to_world(cell),
+		"radius": 42.0 + float(landmark.get("radius", 2)) * 14.0,
+		"height": 58.0 + float(landmark.get("height", 2)) * 16.0,
+	})
+
 func _add_blood_bloom(cell: Vector2i, _elevation: int) -> void:
 	blood_blooms.append({
 		"pos": map.cell_to_world(cell) + _offset(cell, 8.0),
@@ -244,21 +276,25 @@ func _seed_economy_bloom(rect: Rect2i) -> void:
 	for x in range(rect.position.x, rect.end.x):
 		for y in range(rect.position.y, rect.end.y):
 			var cell := Vector2i(x, y)
-			if map.is_walkable_cell(cell) and _roll(cell, 420):
+			if map.is_walkable_cell(cell) and _roll(cell, 180):
 				_add_blood_bloom(cell, map.grid[x][y])
-			elif map.is_walkable_cell(cell) and _roll(cell, 260):
+			elif map.is_walkable_cell(cell) and _roll(cell, 140):
 				_add_mushroom(cell, map.grid[x][y])
 
 func _is_blood_site(cell: Vector2i, elevation: int) -> bool:
 	if elevation == map.E_WATER:
 		return false
-	return (cell.x * 7 + cell.y * 11) % 29 == 0 or _roll(cell, 16)
+	return (cell.x * 7 + cell.y * 11) % 97 == 0 or _roll(cell, 5)
 
 func _is_forest_edge(cell: Vector2i) -> bool:
 	return cell.x <= 5 or cell.x >= map.MAP_W - 6 or cell.y <= 5 or cell.y >= map.MAP_H - 6
 
 func _is_base_spawn(cell: Vector2i) -> bool:
-	return cell.x >= 20 and cell.x <= 30 and cell.y >= 32 and cell.y <= 38
+	for zone in map.get_economy_zones():
+		var rect: Rect2i = zone["rect"]
+		if rect.has_point(cell):
+			return true
+	return false
 
 func _near_water(cell: Vector2i) -> bool:
 	for x in range(cell.x - 2, cell.x + 3):

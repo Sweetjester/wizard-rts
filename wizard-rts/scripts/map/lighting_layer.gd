@@ -2,7 +2,7 @@ class_name LightingLayer
 extends Node2D
 
 @export var map_path: NodePath = NodePath("../MapGenerator")
-@export var update_interval: float = 0.12
+@export var update_interval: float = 0.5
 
 const AMBIENT := Color("#050807")
 const LIFE_GLOW := Color("#7BC47F")
@@ -17,7 +17,7 @@ func _ready() -> void:
 	z_index = 2500
 	var display_manager := get_node_or_null("/root/DisplayManager")
 	if display_manager != null and bool(display_manager.get("performance_mode")):
-		update_interval = 0.24
+		update_interval = 0.75
 	call_deferred("_rebuild")
 
 func _process(delta: float) -> void:
@@ -66,9 +66,14 @@ func _draw_plot_lights() -> void:
 		_draw_glow(light["pos"], float(light["radius"]) + pulse * 10.0, light["color"], 0.08)
 
 func _draw_unit_lights() -> void:
+	var unit_index := 0
 	for unit in get_tree().get_nodes_in_group("units"):
 		if not is_instance_valid(unit) or not (unit is Node2D):
 			continue
+		if unit_index % 4 != 0 and not unit.has_method("summon_treants"):
+			unit_index += 1
+			continue
+		unit_index += 1
 		var radius := 46.0
 		var color := LIFE_GLOW
 		if unit.has_method("summon_treants"):

@@ -2,7 +2,7 @@ class_name SunlightShadows
 extends Node2D
 
 @export var map_path: NodePath = NodePath("../MapGenerator")
-@export var redraw_interval: float = 0.25
+@export var redraw_interval: float = 0.75
 
 const SUN := Color("#D6C7AE")
 const SHADOW := Color("#050807")
@@ -17,7 +17,7 @@ func _ready() -> void:
 	z_index = 6
 	var display_manager := get_node_or_null("/root/DisplayManager")
 	if display_manager != null and bool(display_manager.get("performance_mode")):
-		redraw_interval = 0.5
+		redraw_interval = 1.0
 	call_deferred("_rebuild")
 
 func _process(delta: float) -> void:
@@ -38,13 +38,13 @@ func _rebuild() -> void:
 		for y in map.MAP_H:
 			var cell := Vector2i(x, y)
 			var elevation: int = map.grid[x][y]
-			if elevation >= map.E_MID and _has_lower_south_neighbor(cell):
+			if elevation >= map.E_MID and (x + y) % 3 == 0 and _has_lower_south_neighbor(cell):
 				terrain_shadows.append({
 					"pos": map.cell_to_world(cell) + Vector2(34, 36),
 					"width": 76.0 + float(elevation) * 12.0,
 					"alpha": 0.16 + float(elevation) * 0.04,
 				})
-			if elevation >= map.E_LOW and (x * 17 + y * 23) % 53 == 0:
+			if elevation >= map.E_LOW and (x * 17 + y * 23) % 173 == 0:
 				sun_patches.append({
 					"pos": map.cell_to_world(cell) + Vector2(-10, -12),
 					"radius": 34.0 + float((x + y) % 18),

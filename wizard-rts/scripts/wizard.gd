@@ -1,15 +1,51 @@
 extends "res://scripts/units/rts_unit.gd"
 
+const LIFE_WIZARD_SHEET: Texture2D = preload("res://assets/units/vampire_mushroom_forest/life_wizard_sheet.png")
+const FIRE_WIZARD_SHEET: Texture2D = preload("res://assets/units/vampire_mushroom_forest/fire_wizard_sheet.png")
+
 @export var treant_scene: PackedScene = preload("res://scenes/units/treant.tscn")
 @export var summon_count: int = 12
 @export var summon_radius_cells: int = 3
+
+@onready var art_sprite: Sprite2D = get_node_or_null("ArtSprite")
+
+var _anim_elapsed := 0.0
+var _anim_frame := 0
+var _wizard_class_id := "bad_kon_willow"
 
 func _ready() -> void:
 	super()
 	move_speed = 190.0
 	selection_radius = 26.0
 	collision_separation = 24.0
+	_apply_wizard_art()
 	print("[Wizard] Ready at ", global_position)
+
+func _process(delta: float) -> void:
+	_update_sprite_animation(delta)
+
+func _apply_wizard_art() -> void:
+	if art_sprite == null:
+		return
+	var session := get_node_or_null("/root/GameSession")
+	if session != null:
+		_wizard_class_id = String(session.get("wizard_class_id"))
+	art_sprite.texture = FIRE_WIZARD_SHEET if _wizard_class_id == "hellfire_baby" else LIFE_WIZARD_SHEET
+	art_sprite.hframes = 4
+	art_sprite.vframes = 2
+	art_sprite.frame = 0
+
+func _update_sprite_animation(delta: float) -> void:
+	if art_sprite == null:
+		return
+	var frame_time := 0.11 if moving else 0.22
+	_anim_elapsed += delta
+	if _anim_elapsed < frame_time:
+		return
+	_anim_elapsed = 0.0
+	_anim_frame = (_anim_frame + 1) % 4
+	var row := 1 if moving else 0
+	art_sprite.frame = row * 4 + _anim_frame
 
 func summon_treants() -> Array[Node]:
 	var summoned: Array[Node] = []

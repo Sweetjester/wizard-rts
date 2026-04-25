@@ -16,7 +16,7 @@ func _run() -> void:
 		push_error("Different seeds produced identical map signatures")
 		quit(1)
 		return
-	if int(first["base_plots"]) != 3 or int(first["plots"]) != 5:
+	if int(first["base_plots"]) != 3 or int(first["plots"]) < 8:
 		push_error("Expected Vampire Mushroom Forest to create base plots and authored content plots")
 		quit(1)
 		return
@@ -34,6 +34,10 @@ func _run() -> void:
 		return
 	if int(first["ramp_cells"]) < 60:
 		push_error("Expected ramps to be large enough to read clearly")
+		quit(1)
+		return
+	if int(first["landmarks"]) < 12:
+		push_error("Expected large-map landmarks with giant mushroom silhouettes")
 		quit(1)
 		return
 
@@ -74,6 +78,7 @@ func _build_summary(seed_text: String) -> Dictionary:
 		"base_plots": summary["base_plots"],
 		"economy_spaces": summary["economy_spaces"],
 		"lakes": layout.get("lakes", []).size(),
+		"landmarks": layout.get("landmarks", []).size(),
 		"ramp_cells": ramp_cells,
 		"hollow_plots_valid": hollow_plots_valid,
 		"signature": signature,

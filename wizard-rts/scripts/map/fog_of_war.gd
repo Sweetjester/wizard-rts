@@ -5,7 +5,8 @@ extends Node2D
 @export var reveal_radius_cells: int = 8
 @export var hard_fog_alpha: float = 0.82
 @export var explored_fog_alpha: float = 0.38
-@export var update_interval: float = 0.18
+@export var update_interval: float = 0.5
+@export var draw_stride: int = 4
 
 const FOG_COLOR := Color("#050807")
 
@@ -18,7 +19,8 @@ func _ready() -> void:
 	z_index = 3000
 	var display_manager := get_node_or_null("/root/DisplayManager")
 	if display_manager != null and bool(display_manager.get("performance_mode")):
-		update_interval = 0.28
+		update_interval = 0.75
+		draw_stride = 6
 	call_deferred("_rebuild")
 
 func _process(delta: float) -> void:
@@ -73,12 +75,26 @@ func _reveal_circle(center: Vector2i, radius: int) -> void:
 func _draw() -> void:
 	if map == null or explored.is_empty():
 		return
-	for x in map.MAP_W:
-		for y in map.MAP_H:
-			if visible_cells[x][y]:
+	for x in range(0, map.MAP_W, draw_stride):
+		for y in range(0, map.MAP_H, draw_stride):
+			if _block_visible(x, y):
 				continue
-			var alpha := explored_fog_alpha if explored[x][y] else hard_fog_alpha
-			draw_polygon(_cell_diamond(map.cell_to_world(Vector2i(x, y)), 1.04), PackedColorArray([_alpha(FOG_COLOR, alpha)]))
+			var alpha := explored_fog_alpha if _block_explored(x, y) else hard_fog_alpha
+			draw_polygon(_cell_diamond(map.cell_to_world(Vector2i(x, y)), float(draw_stride) * 1.08), PackedColorArray([_alpha(FOG_COLOR, alpha)]))
+
+func _block_visible(start_x: int, start_y: int) -> bool:
+	for x in range(start_x, mini(start_x + draw_stride, map.MAP_W)):
+		for y in range(start_y, mini(start_y + draw_stride, map.MAP_H)):
+			if visible_cells[x][y]:
+				return true
+	return false
+
+func _block_explored(start_x: int, start_y: int) -> bool:
+	for x in range(start_x, mini(start_x + draw_stride, map.MAP_W)):
+		for y in range(start_y, mini(start_y + draw_stride, map.MAP_H)):
+			if explored[x][y]:
+				return true
+	return false
 
 func _cell_diamond(pos: Vector2, scale: float) -> PackedVector2Array:
 	return PackedVector2Array([

@@ -3,8 +3,8 @@ extends Node2D
 
 @export var map_path: NodePath = NodePath("../MapGenerator")
 @export var pulse_speed: float = 1.35
-@export var shimmer_stride: int = 5
-@export var redraw_interval: float = 0.08
+@export var shimmer_stride: int = 18
+@export var redraw_interval: float = 0.5
 
 const AMBIENT := Color("#0A1612")
 const DEEP_POOL := Color("#0E2C32")
@@ -24,8 +24,8 @@ func _ready() -> void:
 	z_index = 5
 	var display_manager := get_node_or_null("/root/DisplayManager")
 	if display_manager != null and bool(display_manager.get("performance_mode")):
-		shimmer_stride = 9
-		redraw_interval = 0.16
+		shimmer_stride = 28
+		redraw_interval = 0.75
 	call_deferred("_rebuild")
 
 func _process(delta: float) -> void:
@@ -49,10 +49,13 @@ func _rebuild() -> void:
 				water_cells.append(cell)
 				if _is_shore_cell(cell):
 					shore_cells.append(cell)
-				if (x * 5 + y * 7) % 13 == 0:
+				if (x * 5 + y * 7) % 37 == 0:
 					light_cells.append(cell)
+	var choke_index := 0
 	for choke in map.get_chokepoints():
-		light_cells.append(choke)
+		if choke_index % 12 == 0:
+			light_cells.append(choke)
+		choke_index += 1
 	queue_redraw()
 
 func _draw() -> void:
@@ -86,7 +89,10 @@ func _draw_water_shimmer() -> void:
 		draw_line(pos + Vector2(-12, -2), pos + Vector2(12, 2), _alpha(ALGAE_BLOOM, 0.15 + shimmer * 0.12), 2.0)
 
 func _draw_water_surface() -> void:
-	for cell in water_cells:
+	for i in water_cells.size():
+		if i % 3 != 0:
+			continue
+		var cell := water_cells[i]
 		var pos: Vector2 = map.cell_to_world(cell)
 		draw_polygon(_cell_diamond(pos, 1.02), PackedColorArray([_alpha(DEEP_POOL, 0.42)]))
 		if (cell.x * 13 + cell.y * 17) % 5 == 0:
@@ -121,7 +127,12 @@ func _draw_magic_lights() -> void:
 		var pulse := 0.5 + sin(phase) * 0.5
 		draw_circle(pos, 34.0 + pulse * 10.0, _alpha(WISP_LIGHT, 0.08 + pulse * 0.05))
 		draw_circle(pos, 8.0 + pulse * 2.0, _alpha(SOUL_SPARK, 0.22 + pulse * 0.1))
+	var choke_index := 0
 	for cell in map.get_chokepoints():
+		if choke_index % 16 != 0:
+			choke_index += 1
+			continue
+		choke_index += 1
 		var pos: Vector2 = map.cell_to_world(cell)
 		draw_circle(pos, 16.0, _alpha(BLOOD_LOW, 0.2))
 

@@ -4,8 +4,8 @@ extends Node
 signal map_generated(summary: Dictionary)
 
 # ── CONFIG ─────────────────────────────────────────────────────────────────────
-const MAP_W = 50
-const MAP_H = 50
+const MAP_W = 96
+const MAP_H = 96
 
 const E_BLOCKED = -2
 const E_WATER = -1
@@ -69,6 +69,8 @@ var lk_rx := LK_RX
 var lk_ry := LK_RY
 var lakes: Array[Dictionary] = []
 var ramps: Array[Rect2i] = []
+var landmarks: Array[Dictionary] = []
+var road_cells: Dictionary = {}
 
 var spawn_positions: Array = []
 var enemy_spawns:    Array = []
@@ -91,6 +93,8 @@ func _ready() -> void:
 	_build_grid()
 	_build_plots()
 	_stamp_plots_into_grid()
+	_build_roads()
+	_build_landmarks()
 	_build_height_and_cost_maps()
 	_build_pathfinder()
 	_paint()
@@ -149,45 +153,38 @@ func _configure_map_type() -> void:
 		map_type_id = MAP_TYPE_VAMPIRE_MUSHROOM_FOREST
 
 func _configure_seeded_layout() -> void:
-	var plateau_shift := _rng.range_int(-8, 7)
-	var plateau_width_delta := _rng.range_int(-3, 4)
-	var mid_widen := _rng.range_int(-2, 6)
+	var high_shift := _rng.range_int(-10, 10)
+	var mid_shift := _rng.range_int(-8, 8)
 
-	hg_x1 = clampi(HG_X1 + plateau_shift, 12, 22)
-	hg_x2 = clampi(HG_X2 + plateau_shift + plateau_width_delta, 28, 40)
-	hg_y1 = HG_Y1 + _rng.range_int(-2, 4)
-	hg_y2 = HG_Y2 + _rng.range_int(-2, 3)
-	cp_x1 = clampi(24 + plateau_shift + _rng.range_int(-1, 1), hg_x1 + 3, hg_x2 - 5)
-	cp_x2 = cp_x1 + 8
+	hg_x1 = clampi(36 + high_shift, 22, 48)
+	hg_x2 = clampi(hg_x1 + _rng.range_int(24, 33), hg_x1 + 18, MAP_W - 9)
+	hg_y1 = clampi(8 + _rng.range_int(-3, 5), 5, 18)
+	hg_y2 = clampi(hg_y1 + _rng.range_int(20, 28), hg_y1 + 16, MAP_H - 44)
+	cp_x1 = clampi(hg_x1 + _rng.range_int(5, 12), hg_x1 + 2, hg_x2 - 8)
+	cp_x2 = cp_x1 + _rng.range_int(7, 11)
 	cp_y = hg_y2
-	ramp_y = cp_y + 4
-	mg_x1 = clampi(MG_X1 - mid_widen + _rng.range_int(-3, 3), 4, 14)
-	mg_x2 = clampi(MG_X2 + mid_widen + _rng.range_int(-3, 3), 35, MAP_W - 4)
-	mg_y1 = MG_Y1 + _rng.range_int(-3, 3)
-	mg_y2 = MG_Y2 + _rng.range_int(-4, 5)
+	ramp_y = cp_y + _rng.range_int(5, 8)
+
+	mg_x1 = clampi(10 + mid_shift, 5, 24)
+	mg_x2 = clampi(MAP_W - 12 + mid_shift, 68, MAP_W - 5)
+	mg_y1 = clampi(22 + _rng.range_int(-5, 5), 14, 34)
+	mg_y2 = clampi(MAP_H - 18 + _rng.range_int(-5, 4), 66, MAP_H - 8)
 
 	ramps.clear()
 	ramps.append(Rect2i(cp_x1, cp_y, cp_x2 - cp_x1 + 1, ramp_y - cp_y + 1))
-	var side_ramp_x := clampi(_rng.range_int(mg_x1 + 2, mg_x2 - 8), 5, MAP_W - 10)
-	var side_ramp_y := clampi(_rng.range_int(mg_y1 + 4, mg_y2 - 7), 8, MAP_H - 12)
-	ramps.append(Rect2i(side_ramp_x, side_ramp_y, 7, 4))
+	ramps.append(Rect2i(clampi(hg_x1 - 8, 5, MAP_W - 14), clampi(hg_y1 + 7, 5, MAP_H - 10), 9, 6))
+	ramps.append(Rect2i(clampi(hg_x2 - 2, 5, MAP_W - 14), clampi(hg_y1 + 12, 5, MAP_H - 10), 9, 6))
+	ramps.append(Rect2i(clampi(_rng.range_int(mg_x1 + 8, mg_x2 - 16), 5, MAP_W - 14), clampi(_rng.range_int(mg_y1 + 10, mg_y2 - 12), 5, MAP_H - 10), 10, 5))
+	ramps.append(Rect2i(clampi(_rng.range_int(12, MAP_W - 22), 5, MAP_W - 14), clampi(_rng.range_int(50, MAP_H - 16), 5, MAP_H - 10), 8, 7))
 
 	lakes.clear()
-	var primary_lake := {
-		"center": Vector2i(_rng.range_int(13, 37), _rng.range_int(24, 41)),
-		"radius": Vector2i(_rng.range_int(7, 11), _rng.range_int(5, 8)),
-	}
-	var secondary_lake := {
-		"center": Vector2i(_rng.range_int(8, 42), _rng.range_int(9, 36)),
-		"radius": Vector2i(_rng.range_int(4, 7), _rng.range_int(3, 5)),
-	}
-	lakes.append(primary_lake)
-	lakes.append(secondary_lake)
-	if _rng.chance_per_mille(620):
+	var lake_count := _rng.range_int(4, 6)
+	for i in range(lake_count):
 		lakes.append({
-			"center": Vector2i(_rng.range_int(8, 42), _rng.range_int(10, 42)),
-			"radius": Vector2i(_rng.range_int(3, 5), _rng.range_int(3, 5)),
+			"center": Vector2i(_rng.range_int(12, MAP_W - 13), _rng.range_int(16, MAP_H - 13)),
+			"radius": Vector2i(_rng.range_int(5, 12), _rng.range_int(4, 8)),
 		})
+	var primary_lake: Dictionary = lakes[0]
 	lk_cx = primary_lake["center"].x
 	lk_cy = primary_lake["center"].y
 	lk_rx = primary_lake["radius"].x
@@ -240,18 +237,36 @@ func _generate_cell_elevation(cell: Vector2i) -> int:
 	if cell.x >= hg_x1 and cell.x <= hg_x2 and cell.y >= hg_y1 and cell.y <= hg_y2:
 		return E_HIGH
 
+	var high_island := Vector2i(clampi(hg_x1 - 18, 8, MAP_W - 22), clampi(hg_y2 + 17, 18, MAP_H - 26))
+	var high_dx := float(cell.x - high_island.x) / 12.0
+	var high_dy := float(cell.y - high_island.y) / 8.0
+	if high_dx * high_dx + high_dy * high_dy < 1.0:
+		return E_HIGH
+
 	if cell.x >= mg_x1 and cell.x <= mg_x2 and cell.y >= mg_y1 and cell.y <= mg_y2:
+		return E_MID
+
+	var east_mid_center := Vector2i(MAP_W - 24, 30)
+	var east_dx := float(cell.x - east_mid_center.x) / 17.0
+	var east_dy := float(cell.y - east_mid_center.y) / 14.0
+	if east_dx * east_dx + east_dy * east_dy < 1.0:
+		return E_MID
+
+	var south_mid_center := Vector2i(34, MAP_H - 24)
+	var south_dx := float(cell.x - south_mid_center.x) / 18.0
+	var south_dy := float(cell.y - south_mid_center.y) / 10.0
+	if south_dx * south_dx + south_dy * south_dy < 1.0:
 		return E_MID
 
 	var block := Vector2i(cell.x / BLOCK_SIZE, cell.y / BLOCK_SIZE)
 	var block_roll := _hash_cell(block, 41) % 1000
-	if block_roll < 95:
+	if block_roll < 72:
 		return E_BLOCKED
-	if block_roll >= 95 and block_roll < 145:
+	if block_roll >= 72 and block_roll < 106:
 		return E_WATER
 
 	var ridge_roll := _hash_cell(block, 73) % 1000
-	if ridge_roll < 90 and cell.y < MAP_H - 10:
+	if ridge_roll < 135 and cell.y < MAP_H - 10:
 		return E_MID
 	return E_LOW
 
@@ -438,7 +453,7 @@ func _build_plots() -> void:
 	base_plots.clear()
 	var reserved_rects: Array[Rect2i] = []
 
-	var base_1_rect := _find_plot_rect(Vector2i(8, 6), [E_HIGH, E_MID], reserved_rects, 220, Vector2(0.2, 0.18))
+	var base_1_rect := _find_plot_rect(Vector2i(10, 8), [E_HIGH, E_MID], reserved_rects, 360, Vector2(0.18, 0.20))
 	var base_1 := _make_base_plot(
 		"base_plot_1",
 		"Base plot 1",
@@ -449,7 +464,7 @@ func _build_plots() -> void:
 		"Very defensible high-ground base with one economy plot and one obvious ramp approach."
 	)
 	reserved_rects.append(base_1_rect)
-	var base_2_rect := _find_plot_rect(Vector2i(11, 8), [E_MID, E_LOW], reserved_rects, 220, Vector2(0.25, 0.62))
+	var base_2_rect := _find_plot_rect(Vector2i(14, 10), [E_MID, E_LOW], reserved_rects, 360, Vector2(0.25, 0.63))
 	var base_2 := _make_base_plot(
 		"base_plot_2",
 		"Base plot 2",
@@ -460,7 +475,7 @@ func _build_plots() -> void:
 		"Average defensibility mid-ground base with two economy plots and several attack angles."
 	)
 	reserved_rects.append(base_2_rect)
-	var base_3_rect := _find_plot_rect(Vector2i(13, 7), [E_LOW, E_MID], reserved_rects, 260, Vector2(0.72, 0.78))
+	var base_3_rect := _find_plot_rect(Vector2i(17, 10), [E_LOW, E_MID], reserved_rects, 400, Vector2(0.72, 0.76))
 	var base_3 := _make_base_plot(
 		"base_plot_3",
 		"Base plot 3",
@@ -489,6 +504,7 @@ func _build_plots() -> void:
 		"story": "A broken tower from the sealed Life Wizard expedition, suitable for a quest giver.",
 	})
 	var bandit_rect := _find_plot_rect(Vector2i(10, 10), [E_LOW, E_MID], reserved_rects, 260, Vector2(0.82, 0.48))
+	reserved_rects.append(bandit_rect)
 	_register_plot({
 		"id": "bandit_outpost",
 		"name": "Bandit outpost",
@@ -499,6 +515,48 @@ func _build_plots() -> void:
 		"difficulty": 0.75,
 		"defensibility": 0.35,
 		"story": "A fortified bandit camp feeding off the vampire mushroom forest.",
+	})
+
+	var tower_2_rect := _find_plot_rect(Vector2i(10, 10), [E_HIGH, E_MID], reserved_rects, 320, Vector2(0.35, 0.42))
+	reserved_rects.append(tower_2_rect)
+	_register_plot({
+		"id": "sealed_evolution_lab",
+		"name": "Sealed evolution lab",
+		"kind": "quest",
+		"rect": tower_2_rect,
+		"anchor": tower_2_rect.position + Vector2i(5, 5),
+		"economy_spaces": [],
+		"difficulty": 0.65,
+		"defensibility": 0.55,
+		"story": "A ruined Life Wizard laboratory where the first fungal horrors escaped containment.",
+	})
+
+	var bandit_2_rect := _find_plot_rect(Vector2i(12, 10), [E_LOW, E_MID], reserved_rects, 320, Vector2(0.58, 0.70))
+	reserved_rects.append(bandit_2_rect)
+	_register_plot({
+		"id": "bloodcap_raider_camp",
+		"name": "Bloodcap raider camp",
+		"kind": "enemy_outpost",
+		"rect": bandit_2_rect,
+		"anchor": bandit_2_rect.position + Vector2i(6, 5),
+		"economy_spaces": [],
+		"difficulty": 0.82,
+		"defensibility": 0.42,
+		"story": "A larger camp occupying the road between the best economy plots and the boss approach.",
+	})
+
+	var objective_rect := _find_plot_rect(Vector2i(15, 12), [E_HIGH, E_MID], reserved_rects, 380, Vector2(0.73, 0.18))
+	reserved_rects.append(objective_rect)
+	_register_plot({
+		"id": "heart_of_the_mycelium",
+		"name": "Heart of the mycelium",
+		"kind": "objective",
+		"rect": objective_rect,
+		"anchor": objective_rect.position + Vector2i(7, 6),
+		"economy_spaces": [],
+		"difficulty": 1.0,
+		"defensibility": 0.78,
+		"story": "A high-ground objective wrapped in vampire roots and huge bloodcap mushrooms.",
 	})
 
 func _make_economy_spaces(rect: Rect2i, count: int) -> Array[Vector2i]:
@@ -612,6 +670,8 @@ func _stamp_plots_into_grid() -> void:
 				_stamp_hollow_plot(plot, "tower_wall", "tower_floor")
 			"enemy_outpost":
 				_stamp_hollow_plot(plot, "bandit_wall", "bandit_floor")
+			"objective":
+				_stamp_objective_plot(plot)
 
 func _stamp_base_plot(plot: Dictionary) -> void:
 	var rect: Rect2i = plot["rect"]
@@ -647,6 +707,83 @@ func _stamp_hollow_plot(plot: Dictionary, wall_feature: String, floor_feature: S
 				grid[x][y] = floor_elevation
 				feature_grid[x][y] = floor_feature
 	plot["anchor"] = Vector2i(entrance_x, entrance_y - 2)
+
+func _stamp_objective_plot(plot: Dictionary) -> void:
+	var rect: Rect2i = plot["rect"]
+	var floor_elevation := _dominant_elevation_near(plot["anchor"])
+	for x in range(rect.position.x, rect.end.x):
+		for y in range(rect.position.y, rect.end.y):
+			var cell := Vector2i(x, y)
+			if not is_in_bounds(cell):
+				continue
+			grid[x][y] = floor_elevation
+			feature_grid[x][y] = "objective"
+			var edge_distance: int = min(min(x - rect.position.x, rect.end.x - 1 - x), min(y - rect.position.y, rect.end.y - 1 - y))
+			if edge_distance == 0 and _rng.chance_per_mille(420):
+				grid[x][y] = E_BLOCKED
+				feature_grid[x][y] = "giant_mushroom"
+
+func _build_roads() -> void:
+	road_cells.clear()
+	if plots.is_empty():
+		return
+	var hub := nearest_walkable_cell(Vector2i(MAP_W / 2, MAP_H / 2), 24)
+	for plot in plots:
+		var anchor: Vector2i = plot.get("anchor", hub)
+		_carve_road_between(anchor, hub, 2)
+	for i in range(plots.size() - 1):
+		var from_anchor: Vector2i = plots[i].get("anchor", hub)
+		var to_anchor: Vector2i = plots[i + 1].get("anchor", hub)
+		_carve_road_between(from_anchor, to_anchor, 1)
+
+func _carve_road_between(from_cell: Vector2i, to_cell: Vector2i, width: int) -> void:
+	var current := Vector2(from_cell.x, from_cell.y)
+	var target := Vector2(to_cell.x, to_cell.y)
+	var steps: int = maxi(1, int(current.distance_to(target)))
+	for i in range(steps + 1):
+		var t := float(i) / float(steps)
+		var sway := sin(t * TAU * 1.5 + float(seed_value % 97)) * 2.4
+		var p := current.lerp(target, t)
+		var cell := Vector2i(roundi(p.x + sway), roundi(p.y))
+		_carve_road_cell(cell, width)
+
+func _carve_road_cell(center: Vector2i, width: int) -> void:
+	for x in range(center.x - width, center.x + width + 1):
+		for y in range(center.y - width, center.y + width + 1):
+			var cell := Vector2i(x, y)
+			if not is_in_bounds(cell):
+				continue
+			var existing_feature: String = feature_grid[x][y]
+			if existing_feature.ends_with("_wall") or existing_feature == "giant_mushroom":
+				continue
+			if grid[x][y] == E_BLOCKED or grid[x][y] == E_WATER:
+				grid[x][y] = E_LOW
+			feature_grid[x][y] = "path"
+			road_cells[cell] = true
+
+func _build_landmarks() -> void:
+	landmarks.clear()
+	var attempts := 0
+	while landmarks.size() < 18 and attempts < 280:
+		attempts += 1
+		var cell := Vector2i(_rng.range_int(6, MAP_W - 7), _rng.range_int(6, MAP_H - 7))
+		if not is_in_bounds(cell) or grid[cell.x][cell.y] == E_WATER:
+			continue
+		if feature_grid[cell.x][cell.y] != "" and feature_grid[cell.x][cell.y] != "path":
+			continue
+		var radius := _rng.range_int(2, 4)
+		landmarks.append({
+			"kind": "giant_mushroom",
+			"cell": cell,
+			"radius": radius,
+			"height": _rng.range_int(2, 4),
+		})
+		for x in range(cell.x - 1, cell.x + 2):
+			for y in range(cell.y - 1, cell.y + 2):
+				var stem := Vector2i(x, y)
+				if is_in_bounds(stem) and feature_grid[x][y] == "":
+					grid[x][y] = E_BLOCKED
+					feature_grid[x][y] = "giant_mushroom"
 
 func _dominant_elevation_near(cell: Vector2i) -> int:
 	if is_in_bounds(cell) and grid[cell.x][cell.y] > E_WATER:
@@ -697,8 +834,20 @@ func _paint_objects() -> void:
 	for x in MAP_W:
 		for y in MAP_H:
 			var e = grid[x][y]
-			if e == E_WATER or e == E_BLOCKED: continue
+			var feature: String = feature_grid[x][y]
 			var pos = Vector2i(x, y)
+			if feature == "giant_mushroom":
+				_set_plot_cell(pos, "giant_mushroom")
+				continue
+			if e == E_WATER:
+				continue
+			if e == E_BLOCKED:
+				if _has_walkable_drop(pos):
+					layer_low.set_cell(pos, pick("cliff"), Vector2i(0,0))
+				continue
+			if feature == "path":
+				_set_plot_cell(pos, "path")
+				continue
 
 			# Foliage border on low layer
 			if x <= 3 or x >= MAP_W-4 or y <= 3 or y >= MAP_H-4:
@@ -728,6 +877,13 @@ func _paint_objects() -> void:
 			elif e == E_RAMP and (x + y) % 2 == 0:
 				layer_mid.set_cell(pos, pick("path_slope"), Vector2i(0,0))
 
+func _has_walkable_drop(cell: Vector2i) -> bool:
+	for offset in [Vector2i(0, 1), Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, -1)]:
+		var neighbor: Vector2i = cell + offset
+		if is_in_bounds(neighbor) and is_walkable_cell(neighbor):
+			return true
+	return false
+
 func _paint_plots() -> void:
 	for plot in plots:
 		var rect: Rect2i = plot["rect"]
@@ -755,6 +911,10 @@ func _paint_plots() -> void:
 					"objective":
 						if _rng.chance_per_mille(520):
 							_set_plot_cell(cell, "corrupted")
+						else:
+							_set_plot_cell(cell, "ruin_floor")
+					"giant_mushroom":
+						_set_plot_cell(cell, "giant_mushroom")
 		for economy_cell in plot.get("economy_spaces", []):
 			_set_plot_cell(economy_cell, "economy_plot")
 
@@ -797,7 +957,7 @@ func _register_zones() -> void:
 		if grid[x][MAP_H - 4] == E_LOW:
 			enemy_spawns.append(Vector2i(x, MAP_H - 4))
 
-	for y in range(20, 42):
+	for y in range(10, MAP_H - 10):
 		if g(3, y) >= E_LOW:
 			enemy_spawns.append(Vector2i(3, y))
 		if g(MAP_W - 4, y) >= E_LOW:
@@ -836,6 +996,9 @@ func get_plots() -> Array:
 func get_base_plots() -> Array:
 	return base_plots
 
+func get_landmarks() -> Array:
+	return landmarks
+
 func get_map_summary() -> Dictionary:
 	return {
 		"map_type_id": map_type_id,
@@ -853,6 +1016,7 @@ func get_map_summary() -> Dictionary:
 			"lakes": lakes.duplicate(true),
 			"ramp": Rect2i(cp_x1, cp_y, cp_x2 - cp_x1 + 1, max(1, ramp_y - cp_y + 1)),
 			"ramps": ramps.duplicate(),
+			"landmarks": landmarks.duplicate(true),
 		},
 		"plot_layout": _get_plot_layout_summary(),
 	}
