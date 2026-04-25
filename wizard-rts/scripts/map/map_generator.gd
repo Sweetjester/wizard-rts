@@ -209,6 +209,9 @@ func _load_tiles() -> void:
 	print("[MapGenerator] Loaded", T.size(), "terrain types")
 
 func pick(terrain: String) -> int:
+	var themed := "%s_vm" % terrain
+	if T.has(themed) and not T[themed].is_empty():
+		return T[themed][_rng.range_int(0, T[themed].size() - 1)]
 	if T.has(terrain) and not T[terrain].is_empty():
 		return T[terrain][_rng.range_int(0, T[terrain].size() - 1)]
 	return T.get("low_ground", [0])[0]
@@ -235,14 +238,23 @@ func _generate_cell_elevation(cell: Vector2i) -> int:
 	if _is_ramp_cell(cell):
 		return E_RAMP
 
+	if _is_main_high_plateau_edge(cell):
+		return E_BLOCKED
+
 	if cell.x >= hg_x1 and cell.x <= hg_x2 and cell.y >= hg_y1 and cell.y <= hg_y2:
 		return E_HIGH
 
 	var high_island := Vector2i(clampi(hg_x1 - 18, 8, MAP_W - 22), clampi(hg_y2 + 17, 18, MAP_H - 26))
 	var high_dx := float(cell.x - high_island.x) / 12.0
 	var high_dy := float(cell.y - high_island.y) / 8.0
-	if high_dx * high_dx + high_dy * high_dy < 1.0:
+	var high_island_distance := high_dx * high_dx + high_dy * high_dy
+	if high_island_distance < 1.0:
+		if high_island_distance > 0.72 and not _is_near_ramp_cell(cell, 2):
+			return E_BLOCKED
 		return E_HIGH
+
+	if _is_main_mid_plateau_edge(cell):
+		return E_BLOCKED
 
 	if cell.x >= mg_x1 and cell.x <= mg_x2 and cell.y >= mg_y1 and cell.y <= mg_y2:
 		return E_MID
@@ -270,6 +282,31 @@ func _generate_cell_elevation(cell: Vector2i) -> int:
 	if ridge_roll < 135 and cell.y < MAP_H - 10:
 		return E_MID
 	return E_LOW
+
+func _is_main_high_plateau_edge(cell: Vector2i) -> bool:
+	if cell.x < hg_x1 or cell.x > hg_x2 or cell.y < hg_y1 or cell.y > hg_y2:
+		return false
+	if _is_near_ramp_cell(cell, 2):
+		return false
+	var edge_distance: int = min(min(cell.x - hg_x1, hg_x2 - cell.x), min(cell.y - hg_y1, hg_y2 - cell.y))
+	return edge_distance <= 1
+
+func _is_main_mid_plateau_edge(cell: Vector2i) -> bool:
+	if cell.x < mg_x1 or cell.x > mg_x2 or cell.y < mg_y1 or cell.y > mg_y2:
+		return false
+	if _is_near_ramp_cell(cell, 2):
+		return false
+	var edge_distance: int = min(min(cell.x - mg_x1, mg_x2 - cell.x), min(cell.y - mg_y1, mg_y2 - cell.y))
+	if edge_distance > 1:
+		return false
+	return _hash_cell(cell, 151) % 1000 < 760
+
+func _is_near_ramp_cell(cell: Vector2i, margin: int) -> bool:
+	for ramp in ramps:
+		var expanded := Rect2i(ramp.position - Vector2i(margin, margin), ramp.size + Vector2i(margin * 2, margin * 2))
+		if expanded.has_point(cell):
+			return true
+	return false
 
 func _is_lake_cell(cell: Vector2i) -> bool:
 	for lake in lakes:
@@ -829,17 +866,10 @@ func _paint() -> void:
 				E_LOW:
 					layer_low.set_cell(pos, pick("low_ground"), Vector2i(0,0))
 				E_MID:
-					# Paint low ground underneath for visual fill
-					layer_low.set_cell(pos, pick("low_ground"), Vector2i(0,0))
-					# Paint mid ground on mid layer (elevated)
 					layer_mid.set_cell(pos, pick("mid_ground"), Vector2i(0,0))
 				E_HIGH:
-					# Fill all three layers for solid block appearance
-					layer_low.set_cell(pos, pick("low_ground"), Vector2i(0,0))
-					layer_mid.set_cell(pos, pick("mid_ground"), Vector2i(0,0))
 					layer_high.set_cell(pos, pick("high_ground"), Vector2i(0,0))
 				E_RAMP:
-					# Ramp: low + mid only, represents the slope
 					layer_low.set_cell(pos, pick("low_ground"), Vector2i(0,0))
 					layer_mid.set_cell(pos, pick("path"), Vector2i(0,0))
 

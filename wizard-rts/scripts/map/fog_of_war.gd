@@ -6,7 +6,7 @@ extends Node2D
 @export var hard_fog_alpha: float = 0.82
 @export var explored_fog_alpha: float = 0.38
 @export var update_interval: float = 0.5
-@export var draw_stride: int = 4
+@export var draw_stride: int = 2
 @export var reveal_enemy_vision: bool = false
 @export var max_revealers_per_update: int = 64
 
@@ -22,7 +22,7 @@ func _ready() -> void:
 	var display_manager := get_node_or_null("/root/DisplayManager")
 	if display_manager != null and bool(display_manager.get("performance_mode")):
 		update_interval = 0.75
-		draw_stride = 6
+		draw_stride = 4
 	call_deferred("_rebuild")
 
 func _process(delta: float) -> void:

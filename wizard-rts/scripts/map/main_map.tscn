@@ -1,4 +1,4 @@
-[gd_scene load_steps=25 format=4 uid="uid://cadog5s2ne74q"]
+[gd_scene load_steps=26 format=4 uid="uid://cadog5s2ne74q"]
 
 [ext_resource type="Script" uid="uid://c55e5b81k5mcw" path="res://scripts/map/map_manager.gd" id="1_yq3ld"]
 [ext_resource type="Script" uid="uid://co8oyntpicxw5" path="res://scripts/camera/camera_controller.gd" id="2_v4mqy"]
@@ -21,6 +21,7 @@
 [ext_resource type="Script" path="res://scripts/core/build_system.gd" id="22_build"]
 [ext_resource type="Script" path="res://scripts/core/wave_director.gd" id="23_wave"]
 [ext_resource type="Script" path="res://scripts/ui/rts_hud.gd" id="24_hud"]
+[ext_resource type="Script" path="res://scripts/map/terrain_relief_layer.gd" id="25_relief"]
 
 [node name="Node2D" type="Node2D" unique_id=2018844996]
 script = ExtResource("1_yq3ld")
@@ -70,6 +71,9 @@ z_index = 2
 position = Vector2(0, -128)
 tile_set = ExtResource("5_r0n1a")
 y_sort_origin = 32
+
+[node name="TerrainReliefLayer" type="Node2D" parent="."]
+script = ExtResource("25_relief")
 
 [node name="VampiricMushroomForest" type="Node2D" parent="." unique_id=2044243937]
 script = ExtResource("10_kc6b1")

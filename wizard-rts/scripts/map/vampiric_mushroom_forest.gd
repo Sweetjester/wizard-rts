@@ -78,9 +78,9 @@ func _rebuild() -> void:
 	queue_redraw()
 
 func _apply_tile_palette() -> void:
-	map.layer_low.modulate = FOREST_FLOOR
-	map.layer_mid.modulate = LIVING_MOSS
-	map.layer_high.modulate = FERN_LIGHT
+	map.layer_low.modulate = Color.WHITE
+	map.layer_mid.modulate = Color.WHITE
+	map.layer_high.modulate = Color.WHITE
 
 func _build_features() -> void:
 	mushrooms.clear()
