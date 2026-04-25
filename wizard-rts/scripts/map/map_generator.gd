@@ -739,14 +739,14 @@ func _paint_plots() -> void:
 				var feature: String = feature_grid[x][y]
 				match feature:
 					"tower_wall":
-						_set_plot_cell(cell, "cliff")
+						_set_plot_cell(cell, "wizard_tower_wall")
 					"tower_floor":
-						_set_plot_cell(cell, "decoration")
+						_set_plot_cell(cell, "wizard_tower_floor")
 					"bandit_wall":
-						_set_plot_cell(cell, "corrupted")
+						_set_plot_cell(cell, "bandit_wall")
 					"bandit_floor":
 						if _rng.chance_per_mille(540):
-							_set_plot_cell(cell, "corrupted")
+							_set_plot_cell(cell, "bandit_floor")
 					"base_floor":
 						if _is_rect_edge(cell, rect) and _rng.chance_per_mille(360):
 							_set_plot_cell(cell, "foliage")

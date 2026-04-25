@@ -7,6 +7,9 @@ func _ready() -> void:
 	collision_separation = 22.0
 
 func _draw() -> void:
+	if has_node("ArtSprite"):
+		_draw_selection_and_path()
+		return
 	draw_circle(Vector2(0, 9), 13, Color(0, 0, 0, 0.3))
 	draw_line(Vector2(0, 8), Vector2(0, -16), Color("#332820"), 8.0)
 	draw_line(Vector2(-2, -5), Vector2(-13, -18), Color("#5C4838"), 4.0)

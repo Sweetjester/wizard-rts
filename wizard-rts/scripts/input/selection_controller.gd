@@ -3,6 +3,7 @@ extends Node2D
 
 @export var drag_threshold: float = 8.0
 @export var formation_spacing: float = 34.0
+@export var shared_path_threshold: int = 16
 
 var selected_units: Array[Node] = []
 var _dragging := false
@@ -70,10 +71,34 @@ func _order_selected_units(target: Vector2) -> void:
 	if selected_units.is_empty():
 		return
 	var offsets := _formation_offsets(selected_units.size())
+	var shared_path: Array[Vector2] = []
+	if selected_units.size() >= shared_path_threshold:
+		shared_path = _shared_group_path(target)
 	for i in selected_units.size():
 		var unit: Node = selected_units[i]
-		if is_instance_valid(unit):
+		if is_instance_valid(unit) and not shared_path.is_empty() and unit.has_method("issue_shared_path_order"):
+			unit.issue_shared_path_order(shared_path, offsets[i])
+		elif is_instance_valid(unit):
 			unit.issue_move_order_offset(target, offsets[i])
+
+func _shared_group_path(target: Vector2) -> Array[Vector2]:
+	var terrain: Node = null
+	var center := Vector2.ZERO
+	var counted := 0
+	for unit in selected_units:
+		if not is_instance_valid(unit) or not (unit is Node2D):
+			continue
+		center += unit.global_position
+		counted += 1
+		if terrain == null:
+			terrain = unit.get("terrain")
+	if counted == 0 or terrain == null or not terrain.has_method("find_path_world"):
+		return []
+	center /= float(counted)
+	var path: Array[Vector2] = []
+	for point in terrain.find_path_world(center, target):
+		path.append(point)
+	return path
 
 func _formation_offsets(count: int) -> Array[Vector2]:
 	var offsets: Array[Vector2] = []

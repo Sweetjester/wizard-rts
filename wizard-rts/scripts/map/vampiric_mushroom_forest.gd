@@ -45,6 +45,12 @@ var _effective_seed := 1
 func _ready() -> void:
 	z_index = 4
 	y_sort_enabled = true
+	var display_manager := get_node_or_null("/root/DisplayManager")
+	if display_manager != null and bool(display_manager.get("performance_mode")):
+		mushroom_density = int(float(mushroom_density) * 0.55)
+		canopy_density = int(float(canopy_density) * 0.55)
+		wisp_density = int(float(wisp_density) * 0.5)
+		redraw_interval = 0.32
 	call_deferred("_rebuild")
 
 func _process(delta: float) -> void:

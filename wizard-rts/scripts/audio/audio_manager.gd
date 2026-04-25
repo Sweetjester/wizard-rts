@@ -1,6 +1,8 @@
 extends Node
 
-const MUSIC_PATH := "res://Bad John Dillo Fixed.mp3"
+const LIFE_WIZARD_MUSIC_PATH := "res://Bad John Dillo Fixed.mp3"
+const FIRE_WIZARD_MUSIC_PATH := "res://Fire Wizard.mp3"
+const MAP_MUSIC_PATH := "res://vampire mushroom forest.mp3"
 const MUSIC_BUS := "Music"
 
 var music_volume: float = 0.7:
@@ -21,24 +23,34 @@ func _ready() -> void:
 	_player.bus = MUSIC_BUS
 	add_child(_player)
 	_player.finished.connect(_restart_music)
-	play_music()
+	play_map_music()
 
-func play_music() -> void:
+func play_music(track_path: String = MAP_MUSIC_PATH) -> void:
 	if _player == null:
 		return
-	if _player.stream == null:
-		var stream := load(MUSIC_PATH)
+	if _player.stream == null or _player.stream.resource_path != track_path:
+		var stream := load(track_path)
 		if stream == null:
-			push_error("[AudioManager] Missing music file: %s" % MUSIC_PATH)
+			push_error("[AudioManager] Missing music file: %s" % track_path)
 			return
 		if stream.has_method("set_loop"):
 			stream.call("set_loop", true)
 		elif "loop" in stream:
 			stream.loop = true
 		_player.stream = stream
+		_player.stop()
 	_apply_volume()
 	if not _player.playing:
 		_player.play()
+
+func play_map_music() -> void:
+	play_music(MAP_MUSIC_PATH)
+
+func play_life_wizard_music() -> void:
+	play_music(LIFE_WIZARD_MUSIC_PATH)
+
+func play_fire_wizard_music() -> void:
+	play_music(FIRE_WIZARD_MUSIC_PATH)
 
 func stop_music() -> void:
 	if _player:

@@ -10,6 +10,14 @@ func _run() -> void:
 
 	menu.call("_on_start_pressed")
 	await process_frame
+	menu.call("_on_bad_kon_pressed")
+	await process_frame
+	menu.call("_on_character_continue_pressed")
+	await process_frame
+	menu.call("_on_vampire_map_pressed")
+	await process_frame
+	menu.call("_on_begin_pressed")
+	await process_frame
 	await process_frame
 
 	var current := current_scene
@@ -25,6 +33,11 @@ func _run() -> void:
 
 	if not root.get_node("AudioManager").call("is_music_playing"):
 		push_error("Music stopped after starting the game")
+		quit(1)
+		return
+	var stream_path: String = root.get_node("AudioManager").call("get_music_stream_path")
+	if stream_path != "res://vampire mushroom forest.mp3":
+		push_error("Expected map music after starting game, got: %s" % stream_path)
 		quit(1)
 		return
 

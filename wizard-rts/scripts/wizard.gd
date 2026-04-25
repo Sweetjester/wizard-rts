@@ -42,6 +42,9 @@ func _summon_cells(origin: Vector2i) -> Array[Vector2i]:
 	return cells
 
 func _draw() -> void:
+	if has_node("ArtSprite"):
+		_draw_selection_and_path()
+		return
 	draw_circle(Vector2(0, 8), 15, Color(0, 0, 0, 0.32))
 	draw_colored_polygon(PackedVector2Array([
 		Vector2(-10, 0), Vector2(10, 0),

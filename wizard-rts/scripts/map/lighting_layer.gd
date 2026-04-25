@@ -15,6 +15,9 @@ var _elapsed := 0.0
 
 func _ready() -> void:
 	z_index = 2500
+	var display_manager := get_node_or_null("/root/DisplayManager")
+	if display_manager != null and bool(display_manager.get("performance_mode")):
+		update_interval = 0.24
 	call_deferred("_rebuild")
 
 func _process(delta: float) -> void:

@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://c55e5b81k5mcw" path="res://scripts/map/map_manager.gd" id="1_yq3ld"]
 [ext_resource type="Script" uid="uid://co8oyntpicxw5" path="res://scripts/camera/camera_controller.gd" id="2_v4mqy"]
-[ext_resource type="TileSet" uid="uid://cgj14ge86d4v" path="res://assets/tiles/voxel/voxel_tileset.tres" id="5_r0n1a"]
+[ext_resource type="TileSet" path="res://assets/tiles/voxel/voxel_tileset.tres" id="5_r0n1a"]
 [ext_resource type="PackedScene" uid="uid://yvd6jodnc1yg" path="res://wizard.tscn" id="7_ygs3f"]
 [ext_resource type="Script" uid="uid://bkf26i06ga6j6" path="res://scripts/core/simulation_runner.gd" id="8_iuo1j"]
 [ext_resource type="Script" uid="uid://cmvww5vpu1idw" path="res://scripts/net/multiplayer_session.gd" id="9_pmc20"]
@@ -13,6 +13,7 @@
 [ext_resource type="Script" path="res://scripts/map/plot_renderer.gd" id="14_plot"]
 [ext_resource type="Script" path="res://scripts/map/fog_of_war.gd" id="15_fog"]
 [ext_resource type="Script" path="res://scripts/map/lighting_layer.gd" id="16_light"]
+[ext_resource type="Script" path="res://scripts/map/sunlight_shadows.gd" id="17_sun"]
 [ext_resource type="Script" uid="uid://gg25pgpw7q26" path="res://scripts/map/map_generator.gd" id="18_se0pv"]
 
 [node name="Node2D" type="Node2D" unique_id=2018844996]
@@ -57,6 +58,9 @@ script = ExtResource("10_kc6b1")
 
 [node name="WaterLightingEffects" type="Node2D" parent="." unique_id=1665628975]
 script = ExtResource("12_waterfx")
+
+[node name="SunlightShadows" type="Node2D" parent="." unique_id=1380540447]
+script = ExtResource("17_sun")
 
 [node name="LightingLayer" type="Node2D" parent="." unique_id=1655661512]
 script = ExtResource("16_light")

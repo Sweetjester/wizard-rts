@@ -50,6 +50,15 @@ func issue_move_order(world_pos: Vector2) -> void:
 func issue_move_order_offset(world_pos: Vector2, offset: Vector2) -> void:
 	issue_move_order(world_pos + offset)
 
+func issue_shared_path_order(shared_path: Array[Vector2], offset: Vector2) -> void:
+	path.clear()
+	for point in shared_path:
+		path.append(point + offset)
+	moving = not path.is_empty()
+	if moving:
+		target_pos = path[0]
+	queue_redraw()
+
 func _physics_process(delta: float) -> void:
 	_update_z_index()
 	if path.is_empty():

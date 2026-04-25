@@ -15,8 +15,36 @@ func _run() -> void:
 		return
 
 	var stream_path: String = audio_manager.call("get_music_stream_path")
-	if stream_path != "res://Bad John Dillo Fixed.mp3":
+	if stream_path != "res://vampire mushroom forest.mp3":
 		push_error("Unexpected music stream: %s" % stream_path)
+		quit(1)
+		return
+
+	menu.call("_on_start_pressed")
+	await process_frame
+	menu.call("_on_bad_kon_pressed")
+	await process_frame
+	stream_path = audio_manager.call("get_music_stream_path")
+	if stream_path != "res://Bad John Dillo Fixed.mp3":
+		push_error("Expected Bad John Dillo after selecting Life Wizard, got: %s" % stream_path)
+		quit(1)
+		return
+	menu.call("_on_hellfire_baby_pressed")
+	await process_frame
+	stream_path = audio_manager.call("get_music_stream_path")
+	if stream_path != "res://Fire Wizard.mp3":
+		push_error("Expected Fire Wizard music after selecting Fire Wizard, got: %s" % stream_path)
+		quit(1)
+		return
+	menu.call("_on_character_continue_pressed")
+	await process_frame
+	menu.call("_on_map_back_pressed")
+	await process_frame
+	menu.call("_on_character_back_pressed")
+	await process_frame
+	stream_path = audio_manager.call("get_music_stream_path")
+	if stream_path != "res://vampire mushroom forest.mp3":
+		push_error("Expected map music after backing out to main menu, got: %s" % stream_path)
 		quit(1)
 		return
 

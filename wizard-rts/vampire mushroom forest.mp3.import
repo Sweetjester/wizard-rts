@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://ciiw8tne5wlhe"
+path="res://.godot/imported/vampire mushroom forest.mp3-35c3808607837ea08e990d59c66a4272.mp3str"
+
+[deps]
+
+source_file="res://vampire mushroom forest.mp3"
+dest_files=["res://.godot/imported/vampire mushroom forest.mp3-35c3808607837ea08e990d59c66a4272.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

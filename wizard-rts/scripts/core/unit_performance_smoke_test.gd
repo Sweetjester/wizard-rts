@@ -1,6 +1,6 @@
 extends SceneTree
 
-const UNIT_COUNT := 96
+const UNIT_COUNT := 180
 const FRAME_COUNT := 180
 
 func _init() -> void:
@@ -28,17 +28,18 @@ func _run() -> void:
 
 	var target_cell: Vector2i = map.nearest_walkable_cell(Vector2i(34, 32), 18)
 	var target_world: Vector2 = map.cell_to_world(target_cell)
+	var shared_path: Array[Vector2] = map.find_path_world(wizard.global_position, target_world)
 	for i in spawned.size():
 		var offset := Vector2(float(i % 12) * 24.0, float(i / 12) * 24.0)
-		spawned[i].call("issue_move_order_offset", target_world, offset)
+		spawned[i].call("issue_shared_path_order", shared_path, offset)
 
 	var started := Time.get_ticks_msec()
 	for _frame in FRAME_COUNT:
 		await physics_frame
 	var elapsed := Time.get_ticks_msec() - started
 
-	if elapsed > 8000:
-		push_error("96-unit movement stress took %sms; expected under 8000ms" % elapsed)
+	if elapsed > 9000:
+		push_error("180-unit movement stress took %sms; expected under 9000ms" % elapsed)
 		quit(1)
 		return
 
