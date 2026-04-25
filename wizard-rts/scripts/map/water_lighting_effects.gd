@@ -3,8 +3,8 @@ extends Node2D
 
 @export var map_path: NodePath = NodePath("../MapGenerator")
 @export var pulse_speed: float = 1.35
-@export var shimmer_stride: int = 3
-@export var redraw_interval: float = 0.033
+@export var shimmer_stride: int = 5
+@export var redraw_interval: float = 0.08
 
 const AMBIENT := Color("#0A1612")
 const DEEP_POOL := Color("#0E2C32")
@@ -12,14 +12,16 @@ const ALGAE_BLOOM := Color("#1A4F5C")
 const WISP_LIGHT := Color("#3FA8B5")
 const SOUL_SPARK := Color("#7DDDE8")
 const BLOOD_LOW := Color("#2B0608")
+const SHORE_GLOW := Color("#7DDDE8")
 
 var map: Node
 var water_cells: Array[Vector2i] = []
+var shore_cells: Array[Vector2i] = []
 var light_cells: Array[Vector2i] = []
 var _redraw_elapsed := 0.0
 
 func _ready() -> void:
-	z_index = 3
+	z_index = 5
 	call_deferred("_rebuild")
 
 func _process(delta: float) -> void:
@@ -34,12 +36,15 @@ func _rebuild() -> void:
 		call_deferred("_rebuild")
 		return
 	water_cells.clear()
+	shore_cells.clear()
 	light_cells.clear()
 	for x in map.MAP_W:
 		for y in map.MAP_H:
 			var cell := Vector2i(x, y)
 			if map.grid[x][y] == map.E_WATER:
 				water_cells.append(cell)
+				if _is_shore_cell(cell):
+					shore_cells.append(cell)
 				if (x * 5 + y * 7) % 13 == 0:
 					light_cells.append(cell)
 	for choke in map.get_chokepoints():
@@ -50,6 +55,8 @@ func _draw() -> void:
 	if map == null:
 		return
 	_draw_ambient_wash()
+	_draw_water_surface()
+	_draw_shoreline()
 	_draw_water_shimmer()
 	_draw_magic_lights()
 
@@ -73,6 +80,34 @@ func _draw_water_shimmer() -> void:
 		var shimmer := 0.5 + sin(phase) * 0.5
 		draw_circle(pos, 18.0 + shimmer * 4.0, _alpha(DEEP_POOL, 0.22))
 		draw_line(pos + Vector2(-12, -2), pos + Vector2(12, 2), _alpha(ALGAE_BLOOM, 0.15 + shimmer * 0.12), 2.0)
+
+func _draw_water_surface() -> void:
+	for cell in water_cells:
+		var pos: Vector2 = map.cell_to_world(cell)
+		draw_polygon(_cell_diamond(pos, 1.02), PackedColorArray([_alpha(DEEP_POOL, 0.42)]))
+		if (cell.x * 13 + cell.y * 17) % 5 == 0:
+			draw_line(pos + Vector2(-22, -4), pos + Vector2(18, 4), _alpha(ALGAE_BLOOM, 0.26), 2.0)
+
+func _draw_shoreline() -> void:
+	for cell in shore_cells:
+		var pos: Vector2 = map.cell_to_world(cell)
+		draw_polyline(_cell_diamond(pos, 1.04), _alpha(SHORE_GLOW, 0.16), 2.0, true)
+
+func _cell_diamond(pos: Vector2, scale: float) -> PackedVector2Array:
+	return PackedVector2Array([
+		pos + Vector2(0, -32) * scale,
+		pos + Vector2(64, 0) * scale,
+		pos + Vector2(0, 32) * scale,
+		pos + Vector2(-64, 0) * scale,
+		pos + Vector2(0, -32) * scale,
+	])
+
+func _is_shore_cell(cell: Vector2i) -> bool:
+	for offset in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		var neighbor: Vector2i = cell + offset
+		if map.is_in_bounds(neighbor) and map.grid[neighbor.x][neighbor.y] != map.E_WATER:
+			return true
+	return false
 
 func _draw_magic_lights() -> void:
 	var t := float(Time.get_ticks_msec()) / 1000.0

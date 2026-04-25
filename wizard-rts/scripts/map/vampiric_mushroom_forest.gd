@@ -2,11 +2,11 @@ class_name VampiricMushroomForest
 extends Node2D
 
 @export var map_path: NodePath = NodePath("../MapGenerator")
-@export var style_seed: int = 20260425
+@export var style_seed: int = 0
 @export var mushroom_density: int = 170
 @export var canopy_density: int = 230
 @export var wisp_density: int = 18
-@export var redraw_interval: float = 0.05
+@export var redraw_interval: float = 0.16
 
 const ABYSSAL_MOSS := Color("#0A1612")
 const DAMP_EARTH := Color("#142420")
@@ -40,6 +40,7 @@ var wisps: Array[Dictionary] = []
 var pools: Array[Dictionary] = []
 var height_shadows: Array[Dictionary] = []
 var _redraw_elapsed := 0.0
+var _effective_seed := 1
 
 func _ready() -> void:
 	z_index = 4
@@ -47,6 +48,9 @@ func _ready() -> void:
 	call_deferred("_rebuild")
 
 func _process(delta: float) -> void:
+	if wisps.is_empty():
+		set_process(false)
+		return
 	_redraw_elapsed += delta
 	if _redraw_elapsed >= redraw_interval:
 		_redraw_elapsed = 0.0
@@ -57,6 +61,7 @@ func _rebuild() -> void:
 	if map == null or map.grid.is_empty():
 		call_deferred("_rebuild")
 		return
+	_effective_seed = int(map.get_seed_value()) if style_seed == 0 and map.has_method("get_seed_value") else style_seed
 	_apply_tile_palette()
 	_build_features()
 	print("[VampiricMushroomForest] mushrooms:", mushrooms.size(),
@@ -261,7 +266,7 @@ func _roll(cell: Vector2i, threshold_per_mille: int) -> bool:
 	return _hash(cell, 0) % 1000 < threshold_per_mille
 
 func _hash(cell: Vector2i, salt: int) -> int:
-	var value := int(style_seed)
+	var value := int(_effective_seed)
 	value = int((value ^ (cell.x * 73856093)) & 0x7fffffff)
 	value = int((value ^ (cell.y * 19349663)) & 0x7fffffff)
 	value = int((value ^ (salt * 83492791)) & 0x7fffffff)

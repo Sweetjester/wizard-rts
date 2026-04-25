@@ -11,9 +11,14 @@ config_version=5
 [application]
 
 config/name="wizard-rts"
-run/main_scene="uid://cadog5s2ne74q"
+run/main_scene="res://scenes/ui/main_menu.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
+
+[autoload]
+
+AudioManager="*res://scripts/audio/audio_manager.gd"
+GameSession="*res://scripts/core/game_session.gd"
 
 [physics]
 

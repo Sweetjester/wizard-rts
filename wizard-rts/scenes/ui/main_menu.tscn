@@ -1,0 +1,111 @@
+[gd_scene load_steps=2 format=3 uid="uid://mainmenuwizardrts"]
+
+[ext_resource type="Script" path="res://scripts/ui/main_menu.gd" id="1_menu"]
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_menu")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.0392157, 0.0862745, 0.0705882, 1)
+
+[node name="RootMargin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 64
+theme_override_constants/margin_top = 64
+theme_override_constants/margin_right = 64
+theme_override_constants/margin_bottom = 64
+
+[node name="Layout" type="VBoxContainer" parent="RootMargin"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Title" type="Label" parent="RootMargin/Layout"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 42
+text = "Wizard RTS"
+
+[node name="Subtitle" type="Label" parent="RootMargin/Layout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.482353, 0.768627, 0.498039, 1)
+theme_override_font_sizes/font_size = 18
+text = "Vampiric Mushroom Forest"
+
+[node name="Spacer" type="Control" parent="RootMargin/Layout"]
+custom_minimum_size = Vector2(1, 48)
+layout_mode = 2
+
+[node name="MainPanel" type="VBoxContainer" parent="RootMargin/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="StartButton" type="Button" parent="RootMargin/Layout/MainPanel"]
+custom_minimum_size = Vector2(260, 44)
+layout_mode = 2
+text = "New Game"
+
+[node name="AudioButton" type="Button" parent="RootMargin/Layout/MainPanel"]
+custom_minimum_size = Vector2(260, 44)
+layout_mode = 2
+text = "Audio"
+
+[node name="QuitButton" type="Button" parent="RootMargin/Layout/MainPanel"]
+custom_minimum_size = Vector2(260, 44)
+layout_mode = 2
+text = "Quit"
+
+[node name="AudioPanel" type="VBoxContainer" parent="RootMargin/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="AudioTitle" type="Label" parent="RootMargin/Layout/AudioPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Audio"
+
+[node name="VolumeLabel" type="Label" parent="RootMargin/Layout/AudioPanel"]
+layout_mode = 2
+text = "Music Volume"
+
+[node name="VolumeSlider" type="HSlider" parent="RootMargin/Layout/AudioPanel"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(320, 36)
+layout_mode = 2
+max_value = 1.0
+step = 0.01
+value = 0.7
+
+[node name="MuteCheck" type="CheckBox" parent="RootMargin/Layout/AudioPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Mute Music"
+
+[node name="BackButton" type="Button" parent="RootMargin/Layout/AudioPanel"]
+custom_minimum_size = Vector2(260, 44)
+layout_mode = 2
+text = "Back"
+
+[connection signal="pressed" from="RootMargin/Layout/MainPanel/StartButton" to="." method="_on_start_pressed"]
+[connection signal="pressed" from="RootMargin/Layout/MainPanel/AudioButton" to="." method="_on_audio_pressed"]
+[connection signal="pressed" from="RootMargin/Layout/MainPanel/QuitButton" to="." method="_on_quit_pressed"]
+[connection signal="value_changed" from="RootMargin/Layout/AudioPanel/VolumeSlider" to="." method="_on_volume_slider_value_changed"]
+[connection signal="toggled" from="RootMargin/Layout/AudioPanel/MuteCheck" to="." method="_on_mute_check_toggled"]
+[connection signal="pressed" from="RootMargin/Layout/AudioPanel/BackButton" to="." method="_on_back_pressed"]

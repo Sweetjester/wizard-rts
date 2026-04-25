@@ -10,7 +10,7 @@ var _drag_start := Vector2.ZERO
 var _drag_end := Vector2.ZERO
 
 func _ready() -> void:
-	z_index = 1000
+	z_index = 3500
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
