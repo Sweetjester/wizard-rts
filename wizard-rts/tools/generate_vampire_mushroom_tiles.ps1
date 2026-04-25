@@ -72,6 +72,50 @@ function Draw-Diamond($g, [string]$fill, [string]$edge, [int]$topY = 16, [int]$m
     }
 }
 
+function Draw-MatteDiamond($g, [string]$base, [string]$rim, [int]$topY = 16, [int]$midY = 48, [int]$bottomY = 80, [int]$rimAlpha = 24) {
+    $points = @((Pt 55 $topY), (Pt 108 $midY), (Pt 55 $bottomY), (Pt 2 $midY))
+    Poly $g $base $points "" 1
+    for ($i = 0; $i -lt 5; $i++) {
+        $shrink = $i * 4
+        $alpha = [Math]::Max(10, 42 - $i * 7)
+        $brush = Brush-Hex $rim $alpha
+        $inner = @((Pt 55 ($topY + $shrink)), (Pt (108 - $shrink) $midY), (Pt 55 ($bottomY - $shrink)), (Pt (2 + $shrink) $midY))
+        $g.FillPolygon($brush, [System.Drawing.PointF[]]$inner)
+        $brush.Dispose()
+    }
+    if ($rimAlpha -gt 0) {
+        Line $g $rim 1.0 55 $topY 108 $midY $rimAlpha
+        Line $g $rim 1.0 108 $midY 55 $bottomY $rimAlpha
+        Line $g $rim 1.0 55 $bottomY 2 $midY $rimAlpha
+        Line $g $rim 1.0 2 $midY 55 $topY $rimAlpha
+    }
+}
+
+function Add-Soft-Blotches($g, [System.Random]$rng, [string[]]$colors, [int]$count, [int]$alpha = 44) {
+    for ($i = 0; $i -lt $count; $i++) {
+        $x = $rng.Next(-8, 88)
+        $y = $rng.Next(16, 64)
+        if ([Math]::Abs($x + 18 - 55) * 0.58 + [Math]::Abs($y + 8 - 48) -lt 42) {
+            $color = $colors[$rng.Next(0, $colors.Count)]
+            Ellipse $g $color $x $y $rng.Next(20, 54) $rng.Next(8, 24) $alpha
+        }
+    }
+}
+
+function Add-Matte-Grain($g, [System.Random]$rng, [string]$light, [string]$dark, [int]$count) {
+    for ($i = 0; $i -lt $count; $i++) {
+        $x = $rng.Next(9, 101)
+        $y = $rng.Next(24, 72)
+        if ([Math]::Abs($x - 55) * 0.62 + [Math]::Abs($y - 48) -lt 34) {
+            if ($rng.NextDouble() -lt 0.70) {
+                Ellipse $g $light $x $y $rng.Next(1, 4) $rng.Next(1, 3) $rng.Next(36, 84)
+            } else {
+                Line $g $dark 1.0 $x $y ($x + $rng.Next(-6, 7)) ($y + $rng.Next(-2, 3)) $rng.Next(34, 76)
+            }
+        }
+    }
+}
+
 function Add-Ground-Texture($g, [System.Random]$rng, [string]$dot, [string]$line, [int]$count) {
     for ($i = 0; $i -lt $count; $i++) {
         $x = $rng.Next(12, 98)
@@ -88,65 +132,63 @@ function Add-Ground-Texture($g, [System.Random]$rng, [string]$dot, [string]$line
 
 function Tile-Low([int]$variant) {
     $img = New-Image; $bmp = $img[0]; $g = $img[1]; $rng = [System.Random]::new(100 + $variant)
-    Draw-Diamond $g "#10261f" "#4a8a5c" 17 49 81 18
-    Poly $g "#0a1612" @((Pt 2 49), (Pt 55 81), (Pt 108 49), (Pt 55 88)) "" 1
-    Draw-Diamond $g "#163326" "#7bc47f" 17 49 78 20
-    for ($i = 0; $i -lt 8; $i++) { Ellipse $g "#1e3a2d" ($rng.Next(2, 88)) ($rng.Next(22, 62)) $rng.Next(22, 42) $rng.Next(8, 20) 55 }
-    Add-Ground-Texture $g $rng "#7bc47f" "#2d5a3e" 46
-    for ($i = 0; $i -lt 5; $i++) { Ellipse $g "#8b1a1f" ($rng.Next(20, 90)) ($rng.Next(32, 62)) 4 3 210 }
+    Draw-MatteDiamond $g "#132A22" "#4a8a5c" 17 49 81 18
+    Add-Soft-Blotches $g $rng @("#0A1612", "#1E3A2D", "#2D5A3E") 14 36
+    Add-Matte-Grain $g $rng "#7BC47F" "#0A1612" 68
+    for ($i = 0; $i -lt 5; $i++) { Ellipse $g "#8b1a1f" ($rng.Next(22, 86)) ($rng.Next(34, 61)) $rng.Next(3, 6) $rng.Next(2, 4) 150 }
     Save-Image $bmp $g ("low_ground_vm_{0:D2}.png" -f $variant)
 }
 
 function Tile-Mid([int]$variant) {
     $img = New-Image; $bmp = $img[0]; $g = $img[1]; $rng = [System.Random]::new(200 + $variant)
-    Draw-Diamond $g "#254332" "#8a7560" 12 45 78 20
-    for ($i = 0; $i -lt 11; $i++) { Ellipse $g "#2d5a3e" ($rng.Next(-6, 88)) ($rng.Next(18, 60)) $rng.Next(28, 54) $rng.Next(8, 22) 58 }
-    for ($i = 0; $i -lt 5; $i++) { Ellipse $g "#142420" ($rng.Next(8, 86)) ($rng.Next(30, 66)) $rng.Next(20, 40) $rng.Next(7, 16) 46 }
-    Add-Ground-Texture $g $rng "#d6c7ae" "#4a8a5c" 55
-    Line $g "#d6c7ae" 1.0 10 49 55 76 38
-    Line $g "#d6c7ae" 1.0 101 49 55 76 34
+    Draw-MatteDiamond $g "#2B4E39" "#8A7560" 12 45 78 24
+    Add-Soft-Blotches $g $rng @("#1E3A2D", "#345F43", "#223C32") 15 34
+    Add-Matte-Grain $g $rng "#D6C7AE" "#142420" 76
+    Line $g "#D6C7AE" 1.0 13 47 55 74 42
+    Line $g "#D6C7AE" 1.0 98 47 55 74 38
     Save-Image $bmp $g ("mid_ground_vm_{0:D2}.png" -f $variant)
 }
 
 function Tile-High([int]$variant) {
     $img = New-Image; $bmp = $img[0]; $g = $img[1]; $rng = [System.Random]::new(300 + $variant)
-    Draw-Diamond $g "#52684e" "#d6c7ae" 7 41 75 50
-    for ($i = 0; $i -lt 12; $i++) { Ellipse $g "#5e7453" ($rng.Next(-6, 88)) ($rng.Next(14, 56)) $rng.Next(26, 54) $rng.Next(8, 22) 62 }
-    for ($i = 0; $i -lt 7; $i++) { Ellipse $g "#3f503f" ($rng.Next(8, 86)) ($rng.Next(26, 63)) $rng.Next(20, 42) $rng.Next(7, 16) 46 }
-    Add-Ground-Texture $g $rng "#d6c7ae" "#7bc47f" 58
-    Line $g "#f0e5cc" 1.8 8 41 55 9 96
-    Line $g "#f0e5cc" 1.8 55 9 103 41 96
+    Draw-MatteDiamond $g "#5E7154" "#D6C7AE" 7 41 75 46
+    Add-Soft-Blotches $g $rng @("#4D6148", "#6B8061", "#394C3E") 16 35
+    Add-Matte-Grain $g $rng "#F0E5CC" "#2D5A3E" 82
+    Line $g "#F0E5CC" 1.6 9 41 55 9 90
+    Line $g "#F0E5CC" 1.6 55 9 102 41 90
     Save-Image $bmp $g ("high_ground_vm_{0:D2}.png" -f $variant)
 }
 
 function Tile-Water([int]$variant) {
     $img = New-Image; $bmp = $img[0]; $g = $img[1]; $rng = [System.Random]::new(400 + $variant)
-    Draw-Diamond $g "#0e2c32" "#3fa8b5" 17 49 81 20
-    for ($i = 0; $i -lt 8; $i++) { Line $g "#7ddde8" 1.5 ($rng.Next(14, 94)) ($rng.Next(34, 62)) ($rng.Next(14, 94)) ($rng.Next(35, 67)) 120 }
-    for ($i = 0; $i -lt 6; $i++) { Ellipse $g "#1a4f5c" ($rng.Next(18, 88)) ($rng.Next(35, 61)) 9 3 180 }
+    Draw-MatteDiamond $g "#0E2C32" "#3FA8B5" 17 49 81 20
+    Add-Soft-Blotches $g $rng @("#1A4F5C", "#0A1612", "#123A42") 10 36
+    for ($i = 0; $i -lt 10; $i++) { Line $g "#7DDDE8" 1.2 ($rng.Next(14, 94)) ($rng.Next(34, 62)) ($rng.Next(14, 94)) ($rng.Next(35, 67)) 92 }
+    for ($i = 0; $i -lt 7; $i++) { Ellipse $g "#3FA8B5" ($rng.Next(18, 88)) ($rng.Next(35, 61)) $rng.Next(8, 18) 3 92 }
     Save-Image $bmp $g ("water_vm_{0:D2}.png" -f $variant)
 }
 
 function Tile-Cliff([int]$variant) {
     $img = New-Image; $bmp = $img[0]; $g = $img[1]; $rng = [System.Random]::new(500 + $variant)
-    Poly $g "#060908" @((Pt 6 22), (Pt 55 8), (Pt 105 22), (Pt 105 74), (Pt 55 118), (Pt 6 74)) "" 1
-    Draw-Diamond $g "#1a1410" "#5c4838" 8 33 58 70
-    Poly $g "#0a1612" @((Pt 6 33), (Pt 55 58), (Pt 55 118), (Pt 6 74)) "#050807" 1
-    Poly $g "#1a1410" @((Pt 105 33), (Pt 55 58), (Pt 55 118), (Pt 105 74)) "#050807" 1
-    for ($i = 0; $i -lt 10; $i++) { Line $g "#5c4838" 2 ($rng.Next(12, 98)) ($rng.Next(42, 72)) ($rng.Next(10, 100)) ($rng.Next(78, 116)) 190 }
-    for ($i = 0; $i -lt 4; $i++) { Line $g "#8b1a1f" 2 ($rng.Next(14, 96)) ($rng.Next(30, 54)) ($rng.Next(12, 98)) ($rng.Next(76, 112)) 210 }
+    Poly $g "#050807" @((Pt 6 22), (Pt 55 8), (Pt 105 22), (Pt 105 74), (Pt 55 118), (Pt 6 74)) "" 1
+    Draw-MatteDiamond $g "#201A15" "#8A7560" 8 33 58 58
+    Poly $g "#0A1612" @((Pt 6 33), (Pt 55 58), (Pt 55 118), (Pt 6 74)) "" 1
+    Poly $g "#17110E" @((Pt 105 33), (Pt 55 58), (Pt 55 118), (Pt 105 74)) "" 1
+    for ($i = 0; $i -lt 14; $i++) { Line $g "#5C4838" 1.6 ($rng.Next(12, 98)) ($rng.Next(42, 72)) ($rng.Next(10, 100)) ($rng.Next(78, 116)) 130 }
+    for ($i = 0; $i -lt 5; $i++) { Line $g "#8B1A1F" 1.8 ($rng.Next(14, 96)) ($rng.Next(30, 54)) ($rng.Next(12, 98)) ($rng.Next(76, 112)) 150 }
     Save-Image $bmp $g ("cliff_vm_{0:D2}.png" -f $variant)
 }
 
 function Tile-Path([int]$variant, [bool]$slope) {
     $img = New-Image; $bmp = $img[0]; $g = $img[1]; $rng = [System.Random]::new(600 + $variant + ($(if ($slope) { 30 } else { 0 })))
-    Draw-Diamond $g "#332820" "#8a7560" 17 49 81 28
+    Draw-MatteDiamond $g "#332820" "#8A7560" 17 49 81 28
     $main = if ($slope) { "#8a7560" } else { "#5c4838" }
-    Poly $g $main @((Pt 16 49), (Pt 55 26), (Pt 95 49), (Pt 55 72)) "#d6c7ae" 1.2 72
-    for ($i = 0; $i -lt 16; $i++) { Ellipse $g "#d6c7ae" ($rng.Next(22, 86)) ($rng.Next(34, 62)) $rng.Next(2, 6) $rng.Next(1, 4) 170 }
+    Poly $g $main @((Pt 16 49), (Pt 55 26), (Pt 95 49), (Pt 55 72)) "" 1
+    Add-Soft-Blotches $g $rng @("#8A7560", "#332820", "#D6C7AE") 8 32
+    for ($i = 0; $i -lt 18; $i++) { Ellipse $g "#D6C7AE" ($rng.Next(22, 86)) ($rng.Next(34, 62)) $rng.Next(2, 5) $rng.Next(1, 3) 105 }
     if ($slope) {
-        Line $g "#d6c7ae" 3 24 56 88 36 200
-        Line $g "#3fa8b5" 2 32 61 80 44 160
+        Line $g "#D6C7AE" 2.4 24 56 88 36 160
+        Line $g "#3FA8B5" 1.5 32 61 80 44 110
     }
     Save-Image $bmp $g ($(if ($slope) { "path_slope_vm_{0:D2}.png" } else { "path_vm_{0:D2}.png" }) -f $variant)
 }

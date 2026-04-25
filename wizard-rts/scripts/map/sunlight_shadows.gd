@@ -9,6 +9,7 @@ const SHADOW := Color("#050807")
 const BLOOD_SUN := Color("#E85A5A")
 
 var map: Node
+var day_night: DayNightCycle
 var terrain_shadows: Array[Dictionary] = []
 var sun_patches: Array[Dictionary] = []
 var _elapsed := 0.0
@@ -32,6 +33,7 @@ func _rebuild() -> void:
 	if map == null or map.grid.is_empty():
 		call_deferred("_rebuild")
 		return
+	day_night = get_node_or_null("../DayNightCycle")
 	terrain_shadows.clear()
 	sun_patches.clear()
 	for x in map.MAP_W:
@@ -55,15 +57,19 @@ func _rebuild() -> void:
 func _draw() -> void:
 	if map == null:
 		return
+	var daylight := _daylight()
+	var night := 1.0 - daylight
+	var sun_dir := _sun_direction()
+	var shadow_offset := Vector2(30.0, 22.0) + sun_dir * (32.0 + night * 10.0)
 	for shadow in terrain_shadows:
-		draw_ellipse(shadow["pos"], shadow["width"], 18.0, _alpha(SHADOW, shadow["alpha"]))
+		draw_ellipse(shadow["pos"] + shadow_offset, shadow["width"], 18.0, _alpha(SHADOW, float(shadow["alpha"]) * (0.45 + daylight * 0.75)))
 	for patch in sun_patches:
 		var color := BLOOD_SUN if bool(patch["blood"]) else SUN
-		draw_circle(patch["pos"], patch["radius"], _alpha(color, 0.055))
-		draw_circle(patch["pos"] + Vector2(-7, -4), patch["radius"] * 0.38, _alpha(color, 0.05))
+		draw_circle(patch["pos"], patch["radius"], _alpha(color, 0.025 + daylight * 0.07))
+		draw_circle(patch["pos"] - sun_dir * 12.0, patch["radius"] * 0.38, _alpha(color, daylight * 0.06))
 	for unit in get_tree().get_nodes_in_group("units"):
 		if is_instance_valid(unit) and unit is Node2D:
-			draw_ellipse(unit.global_position + Vector2(12, 18), 34.0, 9.0, _alpha(SHADOW, 0.28))
+			draw_ellipse(unit.global_position + Vector2(12, 18) + sun_dir * 12.0, 34.0, 9.0, _alpha(SHADOW, 0.14 + daylight * 0.22))
 
 func _has_lower_south_neighbor(cell: Vector2i) -> bool:
 	var south := cell + Vector2i(0, 1)
@@ -73,3 +79,13 @@ func _has_lower_south_neighbor(cell: Vector2i) -> bool:
 
 func _alpha(color: Color, alpha: float) -> Color:
 	return Color(color.r, color.g, color.b, alpha)
+
+func _daylight() -> float:
+	if day_night == null:
+		day_night = get_node_or_null("../DayNightCycle")
+	return day_night.get_daylight_amount() if day_night != null else 0.75
+
+func _sun_direction() -> Vector2:
+	if day_night == null:
+		day_night = get_node_or_null("../DayNightCycle")
+	return day_night.get_sun_direction() if day_night != null else Vector2(1.0, 0.45).normalized()

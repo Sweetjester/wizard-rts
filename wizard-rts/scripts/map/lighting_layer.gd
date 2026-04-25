@@ -10,6 +10,7 @@ const SOUL_SPARK := Color("#7DDDE8")
 const BLOOD_GLOW := Color("#8B1A1F")
 
 var map: Node
+var day_night: DayNightCycle
 var plot_lights: Array[Dictionary] = []
 var _elapsed := 0.0
 
@@ -32,6 +33,7 @@ func _rebuild() -> void:
 	if map == null or map.grid.is_empty():
 		call_deferred("_rebuild")
 		return
+	day_night = get_node_or_null("../DayNightCycle")
 	plot_lights.clear()
 	for plot in map.get_plots():
 		var anchor: Vector2i = plot.get("anchor", Vector2i.ZERO)
@@ -51,22 +53,25 @@ func _draw() -> void:
 	_draw_unit_lights()
 
 func _draw_ambient() -> void:
+	var night := _night_amount()
 	var corners := PackedVector2Array([
 		map.cell_to_world(Vector2i(-4, -4)),
 		map.cell_to_world(Vector2i(map.MAP_W + 4, -4)),
 		map.cell_to_world(Vector2i(map.MAP_W + 4, map.MAP_H + 4)),
 		map.cell_to_world(Vector2i(-4, map.MAP_H + 4)),
 	])
-	draw_polygon(corners, PackedColorArray([_alpha(AMBIENT, 0.2)]))
+	draw_polygon(corners, PackedColorArray([_alpha(AMBIENT, 0.08 + night * 0.20)]))
 
 func _draw_plot_lights() -> void:
 	var t := float(Time.get_ticks_msec()) / 1000.0
+	var night_boost := 1.0 + _night_amount() * 1.85
 	for light in plot_lights:
 		var pulse := 0.5 + sin(t * 1.2 + float(light["pos"].x) * 0.01) * 0.5
-		_draw_glow(light["pos"], float(light["radius"]) + pulse * 10.0, light["color"], 0.08)
+		_draw_glow(light["pos"], float(light["radius"]) + pulse * 10.0 + _night_amount() * 28.0, light["color"], 0.055 * night_boost)
 
 func _draw_unit_lights() -> void:
 	var unit_index := 0
+	var night_boost := 1.0 + _night_amount() * 1.5
 	for unit in get_tree().get_nodes_in_group("units"):
 		if not is_instance_valid(unit) or not (unit is Node2D):
 			continue
@@ -79,7 +84,7 @@ func _draw_unit_lights() -> void:
 		if StringName(unit.get("unit_archetype")) == &"life_wizard":
 			radius = 76.0
 			color = SOUL_SPARK
-		_draw_glow(unit.global_position + Vector2(0, -18), radius, color, 0.075)
+		_draw_glow(unit.global_position + Vector2(0, -18), radius + _night_amount() * 18.0, color, 0.055 * night_boost)
 
 func _draw_glow(pos: Vector2, radius: float, color: Color, alpha: float) -> void:
 	draw_circle(pos, radius, _alpha(color, alpha))
@@ -87,3 +92,8 @@ func _draw_glow(pos: Vector2, radius: float, color: Color, alpha: float) -> void
 
 func _alpha(color: Color, alpha: float) -> Color:
 	return Color(color.r, color.g, color.b, alpha)
+
+func _night_amount() -> float:
+	if day_night == null:
+		day_night = get_node_or_null("../DayNightCycle")
+	return day_night.get_night_amount() if day_night != null else 0.35

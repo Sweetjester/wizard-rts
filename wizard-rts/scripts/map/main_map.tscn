@@ -1,4 +1,4 @@
-[gd_scene load_steps=26 format=4 uid="uid://cadog5s2ne74q"]
+[gd_scene load_steps=27 format=4 uid="uid://cadog5s2ne74q"]
 
 [ext_resource type="Script" uid="uid://c55e5b81k5mcw" path="res://scripts/map/map_manager.gd" id="1_yq3ld"]
 [ext_resource type="Script" uid="uid://co8oyntpicxw5" path="res://scripts/camera/camera_controller.gd" id="2_v4mqy"]
@@ -22,6 +22,7 @@
 [ext_resource type="Script" path="res://scripts/core/wave_director.gd" id="23_wave"]
 [ext_resource type="Script" path="res://scripts/ui/rts_hud.gd" id="24_hud"]
 [ext_resource type="Script" path="res://scripts/map/terrain_relief_layer.gd" id="25_relief"]
+[ext_resource type="Script" path="res://scripts/map/day_night_cycle.gd" id="26_daynight"]
 
 [node name="Node2D" type="Node2D" unique_id=2018844996]
 script = ExtResource("1_yq3ld")
@@ -83,6 +84,9 @@ script = ExtResource("12_waterfx")
 
 [node name="SunlightShadows" type="Node2D" parent="." unique_id=1380540447]
 script = ExtResource("17_sun")
+
+[node name="DayNightCycle" type="Node2D" parent="."]
+script = ExtResource("26_daynight")
 
 [node name="LightingLayer" type="Node2D" parent="." unique_id=1655661512]
 script = ExtResource("16_light")

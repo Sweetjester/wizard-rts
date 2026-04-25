@@ -15,6 +15,7 @@ const BLOOD_LOW := Color("#2B0608")
 const SHORE_GLOW := Color("#7DDDE8")
 
 var map: Node
+var day_night: DayNightCycle
 var water_cells: Array[Vector2i] = []
 var shore_cells: Array[Vector2i] = []
 var light_cells: Array[Vector2i] = []
@@ -39,6 +40,7 @@ func _rebuild() -> void:
 	if map == null or map.grid.is_empty():
 		call_deferred("_rebuild")
 		return
+	day_night = get_node_or_null("../DayNightCycle")
 	water_cells.clear()
 	shore_cells.clear()
 	light_cells.clear()
@@ -78,6 +80,7 @@ func _draw_ambient_wash() -> void:
 
 func _draw_water_shimmer() -> void:
 	var t := float(Time.get_ticks_msec()) / 1000.0
+	var night := _night_amount()
 	for i in water_cells.size():
 		if i % shimmer_stride != 0:
 			continue
@@ -85,8 +88,8 @@ func _draw_water_shimmer() -> void:
 		var pos: Vector2 = map.cell_to_world(cell)
 		var phase := t * pulse_speed + float((cell.x * 11 + cell.y * 17) % 100) * 0.05
 		var shimmer := 0.5 + sin(phase) * 0.5
-		draw_circle(pos, 18.0 + shimmer * 4.0, _alpha(DEEP_POOL, 0.22))
-		draw_line(pos + Vector2(-12, -2), pos + Vector2(12, 2), _alpha(ALGAE_BLOOM, 0.15 + shimmer * 0.12), 2.0)
+		draw_circle(pos, 18.0 + shimmer * 4.0, _alpha(DEEP_POOL, 0.16 + night * 0.14))
+		draw_line(pos + Vector2(-12, -2), pos + Vector2(12, 2), _alpha(ALGAE_BLOOM, 0.12 + shimmer * 0.08 + night * 0.10), 2.0)
 
 func _draw_water_surface() -> void:
 	for i in water_cells.size():
@@ -121,12 +124,13 @@ func _is_shore_cell(cell: Vector2i) -> bool:
 
 func _draw_magic_lights() -> void:
 	var t := float(Time.get_ticks_msec()) / 1000.0
+	var night := _night_amount()
 	for cell in light_cells:
 		var pos: Vector2 = map.cell_to_world(cell) + Vector2(0, -10)
 		var phase := t * 1.7 + float((cell.x * 3 + cell.y * 19) % 64) * 0.1
 		var pulse := 0.5 + sin(phase) * 0.5
-		draw_circle(pos, 34.0 + pulse * 10.0, _alpha(WISP_LIGHT, 0.08 + pulse * 0.05))
-		draw_circle(pos, 8.0 + pulse * 2.0, _alpha(SOUL_SPARK, 0.22 + pulse * 0.1))
+		draw_circle(pos, 34.0 + pulse * 10.0 + night * 12.0, _alpha(WISP_LIGHT, 0.06 + pulse * 0.04 + night * 0.08))
+		draw_circle(pos, 8.0 + pulse * 2.0, _alpha(SOUL_SPARK, 0.18 + pulse * 0.08 + night * 0.18))
 	var choke_index := 0
 	for cell in map.get_chokepoints():
 		if choke_index % 16 != 0:
@@ -138,3 +142,8 @@ func _draw_magic_lights() -> void:
 
 func _alpha(color: Color, alpha: float) -> Color:
 	return Color(color.r, color.g, color.b, alpha)
+
+func _night_amount() -> float:
+	if day_night == null:
+		day_night = get_node_or_null("../DayNightCycle")
+	return day_night.get_night_amount() if day_night != null else 0.35
