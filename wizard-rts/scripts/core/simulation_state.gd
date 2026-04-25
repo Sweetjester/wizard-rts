@@ -92,12 +92,14 @@ func _apply_command(command: RTSCommand) -> void:
 	match command.type:
 		RTSCommand.Type.SPAWN_ENTITY:
 			spawn_entity(command.player_id, command.archetype, command.target_cell)
-		RTSCommand.Type.MOVE_UNITS, RTSCommand.Type.ATTACK_MOVE:
+		RTSCommand.Type.MOVE_UNITS, RTSCommand.Type.ATTACK_MOVE, RTSCommand.Type.PATROL:
 			_set_move_targets(command)
 		RTSCommand.Type.ATTACK_TARGET:
 			_set_attack_targets(command)
 		RTSCommand.Type.STOP_UNITS:
 			_stop_units(command)
+		RTSCommand.Type.HOLD_POSITION:
+			_hold_units(command)
 		RTSCommand.Type.BUILD_STRUCTURE:
 			_apply_build_structure(command)
 		RTSCommand.Type.PRODUCE_UNIT:
@@ -113,7 +115,12 @@ func _set_move_targets(command: RTSCommand) -> void:
 		var path := _make_straight_grid_path(entity["cell"], command.target_cell)
 		entity["path"] = path
 		entity["command_target"] = command.target_cell
-		entity["state"] = "attack_move" if command.type == RTSCommand.Type.ATTACK_MOVE else "moving"
+		if command.type == RTSCommand.Type.ATTACK_MOVE:
+			entity["state"] = "attack_move"
+		elif command.type == RTSCommand.Type.PATROL:
+			entity["state"] = "patrol"
+		else:
+			entity["state"] = "moving"
 
 func _stop_units(command: RTSCommand) -> void:
 	for entity_id in command.entity_ids:
@@ -126,6 +133,18 @@ func _stop_units(command: RTSCommand) -> void:
 		entity["command_target"] = entity["cell"]
 		entity["attack_target"] = 0
 		entity["state"] = "idle"
+
+func _hold_units(command: RTSCommand) -> void:
+	for entity_id in command.entity_ids:
+		if not entities.has(entity_id):
+			continue
+		var entity: Dictionary = entities[entity_id]
+		if int(entity["player_id"]) != command.player_id:
+			continue
+		entity["path"] = []
+		entity["command_target"] = entity["cell"]
+		entity["attack_target"] = 0
+		entity["state"] = "hold"
 
 func _set_attack_targets(command: RTSCommand) -> void:
 	for entity_id in command.entity_ids:

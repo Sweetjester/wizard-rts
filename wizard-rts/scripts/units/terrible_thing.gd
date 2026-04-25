@@ -8,7 +8,10 @@ func _ready() -> void:
 	collision_separation = 20.0
 
 func _draw() -> void:
+	_draw_unit_transform_begin()
 	_draw_body(Color("#5C0F14"), Color("#E85A5A"))
+	_draw_unit_transform_end()
+	_draw_selection_and_path()
 
 func _draw_body(body: Color, glow: Color) -> void:
 	draw_circle(Vector2(0, 9), 13, Color(0, 0, 0, 0.3))
@@ -20,4 +23,3 @@ func _draw_body(body: Color, glow: Color) -> void:
 	draw_circle(Vector2(4, -10), 2, glow)
 	draw_line(Vector2(-8, 14), Vector2(-20, 20), body.darkened(0.25), 3.0)
 	draw_line(Vector2(8, 14), Vector2(20, 20), body.darkened(0.25), 3.0)
-	_draw_selection_and_path()

@@ -11,6 +11,7 @@ func _draw() -> void:
 	if has_node("ArtSprite"):
 		_draw_selection_and_path()
 		return
+	_draw_unit_transform_begin()
 	draw_circle(Vector2(0, 9), 13, Color(0, 0, 0, 0.3))
 	draw_line(Vector2(0, 8), Vector2(0, -16), Color("#332820"), 8.0)
 	draw_line(Vector2(-2, -5), Vector2(-13, -18), Color("#5C4838"), 4.0)
@@ -20,4 +21,5 @@ func _draw() -> void:
 	draw_circle(Vector2(8, -19), 7, Color("#4A8A5C"))
 	draw_circle(Vector2(-3, -9), 1.5, Color("#7BC47F"))
 	draw_circle(Vector2(4, -10), 1.5, Color("#7BC47F"))
+	_draw_unit_transform_end()
 	_draw_selection_and_path()

@@ -25,6 +25,7 @@ func _get_session_wizard_class() -> String:
 	return String(session.get("wizard_class_id"))
 
 func _process(delta: float) -> void:
+	super(delta)
 	_update_sprite_animation(delta)
 
 func _apply_wizard_art() -> void:

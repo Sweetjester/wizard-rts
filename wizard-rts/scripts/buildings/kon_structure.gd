@@ -2,30 +2,75 @@ class_name KonStructure
 extends StaticBody2D
 
 var archetype: StringName = &"bio_absorber"
+var owner_player_id: int = 1
 var level: int = 1
 var footprint: Vector2i = Vector2i.ONE
 var cell: Vector2i = Vector2i.ZERO
+var selection_radius: float = 48.0
+var max_health: int = 200
+var health: int = 200
+var attack_damage: int = 0
+var attack_range: float = 0.0
 var build_progress: float = 0.0
 var build_time: float = 0.0
 var complete: bool = true
+var production_queue_count: int = 0
+var training_archetype: StringName = &""
+var training_progress: float = 0.0
+var training_time: float = 0.0
+var selected := false
 
 func configure(new_archetype: StringName, new_cell: Vector2i, new_footprint: Vector2i) -> void:
 	archetype = new_archetype
 	cell = new_cell
 	footprint = new_footprint
+	selection_radius = maxf(34.0, maxf(float(footprint.x) * 38.0, float(footprint.y) * 32.0))
 	name = "%s_%s_%s" % [String(archetype), cell.x, cell.y]
 	z_as_relative = false
+	add_to_group("selectable_units")
+	add_to_group("structures")
 	_build_collision()
+	queue_redraw()
+
+func set_runtime_stats(player_id: int, hp: int, max_hp: int, new_level: int = 1) -> void:
+	owner_player_id = player_id
+	health = hp
+	max_health = max_hp
+	level = new_level
+	var definition := UnitCatalog.get_definition(archetype)
+	attack_damage = int(definition.get("attack_damage", 0))
+	attack_range = float(definition.get("attack_range_cells", 0)) * 64.0
 	queue_redraw()
 
 func set_level(value: int) -> void:
 	level = value
 	queue_redraw()
 
+func set_selected(value: bool) -> void:
+	selected = value
+	queue_redraw()
+
+func is_inside_selection_rect(rect: Rect2) -> bool:
+	var size := Vector2(72.0 * float(footprint.x), 56.0 * float(footprint.y))
+	return rect.intersects(Rect2(global_position - size * 0.5 + Vector2(0, -16), size))
+
+func get_display_name() -> String:
+	return String(UnitCatalog.get_definition(archetype).get("display_name", String(archetype)))
+
+func get_selection_kind() -> StringName:
+	return &"structure"
+
 func set_construction_state(progress: float, total_time: float, is_complete: bool) -> void:
 	build_progress = progress
 	build_time = total_time
 	complete = is_complete
+	queue_redraw()
+
+func set_training_state(queue_count: int, current_archetype: StringName, progress: float, total_time: float) -> void:
+	production_queue_count = queue_count
+	training_archetype = current_archetype
+	training_progress = progress
+	training_time = total_time
 	queue_redraw()
 
 func _build_collision() -> void:
@@ -60,7 +105,30 @@ func _draw() -> void:
 			_draw_barracks(draw_color)
 	if not complete:
 		_draw_construction_overlay(color)
+	elif not String(training_archetype).is_empty():
+		_draw_training_overlay()
+	_draw_selection()
+	_draw_health_bar()
 	_draw_level_badge()
+
+func _draw_selection() -> void:
+	if not selected:
+		return
+	var size := Vector2(78.0 * float(footprint.x), 42.0 * float(footprint.y))
+	_draw_flat_ellipse(Vector2(0, 13), size, Color("#7DDDE8", 0.16))
+	draw_arc(Vector2(0, 13), size.x * 0.5, 0, TAU, 48, Color("#7DDDE8", 0.9), 2.0)
+
+func _draw_health_bar() -> void:
+	var ratio := 1.0
+	if max_health > 0:
+		ratio = clampf(float(health) / float(max_health), 0.0, 1.0)
+	var width := maxf(48.0, 52.0 * float(footprint.x))
+	var y := -76.0
+	var fill := Color("#7BC47F") if owner_player_id == 1 else Color("#C13030")
+	if not complete:
+		fill = Color("#7DDDE8")
+	draw_rect(Rect2(Vector2(-width * 0.5 - 1.0, y - 1.0), Vector2(width + 2.0, 6.0)), Color("#0A1612", 0.88), true)
+	draw_rect(Rect2(Vector2(-width * 0.5, y), Vector2(width * ratio, 4.0)), fill, true)
 
 func _draw_construction_overlay(color: Color) -> void:
 	var width := 68.0 * float(footprint.x)
@@ -72,6 +140,16 @@ func _draw_construction_overlay(color: Color) -> void:
 	draw_line(Vector2(-width * 0.45, -52), Vector2(width * 0.45, 12), Color("#D6C7AE", 0.72), 3)
 	draw_line(Vector2(width * 0.45, -52), Vector2(-width * 0.45, 12), Color("#D6C7AE", 0.72), 3)
 	draw_arc(Vector2.ZERO, width * 0.42, 0, TAU, 32, color.lightened(0.2), 2)
+
+func _draw_training_overlay() -> void:
+	var width := maxf(54.0, 48.0 * float(footprint.x))
+	var progress := 0.0
+	if training_time > 0.0:
+		progress = clampf(training_progress / training_time, 0.0, 1.0)
+	draw_rect(Rect2(Vector2(-width * 0.5, 36), Vector2(width, 5)), Color("#0A1612", 0.82), true)
+	draw_rect(Rect2(Vector2(-width * 0.5, 36), Vector2(width * progress, 5)), Color("#7BC47F", 0.95), true)
+	if production_queue_count > 0:
+		draw_string(ThemeDB.fallback_font, Vector2(width * 0.5 + 5, 41), "+%s" % production_queue_count, HORIZONTAL_ALIGNMENT_LEFT, 32.0, 11, Color("#D6C7AE"))
 
 func _draw_flat_ellipse(center: Vector2, size: Vector2, color: Color) -> void:
 	var points := PackedVector2Array()

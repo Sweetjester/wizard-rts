@@ -12,6 +12,7 @@ extends CharacterBody2D
 @export var attack_damage: int = 8
 @export var attack_range: float = 96.0
 @export var attack_cooldown: float = 1.0
+@export var projectile_speed: float = 620.0
 
 static var _registered_units: Array[Node2D] = []
 static var _spatial_frame := -1
@@ -27,11 +28,18 @@ var simulation_entity_id: int = 0
 var health: int = 80
 var unit_state: StringName = &"idle"
 var attack_target: Node2D = null
+var command_mode: StringName = &"idle"
+var patrol_a := Vector2.ZERO
+var patrol_b := Vector2.ZERO
+var _patrol_heading_to_b := true
 var evolution_xp: float = 0.0
 var evolution_level: int = 1
 var stunned_until_msec: int = 0
 var _attack_elapsed: float = 0.0
 var _last_z_cell_y := 999999
+var _visual_elapsed := 0.0
+var _facing_sign := 1.0
+var _last_melee_attack_msec: int = -10000
 
 func _ready() -> void:
 	target_pos = global_position
@@ -46,6 +54,11 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	_unregister_unit(self)
 
+func _process(delta: float) -> void:
+	_visual_elapsed += delta
+	if moving or unit_state in [&"attacking", &"attack_move", &"patrol", &"hold", &"stunned"] or selected or health < max_health:
+		queue_redraw()
+
 func set_selected(value: bool) -> void:
 	selected = value
 	queue_redraw()
@@ -55,6 +68,7 @@ func is_inside_selection_rect(rect: Rect2) -> bool:
 
 func issue_move_order(world_pos: Vector2) -> void:
 	attack_target = null
+	command_mode = &"move"
 	unit_state = &"moving"
 	if terrain == null:
 		path = [world_pos]
@@ -70,6 +84,7 @@ func issue_move_order_offset(world_pos: Vector2, offset: Vector2) -> void:
 
 func issue_shared_path_order(shared_path: Array[Vector2], offset: Vector2) -> void:
 	attack_target = null
+	command_mode = &"move"
 	unit_state = &"moving"
 	path.clear()
 	for point in shared_path:
@@ -88,13 +103,21 @@ func _physics_process(delta: float) -> void:
 	if path.is_empty():
 		velocity = _separation_velocity()
 		moving = false
-		if attack_target == null:
+		if command_mode == &"patrol" and attack_target == null:
+			_resume_patrol_leg()
+		elif attack_target == null and command_mode == &"hold":
+			unit_state = &"hold"
+		elif attack_target == null and command_mode == &"attack_move":
+			unit_state = &"attack_move"
+		elif attack_target == null:
 			unit_state = &"idle"
 		move_and_slide()
 		return
 
 	target_pos = path[0]
 	var dir := target_pos - global_position
+	if absf(dir.x) > 0.5:
+		_facing_sign = signf(dir.x)
 	var step := move_speed * delta
 	if dir.length() <= max(stop_distance, step):
 		global_position = target_pos
@@ -102,7 +125,12 @@ func _physics_process(delta: float) -> void:
 		path.pop_front()
 		moving = not path.is_empty()
 		if not moving:
-			unit_state = &"idle"
+			if command_mode == &"patrol":
+				_resume_patrol_leg()
+			elif command_mode == &"attack_move":
+				unit_state = &"attack_move"
+			else:
+				unit_state = &"idle"
 		queue_redraw()
 		return
 
@@ -113,13 +141,42 @@ func issue_attack_target(target: Node2D) -> void:
 	if target == null or not is_instance_valid(target):
 		return
 	attack_target = target
+	command_mode = &"attack_target"
 	path.clear()
 	moving = false
 	unit_state = &"attacking"
 
 func issue_attack_move_order(world_pos: Vector2) -> void:
 	issue_move_order(world_pos)
+	command_mode = &"attack_move"
 	unit_state = &"attack_move"
+
+func issue_patrol_order(world_pos: Vector2) -> void:
+	attack_target = null
+	command_mode = &"patrol"
+	patrol_a = global_position
+	patrol_b = world_pos
+	_patrol_heading_to_b = true
+	_set_path_to_world(patrol_b)
+	unit_state = &"patrol"
+
+func issue_hold_position_order() -> void:
+	attack_target = null
+	command_mode = &"hold"
+	path.clear()
+	moving = false
+	velocity = Vector2.ZERO
+	unit_state = &"hold"
+	queue_redraw()
+
+func issue_stop_order() -> void:
+	attack_target = null
+	command_mode = &"idle"
+	path.clear()
+	moving = false
+	velocity = Vector2.ZERO
+	unit_state = &"idle"
+	queue_redraw()
 
 func rts_combat_tick(delta: float, nearby_units: Array[Node2D]) -> void:
 	if health <= 0 or _is_stunned():
@@ -133,7 +190,9 @@ func rts_combat_tick(delta: float, nearby_units: Array[Node2D]) -> void:
 		return
 	var distance := global_position.distance_to(attack_target.global_position)
 	if distance > attack_range:
-		if unit_state == &"attacking" or unit_state == &"attack_move":
+		if command_mode == &"hold":
+			return
+		if unit_state == &"attacking" or command_mode in [&"attack_move", &"attack_target", &"patrol"]:
 			_chase_attack_target()
 		return
 	path.clear()
@@ -146,7 +205,7 @@ func rts_combat_tick(delta: float, nearby_units: Array[Node2D]) -> void:
 		var casts := 2 if bool(UnitCatalog.get_definition(unit_archetype).get("dual_cast", false)) else 1
 		for _i in casts:
 			if is_instance_valid(attack_target):
-				attack_target.take_damage(attack_damage, self)
+				_fire_attack(attack_target)
 				_gain_evolution_xp(float(attack_damage) * 0.6)
 		var heal := int(UnitCatalog.get_definition(unit_archetype).get("heal_per_attack", 0))
 		if heal > 0:
@@ -163,6 +222,49 @@ func _chase_attack_target() -> void:
 	if moving:
 		target_pos = path[0]
 	unit_state = &"attacking"
+
+func _set_path_to_world(world_pos: Vector2) -> void:
+	if terrain == null:
+		path = [world_pos]
+	else:
+		path = terrain.find_path_world(global_position, world_pos)
+	moving = not path.is_empty()
+	if moving:
+		target_pos = path[0]
+
+func _resume_patrol_leg() -> void:
+	_patrol_heading_to_b = not _patrol_heading_to_b
+	_set_path_to_world(patrol_b if _patrol_heading_to_b else patrol_a)
+	unit_state = &"patrol"
+
+func _fire_attack(target: Node2D) -> void:
+	if _uses_projectile():
+		_spawn_projectile(target)
+	else:
+		_last_melee_attack_msec = Time.get_ticks_msec()
+		queue_redraw()
+		target.take_damage(attack_damage, self)
+
+func _uses_projectile() -> bool:
+	return attack_range > 100.0
+
+func _spawn_projectile(target: Node2D) -> void:
+	var projectile := RtsProjectile.new()
+	projectile.configure(self, target, attack_damage, _projectile_color(), projectile_speed)
+	get_parent().add_child(projectile)
+	projectile.global_position = global_position + Vector2(0, -12)
+
+func _projectile_color() -> Color:
+	match unit_archetype:
+		&"horror":
+			return Color("#7DDDE8")
+		&"apex":
+			return Color("#7BC47F")
+		&"life_wizard":
+			return Color("#7DDDE8")
+		&"fire_wizard":
+			return Color("#E85A5A")
+	return Color("#D6C7AE")
 
 func take_damage(amount: int, _source: Node = null) -> void:
 	health = maxi(0, health - amount)
@@ -247,6 +349,7 @@ func _apply_catalog_definition() -> void:
 	attack_damage = int(definition.get("attack_damage", attack_damage))
 	attack_range = float(definition.get("attack_range_cells", 1)) * 64.0
 	attack_cooldown = float(definition.get("attack_cooldown_ticks", 20)) / 20.0
+	projectile_speed = float(definition.get("projectile_speed", projectile_speed))
 
 func _separation_velocity() -> Vector2:
 	var push := Vector2.ZERO
@@ -317,6 +420,8 @@ func _snap_to_walkable_terrain() -> void:
 		target_pos = global_position
 
 func _draw_selection_and_path() -> void:
+	_draw_melee_swing_fx()
+	_draw_health_bar()
 	if not selected:
 		return
 	draw_arc(Vector2(0, 10), selection_radius, 0, TAU, 40, Color(0.25, 0.95, 1.0), 2.5)
@@ -328,3 +433,50 @@ func _draw_selection_and_path() -> void:
 		draw_line(previous, local_point, Color(0.25, 0.95, 1.0, 0.55), 2.0)
 		previous = local_point
 	draw_circle(to_local(path[path.size() - 1]), 5.0, Color(0.25, 0.95, 1.0, 0.8))
+
+func _draw_unit_transform_begin() -> void:
+	var bob := 0.0
+	var squash := 1.0
+	if moving:
+		bob = sin(_visual_elapsed * 12.0) * 2.0
+		squash = 1.0 + sin(_visual_elapsed * 12.0) * 0.04
+	elif unit_state == &"attacking":
+		bob = -absf(sin(_visual_elapsed * 18.0)) * 3.0
+		squash = 1.0 + absf(sin(_visual_elapsed * 18.0)) * 0.08
+	elif unit_state == &"hold":
+		squash = 1.04
+	draw_set_transform(Vector2(0, bob), 0.0, Vector2(_facing_sign, squash))
+
+func _draw_unit_transform_end() -> void:
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+func _draw_health_bar() -> void:
+	var ratio := 1.0
+	if max_health > 0:
+		ratio = clampf(float(health) / float(max_health), 0.0, 1.0)
+	var width := 38.0
+	var y := -42.0
+	var fill := Color("#7BC47F") if owner_player_id == 1 else Color("#C13030")
+	if ratio < 0.35:
+		fill = Color("#E85A5A")
+	draw_rect(Rect2(Vector2(-width * 0.5 - 1.0, y - 1.0), Vector2(width + 2.0, 5.0)), Color("#0A1612", 0.85), true)
+	draw_rect(Rect2(Vector2(-width * 0.5, y), Vector2(width * ratio, 3.0)), fill, true)
+	if unit_state == &"hold":
+		draw_line(Vector2(-12, y - 5), Vector2(12, y - 5), Color("#D6C7AE", 0.9), 2.0)
+	elif command_mode == &"patrol":
+		draw_arc(Vector2(0, y - 6), 6.0, 0.3, TAU - 0.3, 16, Color("#7DDDE8", 0.85), 1.5)
+	elif command_mode == &"attack_move":
+		draw_line(Vector2(-7, y - 7), Vector2(7, y - 3), Color("#E85A5A", 0.9), 1.5)
+		draw_line(Vector2(7, y - 7), Vector2(-7, y - 3), Color("#E85A5A", 0.9), 1.5)
+
+func _draw_melee_swing_fx() -> void:
+	if _uses_projectile():
+		return
+	var elapsed := float(Time.get_ticks_msec() - _last_melee_attack_msec) / 1000.0
+	if elapsed < 0.0 or elapsed > 0.22:
+		return
+	var alpha := 1.0 - elapsed / 0.22
+	var side := _facing_sign
+	var center := Vector2(18.0 * side, -5.0)
+	draw_arc(center, 18.0, -1.3 if side > 0.0 else PI - 1.8, 1.0 if side > 0.0 else PI + 1.3, 18, Color("#D6C7AE", 0.75 * alpha), 3.0)
+	draw_line(Vector2(4.0 * side, -4), Vector2(25.0 * side, -14), Color("#E85A5A", 0.65 * alpha), 2.0)

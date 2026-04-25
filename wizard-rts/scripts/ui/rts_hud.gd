@@ -14,6 +14,11 @@ var resource_label: Label
 var phase_label: Label
 var selection_label: Label
 var status_label: Label
+var detail_name_label: Label
+var detail_body_label: Label
+var detail_meta_label: Label
+var command_container: HBoxContainer
+var _last_selection_signature := ""
 
 func _ready() -> void:
 	layer = 50
@@ -35,14 +40,22 @@ func _ready() -> void:
 		build_system.structure_completed.connect(func(_player_id: int, archetype: StringName, _cell: Vector2i) -> void:
 			status_label.text = "%s complete" % UnitCatalog.get_definition(archetype).get("display_name", archetype)
 		)
+		build_system.unit_training_queued.connect(func(_player_id: int, _producer: Node, archetype: StringName, queue_count: int) -> void:
+			status_label.text = "Queued %s (%s waiting)" % [UnitCatalog.get_definition(archetype).get("display_name", archetype), queue_count]
+		)
 		build_system.unit_produced.connect(func(_player_id: int, archetype: StringName, _cell: Vector2i) -> void:
 			status_label.text = "Produced %s" % UnitCatalog.get_definition(archetype).get("display_name", archetype)
+		)
+	if selection_controller != null:
+		selection_controller.selection_changed.connect(func(_selected: Array[Node]) -> void:
+			_update_selection_panel(true)
 		)
 	_refresh()
 
 func _process(_delta: float) -> void:
 	if selection_controller != null:
 		selection_label.text = "Selected: %s" % selection_controller.selected_units.size()
+		_update_selection_panel(false)
 
 func _build_ui() -> void:
 	var root := MarginContainer.new()
@@ -60,7 +73,7 @@ func _build_ui() -> void:
 	phase_label = _make_label()
 	selection_label = _make_label()
 	var commands := _make_label()
-	commands.text = "S stop | Right-click move | Drag Vinewall to chain"
+	commands.text = "A attack-move | P patrol | H hold | S stop | Right-click move"
 
 	row.add_child(resource_label)
 	row.add_child(phase_label)
@@ -71,30 +84,37 @@ func _build_ui() -> void:
 	bottom.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	bottom.offset_left = 16
 	bottom.offset_right = -16
-	bottom.offset_top = -126
+	bottom.offset_top = -154
 	bottom.offset_bottom = -12
 	add_child(bottom)
 
-	var command_row := HBoxContainer.new()
-	command_row.add_theme_constant_override("separation", 8)
-	bottom.add_child(command_row)
+	var bottom_row := HBoxContainer.new()
+	bottom_row.add_theme_constant_override("separation", 14)
+	bottom.add_child(bottom_row)
 
-	_add_button(command_row, "Bio Absorber", func() -> void: _start_build(&"bio_absorber"))
-	_add_button(command_row, "Barracks", func() -> void: _start_build(&"barracks"))
-	_add_button(command_row, "Vault", func() -> void: _start_build(&"terrible_vault"))
-	_add_button(command_row, "Vinewall", func() -> void: _start_build(&"vinewall"))
-	_add_button(command_row, "Bio Launcher", func() -> void: _start_build(&"bio_launcher"))
-	_add_button(command_row, "Thing", func() -> void: _produce(&"terrible_thing"))
-	_add_button(command_row, "Horror", func() -> void: _produce(&"horror"))
-	_add_button(command_row, "Apex", func() -> void: _produce(&"apex"))
-	_add_button(command_row, "Bio Mend", _bio_mend)
-	_add_button(command_row, "Seal Away", _seal_away)
-	_add_button(command_row, "Heal Aura", func() -> void: _absorber_upgrade(&"heal_aura"))
-	_add_button(command_row, "Bio Turret", func() -> void: _absorber_upgrade(&"bio_launcher"))
+	var details := VBoxContainer.new()
+	details.custom_minimum_size = Vector2(360, 112)
+	bottom_row.add_child(details)
+
+	detail_name_label = _make_label()
+	detail_name_label.add_theme_font_size_override("font_size", 18)
+	detail_body_label = _make_label()
+	detail_meta_label = _make_label()
+	details.add_child(detail_name_label)
+	details.add_child(detail_body_label)
+	details.add_child(detail_meta_label)
+
+	var command_column := VBoxContainer.new()
+	command_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bottom_row.add_child(command_column)
+
+	command_container = HBoxContainer.new()
+	command_container.add_theme_constant_override("separation", 8)
+	command_column.add_child(command_container)
 
 	status_label = _make_label()
 	status_label.text = "Kon: build with Bio. Bio Absorbers must go on pale economy spaces."
-	command_row.add_child(status_label)
+	command_column.add_child(status_label)
 
 func _make_label() -> Label:
 	var label := Label.new()
@@ -110,6 +130,155 @@ func _add_button(parent: Control, text: String, callback: Callable) -> void:
 	button.custom_minimum_size = Vector2(92, 44)
 	button.pressed.connect(callback)
 	parent.add_child(button)
+
+func _clear_commands() -> void:
+	if command_container == null:
+		return
+	for child in command_container.get_children():
+		child.queue_free()
+
+func _update_selection_panel(force_rebuild: bool) -> void:
+	if selection_controller == null or detail_name_label == null:
+		return
+	var selected := _valid_selection()
+	var signature := _selection_signature(selected)
+	if force_rebuild or signature != _last_selection_signature:
+		_last_selection_signature = signature
+		_rebuild_context_commands(selected)
+	_update_selection_details(selected)
+
+func _valid_selection() -> Array[Node]:
+	var selected: Array[Node] = []
+	if selection_controller == null:
+		return selected
+	for node in selection_controller.selected_units:
+		if is_instance_valid(node):
+			selected.append(node)
+	return selected
+
+func _selection_signature(selected: Array[Node]) -> String:
+	var parts: Array[String] = []
+	for node in selected:
+		parts.append("%s:%s" % [node.get_instance_id(), String(_archetype_for(node))])
+	return "|".join(parts)
+
+func _update_selection_details(selected: Array[Node]) -> void:
+	if selected.is_empty():
+		detail_name_label.text = "No selection"
+		detail_body_label.text = "Select units or buildings to inspect them."
+		detail_meta_label.text = ""
+		return
+	if selected.size() > 1:
+		detail_name_label.text = "%s selected" % selected.size()
+		detail_body_label.text = _mixed_selection_summary(selected)
+		detail_meta_label.text = "A attack-move | P patrol | H hold | S stop"
+		return
+	var node := selected[0]
+	var archetype := _archetype_for(node)
+	var definition := UnitCatalog.get_definition(archetype)
+	var display_name := String(definition.get("display_name", String(archetype)))
+	var max_hp := int(_property_or(node, "max_health", int(definition.get("max_hp", 0))))
+	var hp := int(_property_or(node, "health", max_hp))
+	var level := int(_property_or(node, "level", _property_or(node, "evolution_level", 1)))
+	detail_name_label.text = "%s  Lv%s" % [display_name, level]
+	if _is_structure(node):
+		var complete := bool(node.get("complete"))
+		var build_progress := float(node.get("build_progress"))
+		var build_time := float(node.get("build_time"))
+		var build_text := "Complete" if complete else "Building %.0f%%" % [100.0 * build_progress / maxf(build_time, 0.01)]
+		var train_text := _training_text_for(node)
+		detail_body_label.text = "HP %s/%s | %s | Footprint %sx%s%s" % [hp, max_hp, build_text, int(node.get("footprint").x), int(node.get("footprint").y), train_text]
+	else:
+		var state := String(node.get("unit_state")).capitalize()
+		detail_body_label.text = "HP %s/%s | %s | Bio value %s" % [hp, max_hp, state, _salvage_for(node)]
+	var damage := int(definition.get("attack_damage", 0))
+	var range := int(definition.get("attack_range_cells", 0))
+	var cost := int(definition.get("cost_bio", 0))
+	detail_meta_label.text = "Damage %s | Range %s | Cost %s Bio" % [damage, range, cost]
+
+func _mixed_selection_summary(selected: Array[Node]) -> String:
+	var counts: Dictionary = {}
+	var hp := 0
+	var max_hp := 0
+	for node in selected:
+		var name := String(UnitCatalog.get_definition(_archetype_for(node)).get("display_name", String(_archetype_for(node))))
+		counts[name] = int(counts.get(name, 0)) + 1
+		if _has_property(node, "health"):
+			hp += int(node.get("health"))
+		if _has_property(node, "max_health"):
+			max_hp += int(node.get("max_health"))
+	var parts: Array[String] = []
+	for key in counts.keys():
+		parts.append("%sx %s" % [counts[key], key])
+	return "%s | HP %s/%s" % [", ".join(parts), hp, max_hp]
+
+func _training_text_for(node: Node) -> String:
+	if not _has_property(node, "training_archetype"):
+		return ""
+	var training_archetype := StringName(node.get("training_archetype"))
+	var queue_count := int(_property_or(node, "production_queue_count", 0))
+	if String(training_archetype).is_empty():
+		return " | Queue %s" % queue_count if queue_count > 0 else ""
+	var progress := float(_property_or(node, "training_progress", 0.0))
+	var train_time := float(_property_or(node, "training_time", 0.0))
+	var percent := int(100.0 * progress / maxf(train_time, 0.01))
+	var name := String(UnitCatalog.get_definition(training_archetype).get("display_name", String(training_archetype)))
+	return " | Training %s %s%% | Queue %s" % [name, percent, queue_count]
+
+func _rebuild_context_commands(selected: Array[Node]) -> void:
+	_clear_commands()
+	if selected.is_empty():
+		return
+	if _selection_has_archetype(selected, &"life_wizard"):
+		_add_button(command_container, "Bio Absorber", func() -> void: _start_build(&"bio_absorber"))
+		_add_button(command_container, "Barracks", func() -> void: _start_build(&"barracks"))
+		_add_button(command_container, "Vault", func() -> void: _start_build(&"terrible_vault"))
+		_add_button(command_container, "Vinewall", func() -> void: _start_build(&"vinewall"))
+		_add_button(command_container, "Bio Launcher", func() -> void: _start_build(&"bio_launcher"))
+		_add_button(command_container, "Bio Mend", _bio_mend)
+		_add_button(command_container, "Seal Away", _seal_away)
+	elif _selection_has_archetype(selected, &"barracks"):
+		_add_button(command_container, "Thing", func() -> void: _produce_from_selected(&"terrible_thing"))
+		_add_button(command_container, "Horror", func() -> void: _produce_from_selected(&"horror"))
+		_add_button(command_container, "Apex", func() -> void: _produce_from_selected(&"apex"))
+	elif _selection_has_archetype(selected, &"bio_absorber"):
+		_add_button(command_container, "Heal Aura", func() -> void: _absorber_upgrade(&"heal_aura"))
+		_add_button(command_container, "Bio Turret", func() -> void: _absorber_upgrade(&"bio_launcher"))
+	else:
+		_add_button(command_container, "Bio Mend", _bio_mend)
+		_add_button(command_container, "Seal Away", _seal_away)
+
+func _selection_has_archetype(selected: Array[Node], archetype: StringName) -> bool:
+	for node in selected:
+		if _archetype_for(node) == archetype:
+			return true
+	return false
+
+func _archetype_for(node: Node) -> StringName:
+	if _has_property(node, "unit_archetype"):
+		return StringName(node.get("unit_archetype"))
+	if _has_property(node, "archetype"):
+		return StringName(node.get("archetype"))
+	return &""
+
+func _has_property(node: Node, property_name: String) -> bool:
+	for property in node.get_property_list():
+		if String(property.get("name", "")) == property_name:
+			return true
+	return false
+
+func _property_or(node: Node, property_name: String, fallback: Variant) -> Variant:
+	if _has_property(node, property_name):
+		return node.get(property_name)
+	return fallback
+
+func _is_structure(node: Node) -> bool:
+	return node.has_method("get_selection_kind") and node.get_selection_kind() == &"structure"
+
+func _salvage_for(node: Node) -> int:
+	if node.has_method("salvage_value"):
+		return int(node.salvage_value())
+	return 0
 
 func _refresh() -> void:
 	if economy_manager != null:
@@ -139,6 +308,19 @@ func _start_build(archetype: StringName) -> void:
 func _produce(archetype: StringName) -> void:
 	if build_system != null:
 		build_system.produce_unit(1, archetype)
+
+func _produce_from_selected(archetype: StringName) -> void:
+	if build_system == null or selection_controller == null:
+		return
+	var producer: Node = null
+	for node in selection_controller.selected_units:
+		if is_instance_valid(node) and _archetype_for(node) == &"barracks":
+			producer = node
+			break
+	if producer == null:
+		status_label.text = "Select a Barracks to train units"
+		return
+	build_system.produce_unit_from_structure(1, archetype, producer)
 
 func _bio_mend() -> void:
 	if selection_controller == null:

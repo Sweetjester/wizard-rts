@@ -4,6 +4,7 @@ extends Node2D
 signal structure_placed(player_id: int, archetype: StringName, cell: Vector2i)
 signal structure_completed(player_id: int, archetype: StringName, cell: Vector2i)
 signal build_rejected(reason: String)
+signal unit_training_queued(player_id: int, producer: Node, archetype: StringName, queue_count: int)
 signal unit_produced(player_id: int, archetype: StringName, cell: Vector2i)
 
 @export var economy_manager_path: NodePath = NodePath("../EconomyManager")
@@ -30,6 +31,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_update_construction(delta)
+	_update_production(delta)
 	_update_structure_evolution(delta)
 	if pending_archetype == &"vinewall" and _dragging_wall:
 		_wall_drag_end = map_generator.world_to_cell(get_global_mouse_position())
@@ -110,6 +112,10 @@ func _make_structure_data(player_id: int, archetype: StringName, cell: Vector2i,
 		"build_time": build_time,
 		"build_progress": 0.0,
 		"complete": build_time <= 0.0,
+		"production_queue": [],
+		"training_archetype": &"",
+		"training_progress": 0.0,
+		"training_time": 0.0,
 		"evolution_xp": 0.0,
 		"level": 1,
 		"upgrade": "",
@@ -165,6 +171,9 @@ func produce_unit(player_id: int, archetype: StringName) -> bool:
 	if economy_manager == null or not economy_manager.spend(player_id, costs):
 		build_rejected.emit("Not enough Bio")
 		return false
+	return _enqueue_unit_at_structure(player_id, archetype, producer)
+
+func _spawn_trained_unit(player_id: int, archetype: StringName, producer: Dictionary) -> bool:
 	var spawn_cell: Vector2i = map_generator.nearest_walkable_cell(producer["cell"] + Vector2i(2, 2), 8)
 	var scene := _scene_for_unit(archetype)
 	if scene != null:
@@ -180,6 +189,42 @@ func produce_unit(player_id: int, archetype: StringName) -> bool:
 		simulation_runner.queue_command(command)
 	unit_produced.emit(player_id, archetype, spawn_cell)
 	return true
+
+func _enqueue_unit_at_structure(player_id: int, archetype: StringName, producer: Dictionary) -> bool:
+	var index := _structure_index_for_node(producer.get("node", null))
+	if index < 0:
+		build_rejected.emit("Production building was not found")
+		return false
+	var queue: Array = structures[index].get("production_queue", [])
+	if queue.size() >= 5:
+		build_rejected.emit("Training queue is full")
+		return false
+	queue.append(archetype)
+	structures[index]["production_queue"] = queue
+	_sync_training_node(index)
+	unit_training_queued.emit(player_id, structures[index].get("node", null), archetype, queue.size())
+	return true
+
+func produce_unit_from_structure(player_id: int, archetype: StringName, producer_node: Node) -> bool:
+	var producer := _structure_for_node(producer_node)
+	if producer.is_empty():
+		build_rejected.emit("Select a Barracks")
+		return false
+	if int(producer["player_id"]) != player_id:
+		build_rejected.emit("That Barracks belongs to another player")
+		return false
+	if not bool(producer.get("complete", false)):
+		build_rejected.emit("Barracks is still building")
+		return false
+	var definition := UnitCatalog.get_definition(producer["archetype"])
+	if not definition.get("production", []).has(archetype):
+		build_rejected.emit("This building cannot train that unit")
+		return false
+	var costs := {&"bio": UnitCatalog.cost_bio(archetype)}
+	if economy_manager == null or not economy_manager.spend(player_id, costs):
+		build_rejected.emit("Not enough Bio")
+		return false
+	return _enqueue_unit_at_structure(player_id, archetype, producer)
 
 func apply_first_absorber_upgrade(upgrade_id: StringName) -> bool:
 	for i in structures.size():
@@ -224,6 +269,7 @@ func _create_structure_node(structure: Dictionary) -> KonStructure:
 	var cell: Vector2i = structure["cell"]
 	var footprint: Vector2i = structure.get("footprint", Vector2i.ONE)
 	node.configure(structure["archetype"], cell, footprint)
+	node.set_runtime_stats(int(structure["player_id"]), int(structure.get("hp", 1)), int(structure.get("max_hp", 1)), int(structure.get("level", 1)))
 	node.global_position = map_generator.cell_to_world(cell)
 	node.z_index = int(node.global_position.y) + 160
 	node.set_construction_state(float(structure.get("build_progress", 0.0)), float(structure.get("build_time", 0.0)), bool(structure.get("complete", true)))
@@ -262,6 +308,7 @@ func _update_structure_evolution(delta: float) -> void:
 			structure["hp"] = structure["max_hp"]
 			var node: KonStructure = structure.get("node", null)
 			if node != null and is_instance_valid(node):
+				node.set_runtime_stats(int(structure["player_id"]), int(structure["hp"]), int(structure["max_hp"]), next_level)
 				node.set_level(next_level)
 			changed = true
 		structures[i] = structure
@@ -286,6 +333,53 @@ func _update_construction(delta: float) -> void:
 			structure_completed.emit(int(structure["player_id"]), structure["archetype"], structure["cell"])
 		structures[i] = structure
 
+func _update_production(delta: float) -> void:
+	for i in structures.size():
+		var structure: Dictionary = structures[i]
+		if not bool(structure.get("complete", false)):
+			continue
+		if StringName(structure.get("archetype", &"")) != &"barracks":
+			continue
+		var current := StringName(structure.get("training_archetype", &""))
+		if String(current).is_empty():
+			_start_next_training(i)
+			structure = structures[i]
+			current = StringName(structure.get("training_archetype", &""))
+			if String(current).is_empty():
+				continue
+		var progress := float(structure.get("training_progress", 0.0)) + delta
+		var train_time := float(structure.get("training_time", UnitCatalog.train_time(current)))
+		structure["training_progress"] = minf(progress, train_time)
+		structures[i] = structure
+		_sync_training_node(i)
+		if progress >= train_time:
+			_spawn_trained_unit(int(structure["player_id"]), current, structure)
+			structures[i]["training_archetype"] = &""
+			structures[i]["training_progress"] = 0.0
+			structures[i]["training_time"] = 0.0
+			_start_next_training(i)
+			_sync_training_node(i)
+
+func _start_next_training(index: int) -> void:
+	var queue: Array = structures[index].get("production_queue", [])
+	if queue.is_empty():
+		structures[index]["training_archetype"] = &""
+		structures[index]["training_progress"] = 0.0
+		structures[index]["training_time"] = 0.0
+		return
+	var next := StringName(queue.pop_front())
+	structures[index]["production_queue"] = queue
+	structures[index]["training_archetype"] = next
+	structures[index]["training_progress"] = 0.0
+	structures[index]["training_time"] = UnitCatalog.train_time(next)
+
+func _sync_training_node(index: int) -> void:
+	var node: KonStructure = structures[index].get("node", null)
+	if node == null or not is_instance_valid(node):
+		return
+	var queue: Array = structures[index].get("production_queue", [])
+	node.set_training_state(queue.size(), StringName(structures[index].get("training_archetype", &"")), float(structures[index].get("training_progress", 0.0)), float(structures[index].get("training_time", 0.0)))
+
 func _activate_completed_structure(structure: Dictionary) -> void:
 	if structure["archetype"] != &"bio_absorber" or economy_manager == null:
 		return
@@ -305,6 +399,20 @@ func _first_structure_with_production(unit_archetype: StringName, player_id: int
 		if definition.get("production", []).has(unit_archetype):
 			return structure
 	return {}
+
+func _structure_for_node(producer_node: Node) -> Dictionary:
+	for structure in structures:
+		var node: Node = structure.get("node", null)
+		if node == producer_node:
+			return structure
+	return {}
+
+func _structure_index_for_node(producer_node: Node) -> int:
+	for i in structures.size():
+		var node: Node = structures[i].get("node", null)
+		if node == producer_node:
+			return i
+	return -1
 
 func _has_incomplete_structure_with_production(unit_archetype: StringName, player_id: int) -> bool:
 	for structure in structures:

@@ -19,6 +19,7 @@ func eat_ally(target: Node) -> bool:
 	return true
 
 func _draw() -> void:
+	_draw_unit_transform_begin()
 	draw_circle(Vector2(0, 12), 17, Color(0, 0, 0, 0.34))
 	draw_circle(Vector2(0, -2), 18, Color("#332820"))
 	draw_circle(Vector2(-8, -6), 9, Color("#2D5A3E"))
@@ -26,4 +27,5 @@ func _draw() -> void:
 	draw_circle(Vector2(0, -12), 4, Color("#7BC47F"))
 	draw_line(Vector2(-12, 10), Vector2(-28, 20), Color("#332820"), 4.0)
 	draw_line(Vector2(12, 10), Vector2(28, 20), Color("#332820"), 4.0)
+	_draw_unit_transform_end()
 	_draw_selection_and_path()
