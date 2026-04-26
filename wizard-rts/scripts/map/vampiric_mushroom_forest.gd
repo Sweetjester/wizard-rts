@@ -107,7 +107,7 @@ func _build_features() -> void:
 		choke_index += 1
 	if map.has_method("get_landmarks"):
 		for landmark in map.get_landmarks():
-			if String(landmark.get("kind", "")) == "giant_mushroom":
+			if str(landmark.get("kind", "")) == "giant_mushroom":
 				_add_giant_mushroom(landmark)
 
 func _draw() -> void:

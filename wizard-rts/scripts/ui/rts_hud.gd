@@ -4,6 +4,8 @@ extends CanvasLayer
 const ONE_SHOT_SPRITE_FX := preload("res://scripts/fx/one_shot_sprite_fx.gd")
 const BIO_MEND_FX: Texture2D = preload("res://assets/fx/kon/bio_mend_spell_sheet.png")
 const SEAL_AWAY_FX: Texture2D = preload("res://assets/fx/kon/seal_away_spell_sheet.png")
+const MAIN_MENU_SCENE := "res://scenes/ui/main_menu.tscn"
+const VICTORY_RETURN_SECONDS := 5.0
 
 @export var economy_manager_path: NodePath = NodePath("../EconomyManager")
 @export var wave_director_path: NodePath = NodePath("../WaveDirector")
@@ -13,7 +15,7 @@ const SEAL_AWAY_FX: Texture2D = preload("res://assets/fx/kon/seal_away_spell_she
 var economy_manager: EconomyManager
 var wave_director: WaveDirector
 var selection_controller: SelectionController
-var build_system: BuildSystem
+var build_system: Node
 var resource_label: Label
 var phase_label: Label
 var selection_label: Label
@@ -21,8 +23,13 @@ var status_label: Label
 var detail_name_label: Label
 var detail_body_label: Label
 var detail_meta_label: Label
+var alert_label: Label
 var command_container: HBoxContainer
 var _last_selection_signature := ""
+var _alert_until_msec: int = 0
+var _boss_warning_shown := false
+var _victory_return_remaining := -1.0
+var _last_victory_second := -1
 
 func _ready() -> void:
 	layer = 50
@@ -36,7 +43,17 @@ func _ready() -> void:
 	if wave_director != null:
 		wave_director.phase_changed.connect(_on_phase_changed)
 		wave_director.wave_spawned.connect(_on_wave_spawned)
-	if build_system != null:
+		wave_director.boss_spawned.connect(func() -> void:
+			phase_label.text = "Boss: Mycelium Matriarch"
+			status_label.text = "THE MYCELIUM MATRIARCH HAS ARRIVED"
+			_show_alert("THE MYCELIUM MATRIARCH HAS ARRIVED")
+		)
+		wave_director.boss_defeated.connect(func() -> void:
+			phase_label.text = "Victory"
+			status_label.text = "The Mycelium Matriarch has been defeated."
+			_start_victory_return_countdown()
+		)
+	if build_system != null and build_system.has_signal("build_rejected"):
 		build_system.build_rejected.connect(_on_build_rejected)
 		build_system.structure_placed.connect(func(_player_id: int, archetype: StringName, _cell: Vector2i) -> void:
 			status_label.text = "Building %s" % UnitCatalog.get_definition(archetype).get("display_name", archetype)
@@ -50,6 +67,10 @@ func _ready() -> void:
 		build_system.unit_produced.connect(func(_player_id: int, archetype: StringName, _cell: Vector2i) -> void:
 			status_label.text = "Produced %s" % UnitCatalog.get_definition(archetype).get("display_name", archetype)
 		)
+		build_system.upgrade_researched.connect(func(_player_id: int, upgrade_id: StringName) -> void:
+			status_label.text = "Researched %s" % _upgrade_name(upgrade_id)
+			_update_selection_panel(true)
+		)
 	if selection_controller != null:
 		selection_controller.selection_changed.connect(func(_selected: Array[Node]) -> void:
 			_update_selection_panel(true)
@@ -57,9 +78,22 @@ func _ready() -> void:
 	_refresh()
 
 func _process(_delta: float) -> void:
+	if selection_label == null:
+		return
+	if _victory_return_remaining >= 0.0:
+		_update_victory_return_countdown(_delta)
+		return
 	if selection_controller != null:
 		selection_label.text = "Selected: %s" % selection_controller.selected_units.size()
 		_update_selection_panel(false)
+	if wave_director != null and not wave_director.boss_has_spawned:
+		var boss_remaining := wave_director.get_boss_seconds_remaining()
+		phase_label.text = "Phase: %s | Boss in %s" % [str(wave_director.phase).capitalize(), _format_time(boss_remaining)]
+		if boss_remaining <= 30 and not _boss_warning_shown:
+			_boss_warning_shown = true
+			_show_alert("BOSS INCOMING")
+	if alert_label != null and alert_label.visible and Time.get_ticks_msec() > _alert_until_msec:
+		alert_label.visible = false
 
 func _build_ui() -> void:
 	var root := MarginContainer.new()
@@ -83,6 +117,16 @@ func _build_ui() -> void:
 	row.add_child(phase_label)
 	row.add_child(selection_label)
 	row.add_child(commands)
+
+	alert_label = _make_label()
+	alert_label.visible = false
+	alert_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	alert_label.add_theme_font_size_override("font_size", 34)
+	alert_label.add_theme_color_override("font_color", Color("#E85A5A"))
+	alert_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	alert_label.offset_top = 72
+	alert_label.offset_bottom = 118
+	add_child(alert_label)
 
 	var bottom := PanelContainer.new()
 	bottom.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
@@ -163,7 +207,7 @@ func _valid_selection() -> Array[Node]:
 func _selection_signature(selected: Array[Node]) -> String:
 	var parts: Array[String] = []
 	for node in selected:
-		parts.append("%s:%s" % [node.get_instance_id(), String(_archetype_for(node))])
+		parts.append("%s:%s" % [node.get_instance_id(), str(_archetype_for(node))])
 	return "|".join(parts)
 
 func _update_selection_details(selected: Array[Node]) -> void:
@@ -180,7 +224,7 @@ func _update_selection_details(selected: Array[Node]) -> void:
 	var node := selected[0]
 	var archetype := _archetype_for(node)
 	var definition := UnitCatalog.get_definition(archetype)
-	var display_name := String(definition.get("display_name", String(archetype)))
+	var display_name := str(definition.get("display_name", str(archetype)))
 	var max_hp := int(_property_or(node, "max_health", int(definition.get("max_hp", 0))))
 	var hp := int(_property_or(node, "health", max_hp))
 	var level := int(_property_or(node, "level", _property_or(node, "evolution_level", 1)))
@@ -193,7 +237,7 @@ func _update_selection_details(selected: Array[Node]) -> void:
 		var train_text := _training_text_for(node)
 		detail_body_label.text = "HP %s/%s | %s | Footprint %sx%s%s" % [hp, max_hp, build_text, int(node.get("footprint").x), int(node.get("footprint").y), train_text]
 	else:
-		var state := String(node.get("unit_state")).capitalize()
+		var state := str(node.get("unit_state")).capitalize()
 		detail_body_label.text = "HP %s/%s | %s | Bio value %s" % [hp, max_hp, state, _salvage_for(node)]
 	var damage := int(definition.get("attack_damage", 0))
 	var range := int(definition.get("attack_range_cells", 0))
@@ -205,7 +249,7 @@ func _mixed_selection_summary(selected: Array[Node]) -> String:
 	var hp := 0
 	var max_hp := 0
 	for node in selected:
-		var name := String(UnitCatalog.get_definition(_archetype_for(node)).get("display_name", String(_archetype_for(node))))
+		var name := str(UnitCatalog.get_definition(_archetype_for(node)).get("display_name", str(_archetype_for(node))))
 		counts[name] = int(counts.get(name, 0)) + 1
 		if _has_property(node, "health"):
 			hp += int(node.get("health"))
@@ -219,14 +263,14 @@ func _mixed_selection_summary(selected: Array[Node]) -> String:
 func _training_text_for(node: Node) -> String:
 	if not _has_property(node, "training_archetype"):
 		return ""
-	var training_archetype := StringName(node.get("training_archetype"))
+	var training_archetype: StringName = node.get("training_archetype")
 	var queue_count := int(_property_or(node, "production_queue_count", 0))
-	if String(training_archetype).is_empty():
+	if str(training_archetype).is_empty():
 		return " | Queue %s" % queue_count if queue_count > 0 else ""
 	var progress := float(_property_or(node, "training_progress", 0.0))
 	var train_time := float(_property_or(node, "training_time", 0.0))
 	var percent := int(100.0 * progress / maxf(train_time, 0.01))
-	var name := String(UnitCatalog.get_definition(training_archetype).get("display_name", String(training_archetype)))
+	var name := str(UnitCatalog.get_definition(training_archetype).get("display_name", str(training_archetype)))
 	return " | Training %s %s%% | Queue %s" % [name, percent, queue_count]
 
 func _rebuild_context_commands(selected: Array[Node]) -> void:
@@ -248,6 +292,11 @@ func _rebuild_context_commands(selected: Array[Node]) -> void:
 	elif _selection_has_archetype(selected, &"bio_absorber"):
 		_add_button(command_container, "Heal Aura", func() -> void: _absorber_upgrade(&"heal_aura"))
 		_add_button(command_container, "Bio Turret", func() -> void: _absorber_upgrade(&"bio_launcher"))
+	elif _selection_has_archetype(selected, &"terrible_vault"):
+		_add_button(command_container, "Thorned Vines", func() -> void: _research_upgrade(&"thorned_vines"))
+		_add_button(command_container, "Fast Evolution", func() -> void: _research_upgrade(&"accelerated_evolution"))
+		_add_button(command_container, "Harden Horrors", func() -> void: _research_upgrade(&"hardened_horrors"))
+		_add_button(command_container, "Launcher Bile", func() -> void: _research_upgrade(&"launcher_bile"))
 	else:
 		_add_button(command_container, "Bio Mend", _bio_mend)
 		_add_button(command_container, "Seal Away", _seal_away)
@@ -260,14 +309,14 @@ func _selection_has_archetype(selected: Array[Node], archetype: StringName) -> b
 
 func _archetype_for(node: Node) -> StringName:
 	if _has_property(node, "unit_archetype"):
-		return StringName(node.get("unit_archetype"))
+		return node.get("unit_archetype")
 	if _has_property(node, "archetype"):
-		return StringName(node.get("archetype"))
+		return node.get("archetype")
 	return &""
 
 func _has_property(node: Node, property_name: String) -> bool:
 	for property in node.get_property_list():
-		if String(property.get("name", "")) == property_name:
+		if str(property.get("name", "")) == property_name:
 			return true
 	return false
 
@@ -298,20 +347,52 @@ func _on_resources_changed(_player_id: int, resources: Dictionary) -> void:
 	]
 
 func _on_phase_changed(phase: StringName) -> void:
-	phase_label.text = "Phase: %s" % String(phase).capitalize()
+	if wave_director != null and not wave_director.boss_has_spawned:
+		phase_label.text = "Phase: %s | Boss in %s" % [str(phase).capitalize(), _format_time(wave_director.get_boss_seconds_remaining())]
+	else:
+		phase_label.text = "Phase: %s" % str(phase).capitalize()
 
 func _on_wave_spawned(wave_index: int, count: int) -> void:
-	phase_label.text = "Wave %s: %s enemies" % [wave_index, count]
+	status_label.text = "Wave %s: %s enemies" % [wave_index, count]
+
+func _show_alert(text: String) -> void:
+	if alert_label == null:
+		return
+	alert_label.text = text
+	alert_label.visible = true
+	_alert_until_msec = Time.get_ticks_msec() + 7000
+
+func _start_victory_return_countdown() -> void:
+	_victory_return_remaining = VICTORY_RETURN_SECONDS
+	_last_victory_second = -1
+	_update_victory_return_countdown(0.0)
+
+func _update_victory_return_countdown(delta: float) -> void:
+	_victory_return_remaining -= delta
+	var seconds_left := maxi(0, ceili(_victory_return_remaining))
+	if seconds_left != _last_victory_second:
+		_last_victory_second = seconds_left
+		phase_label.text = "Victory"
+		status_label.text = "Returning to main menu in %s" % seconds_left
+		_show_alert("VICTORY - RETURNING IN %s" % seconds_left)
+	if _victory_return_remaining <= 0.0:
+		_victory_return_remaining = -1.0
+		get_tree().change_scene_to_file(MAIN_MENU_SCENE)
+
+func _format_time(seconds: int) -> String:
+	var mins := seconds / 60
+	var secs := seconds % 60
+	return "%d:%02d" % [mins, secs]
 
 func _start_build(archetype: StringName) -> void:
-	if build_system == null:
+	if build_system == null or not build_system.has_method("start_placement"):
 		return
-	build_system.start_placement(archetype)
+	build_system.call("start_placement", archetype)
 	status_label.text = "Place %s with left-click. Right-click cancels." % UnitCatalog.get_definition(archetype).get("display_name", archetype)
 
 func _produce(archetype: StringName) -> void:
-	if build_system != null:
-		build_system.produce_unit(1, archetype)
+	if build_system != null and build_system.has_method("produce_unit"):
+		build_system.call("produce_unit", 1, archetype)
 
 func _produce_from_selected(archetype: StringName) -> void:
 	if build_system == null or selection_controller == null:
@@ -324,7 +405,8 @@ func _produce_from_selected(archetype: StringName) -> void:
 	if producer == null:
 		status_label.text = "Select a Barracks to train units"
 		return
-	build_system.produce_unit_from_structure(1, archetype, producer)
+	if build_system.has_method("produce_unit_from_structure"):
+		build_system.call("produce_unit_from_structure", 1, archetype, producer)
 
 func _bio_mend() -> void:
 	if selection_controller == null:
@@ -375,8 +457,24 @@ func _spawn_spell_fx(target: Node, texture: Texture2D, visual_scale: Vector2, of
 	fx.configure(texture, 4, 1, 0.46, visual_scale, Vector2(0, -10))
 
 func _absorber_upgrade(upgrade_id: StringName) -> void:
-	if build_system != null and build_system.apply_first_absorber_upgrade(upgrade_id):
-		status_label.text = "Bio Absorber upgrade selected: %s" % String(upgrade_id).capitalize()
+	if build_system != null and build_system.has_method("apply_first_absorber_upgrade") and bool(build_system.call("apply_first_absorber_upgrade", upgrade_id)):
+		status_label.text = "Bio Absorber upgrade selected: %s" % str(upgrade_id).capitalize()
+
+func _research_upgrade(upgrade_id: StringName) -> void:
+	if build_system != null and build_system.has_method("research_upgrade") and bool(build_system.call("research_upgrade", 1, upgrade_id)):
+		status_label.text = "Researching complete: %s" % _upgrade_name(upgrade_id)
+
+func _upgrade_name(upgrade_id: StringName) -> String:
+	match upgrade_id:
+		&"thorned_vines":
+			return "Thorned Vines"
+		&"accelerated_evolution":
+			return "Accelerated Evolution"
+		&"hardened_horrors":
+			return "Hardened Horrors"
+		&"launcher_bile":
+			return "Launcher Bile"
+	return str(upgrade_id).capitalize()
 
 func _on_build_rejected(reason: String) -> void:
 	status_label.text = reason

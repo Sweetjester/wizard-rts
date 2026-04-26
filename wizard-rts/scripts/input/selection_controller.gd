@@ -7,9 +7,11 @@ signal selection_changed(selected: Array[Node])
 @export var formation_spacing: float = 34.0
 @export var shared_path_threshold: int = 16
 @export var command_dispatcher_path: NodePath = NodePath("../CommandDispatcher")
+@export var build_system_path: NodePath = NodePath("../BuildSystem")
 
 var selected_units: Array[Node] = []
 var command_dispatcher: CommandDispatcher
+var build_system: Node
 var _dragging := false
 var _drag_start := Vector2.ZERO
 var _drag_end := Vector2.ZERO
@@ -19,6 +21,7 @@ var _ignore_next_left_release := false
 func _ready() -> void:
 	z_index = 3500
 	command_dispatcher = get_node_or_null(command_dispatcher_path)
+	build_system = get_node_or_null(build_system_path)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
@@ -109,6 +112,8 @@ func _select_units(rect: Rect2) -> void:
 	for node in get_tree().get_nodes_in_group("selectable_units"):
 		if not node.has_method("set_selected") or not node.has_method("is_inside_selection_rect"):
 			continue
+		if not _is_player_selectable(node):
+			continue
 		var unit: Node = node
 		var selected := false
 		if click_select:
@@ -134,14 +139,29 @@ func _select_units(rect: Rect2) -> void:
 func _select_node(node: Node) -> void:
 	if not is_instance_valid(node):
 		return
+	if not _is_player_selectable(node):
+		return
 	node.set_selected(true)
 	selected_units.append(node)
+
+func _is_player_selectable(node: Node) -> bool:
+	if not _has_property(node, "owner_player_id"):
+		return false
+	return int(node.get("owner_player_id")) == 1
 
 func _is_structure(node: Node) -> bool:
 	return node.has_method("get_selection_kind") and node.get_selection_kind() == &"structure"
 
+func _has_property(node: Node, property_name: String) -> bool:
+	for property in node.get_property_list():
+		if str(property.get("name", "")) == property_name:
+			return true
+	return false
+
 func _order_selected_units(target: Vector2) -> void:
 	if selected_units.is_empty():
+		return
+	if _try_set_rally_point(target):
 		return
 	var movable_units := _movable_selected_units()
 	if movable_units.is_empty():
@@ -186,6 +206,23 @@ func _movable_selected_units() -> Array[Node]:
 		if is_instance_valid(unit) and unit.has_method("issue_move_order_offset"):
 			movable.append(unit)
 	return movable
+
+func _try_set_rally_point(target: Vector2) -> bool:
+	if build_system == null:
+		return false
+	var handled := false
+	var has_movable := false
+	for unit in selected_units:
+		if is_instance_valid(unit) and unit.has_method("issue_move_order_offset"):
+			has_movable = true
+			break
+	if has_movable:
+		return false
+	for unit in selected_units:
+		if is_instance_valid(unit) and _is_structure(unit) and str(unit.get("archetype")) == "barracks":
+			if build_system.has_method("set_rally_point_for_structure"):
+				handled = bool(build_system.call("set_rally_point_for_structure", unit, target)) or handled
+	return handled
 
 func _formation_offsets(count: int) -> Array[Vector2]:
 	var offsets: Array[Vector2] = []

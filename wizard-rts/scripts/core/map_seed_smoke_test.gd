@@ -104,7 +104,7 @@ func _ramp_cell_count(ramp_layout: Array) -> int:
 
 func _validate_hollow_plot(map: Node, plot_id: String) -> bool:
 	for plot in map.get_plots():
-		if String(plot.get("id", "")) != plot_id:
+		if str(plot.get("id", "")) != plot_id:
 			continue
 		var rect: Rect2i = plot["rect"]
 		if rect.size != Vector2i(10, 10):

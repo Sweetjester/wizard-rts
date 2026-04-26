@@ -73,7 +73,7 @@ func get_state_hash() -> String:
 		snapshot.append([
 			int(id),
 			int(entity["player_id"]),
-			String(entity["archetype"]),
+			str(entity["archetype"]),
 			cell.x,
 			cell.y,
 			int(entity["hp"]),
@@ -157,11 +157,11 @@ func _set_attack_targets(command: RTSCommand) -> void:
 		entity["state"] = "attacking"
 
 func _apply_build_structure(command: RTSCommand) -> void:
-	var structure := StringName(command.payload.get("structure", String(command.archetype)))
+	var structure: StringName = str(command.payload.get("structure", str(command.archetype)))
 	spawn_entity(command.player_id, structure, command.target_cell)
 
 func _apply_produce_unit(command: RTSCommand) -> void:
-	var unit := StringName(command.payload.get("unit", String(command.archetype)))
+	var unit: StringName = str(command.payload.get("unit", str(command.archetype)))
 	spawn_entity(command.player_id, unit, command.target_cell)
 
 func _update_entities() -> void:
@@ -176,7 +176,7 @@ func _update_entities() -> void:
 			if path.is_empty():
 				break
 			entity["cell"] = path.pop_front()
-			if path.is_empty() and String(entity.get("state", "")) == "moving":
+			if path.is_empty() and str(entity.get("state", "")) == "moving":
 				entity["state"] = "idle"
 
 func _make_straight_grid_path(start: Vector2i, target: Vector2i) -> Array[Vector2i]:

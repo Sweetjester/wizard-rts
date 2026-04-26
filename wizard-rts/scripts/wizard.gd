@@ -1,7 +1,8 @@
-extends "res://scripts/units/rts_unit.gd"
+extends RTSUnit
 
 const LIFE_WIZARD_SHEET: Texture2D = preload("res://assets/units/kon/bad_kon_willow_directions.png")
 const FIRE_WIZARD_SHEET: Texture2D = preload("res://assets/units/vampire_mushroom_forest/fire_wizard_sheet.png")
+const EVANGALION_PORTRAIT: Texture2D = preload("res://assets/ui/characters/evangalion.png")
 
 @onready var art_sprite: Sprite2D = get_node_or_null("ArtSprite")
 
@@ -11,7 +12,13 @@ var _wizard_class_id := "bad_kon_willow"
 var _art_base_position := Vector2.ZERO
 
 func _ready() -> void:
-	unit_archetype = &"fire_wizard" if _get_session_wizard_class() == "hellfire_baby" else &"life_wizard"
+	match _get_session_wizard_class():
+		"hellfire_baby":
+			unit_archetype = &"fire_wizard"
+		"evangalion":
+			unit_archetype = &"evangalion_wizard"
+		_:
+			unit_archetype = &"life_wizard"
 	super()
 	move_speed = 190.0
 	selection_radius = 26.0
@@ -23,7 +30,7 @@ func _get_session_wizard_class() -> String:
 	var session := get_node_or_null("/root/GameSession")
 	if session == null:
 		return _wizard_class_id
-	return String(session.get("wizard_class_id"))
+	return str(session.get("wizard_class_id"))
 
 func _process(delta: float) -> void:
 	super(delta)
@@ -33,6 +40,16 @@ func _apply_wizard_art() -> void:
 	if art_sprite == null:
 		return
 	_wizard_class_id = _get_session_wizard_class()
+	art_sprite.offset = Vector2.ZERO
+	if _wizard_class_id == "evangalion":
+		art_sprite.texture = EVANGALION_PORTRAIT
+		art_sprite.hframes = 1
+		art_sprite.vframes = 1
+		art_sprite.offset = Vector2(0, -58)
+		art_sprite.scale = Vector2(0.11, 0.11)
+		_art_base_position = art_sprite.position
+		art_sprite.frame = 0
+		return
 	art_sprite.texture = FIRE_WIZARD_SHEET if _wizard_class_id == "hellfire_baby" else LIFE_WIZARD_SHEET
 	art_sprite.hframes = 4 if _wizard_class_id == "hellfire_baby" else 3
 	art_sprite.vframes = 2 if _wizard_class_id == "hellfire_baby" else 8
@@ -42,6 +59,10 @@ func _apply_wizard_art() -> void:
 
 func _update_sprite_animation(delta: float) -> void:
 	if art_sprite == null:
+		return
+	if _wizard_class_id == "evangalion":
+		art_sprite.frame = 0
+		_apply_wizard_sprite_motion()
 		return
 	if _wizard_class_id != "hellfire_baby":
 		_update_kon_sprite_animation(delta)
@@ -82,7 +103,7 @@ func _apply_wizard_sprite_motion() -> void:
 		bob = -cast * 2.5
 		squash = Vector2(1.0 + cast * 0.04, 1.0 - cast * 0.025)
 	art_sprite.position = _art_base_position + Vector2(sway + lunge, bob)
-	var base_scale := Vector2(1.08, 1.08) if _wizard_class_id != "hellfire_baby" else Vector2.ONE
+	var base_scale := Vector2(0.11, 0.11) if _wizard_class_id == "evangalion" else Vector2(1.08, 1.08) if _wizard_class_id != "hellfire_baby" else Vector2.ONE
 	art_sprite.scale = Vector2(base_scale.x * squash.x, base_scale.y * squash.y)
 
 func _direction_row() -> int:
@@ -95,6 +116,43 @@ func _direction_row() -> int:
 		direction = velocity
 	var angle := direction.angle()
 	return posmod(int(round((angle + PI * 0.5) / (TAU / 8.0))), 8)
+
+func take_damage(amount: int, source: Node = null) -> void:
+	health = maxi(0, health - amount)
+	_gain_evolution_xp(float(amount) * 0.35)
+	queue_redraw()
+	if health <= 0:
+		_handle_lethal_damage(source)
+
+func _handle_lethal_damage(_source: Node = null) -> void:
+	var tower := _player_wizard_tower()
+	if tower == null:
+		queue_free()
+		return
+	tower.take_damage(120, self)
+	if not is_instance_valid(tower) or int(tower.get("health")) <= 0:
+		queue_free()
+		return
+	_respawn_at_wizard_tower(tower)
+
+func _respawn_at_wizard_tower(tower: Node2D) -> void:
+	var respawn_pos := tower.global_position + Vector2(92, 42)
+	if terrain != null:
+		var cell: Vector2i = terrain.world_to_cell(respawn_pos)
+		respawn_pos = terrain.cell_to_world(terrain.nearest_walkable_cell(cell, 8))
+	global_position = respawn_pos
+	target_pos = respawn_pos
+	path.clear()
+	moving = false
+	attack_target = null
+	health = maxi(1, int(float(max_health) * 0.4))
+	stun_for_seconds(4.0)
+
+func _player_wizard_tower() -> Node2D:
+	for structure in get_tree().get_nodes_in_group("structures"):
+		if is_instance_valid(structure) and int(structure.get("owner_player_id")) == owner_player_id and str(structure.get("archetype")) == "wizard_tower":
+			return structure
+	return null
 
 func _draw() -> void:
 	if has_node("ArtSprite"):

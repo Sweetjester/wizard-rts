@@ -10,6 +10,7 @@ var damage: int = 1
 var projectile_color := Color("#7DDDE8")
 var speed: float = 620.0
 var projectile_texture: Texture2D
+var source_archetype: String = ""
 var _life: float = 1.4
 var _hit := false
 
@@ -19,6 +20,7 @@ func configure(new_source: Node2D, new_target: Node2D, new_damage: int, color: C
 	damage = new_damage
 	projectile_color = color
 	speed = new_speed
+	source_archetype = _archetype_for_source(new_source)
 	projectile_texture = _texture_for_source(new_source)
 	z_as_relative = false
 	z_index = 3600
@@ -44,13 +46,16 @@ func _hit_target() -> void:
 		return
 	_hit = true
 	if target != null and is_instance_valid(target) and target.has_method("take_damage"):
-		target.take_damage(damage, source)
+		var damage_source: Node = null
+		if source != null and is_instance_valid(source):
+			damage_source = source
+		target.take_damage(damage, damage_source)
 	queue_free()
 
 func _draw() -> void:
 	if projectile_texture != null:
 		var size := Vector2(26, 26)
-		if source != null and StringName(source.get("unit_archetype")) == &"bio_launcher":
+		if source_archetype == "bio_launcher":
 			size = Vector2(38, 38)
 		draw_texture_rect(projectile_texture, Rect2(-size * 0.5, size), false)
 		return
@@ -59,11 +64,14 @@ func _draw() -> void:
 	draw_circle(Vector2(-7, 0), 3.0, projectile_color.darkened(0.35))
 
 func _texture_for_source(new_source: Node2D) -> Texture2D:
-	if new_source == null:
-		return null
-	match StringName(new_source.get("unit_archetype")):
-		&"horror":
+	match _archetype_for_source(new_source):
+		"horror":
 			return HORROR_PROJECTILE
-		&"bio_launcher":
+		"bio_launcher":
 			return BIO_LAUNCHER_PROJECTILE
 	return null
+
+func _archetype_for_source(new_source: Node2D) -> String:
+	if new_source == null or not is_instance_valid(new_source):
+		return ""
+	return str(new_source.get("unit_archetype"))

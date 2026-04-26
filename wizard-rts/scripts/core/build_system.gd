@@ -1,11 +1,21 @@
 class_name BuildSystem
 extends Node2D
 
+const STRUCTURE_PREVIEW_TEXTURES := {
+	&"wizard_tower": preload("res://assets/buildings/kon/wizard_tower.png"),
+	&"bio_absorber": preload("res://assets/buildings/kon/bio_absorber.png"),
+	&"barracks": preload("res://assets/buildings/kon/barracks.png"),
+	&"terrible_vault": preload("res://assets/buildings/kon/terrible_vault.png"),
+	&"vinewall": preload("res://assets/buildings/kon/vinewall_segment.png"),
+	&"bio_launcher": preload("res://assets/buildings/kon/bio_launcher_rooted.png"),
+}
+
 signal structure_placed(player_id: int, archetype: StringName, cell: Vector2i)
 signal structure_completed(player_id: int, archetype: StringName, cell: Vector2i)
 signal build_rejected(reason: String)
 signal unit_training_queued(player_id: int, producer: Node, archetype: StringName, queue_count: int)
 signal unit_produced(player_id: int, archetype: StringName, cell: Vector2i)
+signal upgrade_researched(player_id: int, upgrade_id: StringName)
 
 @export var economy_manager_path: NodePath = NodePath("../EconomyManager")
 @export var map_generator_path: NodePath = NodePath("../MapGenerator")
@@ -22,6 +32,8 @@ var pending_archetype: StringName = &""
 var _dragging_wall := false
 var _wall_drag_start := Vector2i.ZERO
 var _wall_drag_end := Vector2i.ZERO
+var researched_upgrades: Dictionary = {}
+var _launcher_elapsed := 0.0
 
 func _ready() -> void:
 	economy_manager = get_node_or_null(economy_manager_path)
@@ -30,11 +42,16 @@ func _ready() -> void:
 	z_index = 120
 
 func _process(delta: float) -> void:
+	_sync_structure_damage_and_cleanup()
 	_update_construction(delta)
 	_update_production(delta)
 	_update_structure_evolution(delta)
+	_update_structure_regeneration(delta)
+	_update_bio_launchers(delta)
 	if pending_archetype == &"vinewall" and _dragging_wall:
 		_wall_drag_end = map_generator.world_to_cell(get_global_mouse_position())
+		queue_redraw()
+	elif pending_archetype != &"":
 		queue_redraw()
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -62,6 +79,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		queue_redraw()
 		get_viewport().set_input_as_handled()
 
+func set_rally_point_for_structure(producer_node: Node, world_pos: Vector2) -> bool:
+	var index := _structure_index_for_node(producer_node)
+	if index < 0:
+		return false
+	if structures[index]["archetype"] != &"barracks":
+		return false
+	structures[index]["rally_point"] = world_pos
+	var node: KonStructure = structures[index].get("node", null)
+	if node != null and is_instance_valid(node):
+		node.set_rally_point(world_pos)
+	return true
+
 func start_placement(archetype: StringName) -> void:
 	pending_archetype = archetype
 
@@ -88,11 +117,30 @@ func try_place_structure(player_id: int, archetype: StringName, cell: Vector2i) 
 	structures.append(structure)
 	_register_blockers(structure)
 	if simulation_runner != null:
-		var command := simulation_runner.make_local_command(RTSCommand.Type.BUILD_STRUCTURE, [], cell, {"structure": String(archetype)})
+		var command := simulation_runner.make_local_command(RTSCommand.Type.BUILD_STRUCTURE, [], cell, {"structure": str(archetype)})
 		simulation_runner.queue_command(command)
 	structure_placed.emit(player_id, archetype, cell)
 	queue_redraw()
 	return true
+
+func research_upgrade(player_id: int, upgrade_id: StringName) -> bool:
+	if researched_upgrades.has(upgrade_id):
+		build_rejected.emit("Upgrade already researched")
+		return false
+	if not _has_completed_structure(player_id, &"terrible_vault"):
+		build_rejected.emit("Requires completed Terrible Vault")
+		return false
+	var cost := _upgrade_cost(upgrade_id)
+	if economy_manager == null or not economy_manager.spend(player_id, {&"bio": cost}):
+		build_rejected.emit("Not enough Bio")
+		return false
+	researched_upgrades[upgrade_id] = true
+	_apply_upgrade_to_existing_units(upgrade_id)
+	upgrade_researched.emit(player_id, upgrade_id)
+	return true
+
+func has_upgrade(upgrade_id: StringName) -> bool:
+	return researched_upgrades.has(upgrade_id)
 
 func _make_structure_data(player_id: int, archetype: StringName, cell: Vector2i, plot_id: String, definition: Dictionary) -> Dictionary:
 	var hp := int(definition.get("max_hp", 200))
@@ -181,11 +229,15 @@ func _spawn_trained_unit(player_id: int, archetype: StringName, producer: Dictio
 		unit.set("owner_player_id", player_id)
 		get_parent().add_child(unit)
 		unit.global_position = map_generator.cell_to_world(spawn_cell)
+		_apply_upgrades_to_unit(unit)
+		var rally: Vector2 = producer.get("rally_point", Vector2.ZERO)
+		if rally != Vector2.ZERO and unit.has_method("issue_move_order"):
+			unit.call_deferred("issue_move_order", rally)
 		if simulation_runner != null:
 			var entity_id := simulation_runner.state.spawn_entity(player_id, archetype, spawn_cell)
 			unit.set("simulation_entity_id", entity_id)
 	if simulation_runner != null:
-		var command := simulation_runner.make_local_command(RTSCommand.Type.PRODUCE_UNIT, [], spawn_cell, {"unit": String(archetype)})
+		var command := simulation_runner.make_local_command(RTSCommand.Type.PRODUCE_UNIT, [], spawn_cell, {"unit": str(archetype)})
 		simulation_runner.queue_command(command)
 	unit_produced.emit(player_id, archetype, spawn_cell)
 	return true
@@ -228,8 +280,8 @@ func produce_unit_from_structure(player_id: int, archetype: StringName, producer
 
 func apply_first_absorber_upgrade(upgrade_id: StringName) -> bool:
 	for i in structures.size():
-		if structures[i]["archetype"] == &"bio_absorber" and bool(structures[i].get("complete", false)) and int(structures[i]["level"]) >= 2 and String(structures[i]["upgrade"]).is_empty():
-			structures[i]["upgrade"] = String(upgrade_id)
+		if structures[i]["archetype"] == &"bio_absorber" and bool(structures[i].get("complete", false)) and int(structures[i]["level"]) >= 2 and str(structures[i]["upgrade"]).is_empty():
+			structures[i]["upgrade"] = str(upgrade_id)
 			queue_redraw()
 			return true
 	build_rejected.emit("Requires evolved Bio Absorber")
@@ -244,14 +296,26 @@ func _can_place(archetype: StringName, cell: Vector2i) -> bool:
 	var definition := UnitCatalog.get_definition(archetype)
 	var footprint: Vector2i = definition.get("footprint", Vector2i.ONE)
 	for blocked_cell in _footprint_cells(cell, footprint):
-		if not map_generator.is_walkable_cell(blocked_cell):
+		if not _is_placement_cell_free(blocked_cell):
 			return false
-		for structure in structures:
-			if structure.get("blocked_cells", []).has(blocked_cell):
-				return false
 	if archetype == &"bio_absorber":
 		return not _plot_id_for_cell(cell).is_empty()
 	return true
+
+func _is_placement_cell_free(cell: Vector2i) -> bool:
+	if map_generator == null or not map_generator.has_method("is_walkable_cell"):
+		return false
+	if not map_generator.is_walkable_cell(cell):
+		return false
+	for structure in structures:
+		if structure.get("blocked_cells", []).has(cell):
+			return false
+	return true
+
+func get_placement_cells(archetype: StringName, cell: Vector2i) -> Array[Vector2i]:
+	var definition := UnitCatalog.get_definition(archetype)
+	var footprint: Vector2i = definition.get("footprint", Vector2i.ONE)
+	return _footprint_cells(cell, footprint)
 
 func _footprint_cells(origin: Vector2i, footprint: Vector2i) -> Array[Vector2i]:
 	var cells: Array[Vector2i] = []
@@ -263,6 +327,26 @@ func _footprint_cells(origin: Vector2i, footprint: Vector2i) -> Array[Vector2i]:
 func _register_blockers(structure: Dictionary) -> void:
 	if map_generator != null and map_generator.has_method("add_dynamic_blockers"):
 		map_generator.add_dynamic_blockers(structure.get("blocked_cells", []))
+
+func _unregister_blockers(structure: Dictionary) -> void:
+	if map_generator != null and map_generator.has_method("remove_dynamic_blockers"):
+		map_generator.remove_dynamic_blockers(structure.get("blocked_cells", []))
+
+func _sync_structure_damage_and_cleanup() -> void:
+	for i in range(structures.size() - 1, -1, -1):
+		var structure: Dictionary = structures[i]
+		var node = structure.get("node", null)
+		if node == null or not is_instance_valid(node):
+			_unregister_blockers(structure)
+			structures.remove_at(i)
+			continue
+		if node is KonStructure:
+			structure["hp"] = int(node.health)
+			if int(structure["hp"]) <= 0:
+				_unregister_blockers(structure)
+				structures.remove_at(i)
+				continue
+			structures[i] = structure
 
 func _create_structure_node(structure: Dictionary) -> KonStructure:
 	var node := KonStructure.new()
@@ -306,6 +390,9 @@ func _update_structure_evolution(delta: float) -> void:
 			structure["evolution_xp"] = 0.0
 			structure["max_hp"] = int(float(structure["max_hp"]) * 1.2)
 			structure["hp"] = structure["max_hp"]
+			if structure["archetype"] == &"vinewall":
+				structure["max_hp"] = int(float(structure["max_hp"]) * 1.15)
+				structure["hp"] = structure["max_hp"]
 			var node: KonStructure = structure.get("node", null)
 			if node != null and is_instance_valid(node):
 				node.set_runtime_stats(int(structure["player_id"]), int(structure["hp"]), int(structure["max_hp"]), next_level)
@@ -314,6 +401,104 @@ func _update_structure_evolution(delta: float) -> void:
 		structures[i] = structure
 	if changed:
 		queue_redraw()
+
+func _update_structure_regeneration(delta: float) -> void:
+	for i in structures.size():
+		var structure: Dictionary = structures[i]
+		if not bool(structure.get("complete", false)):
+			continue
+		var definition := UnitCatalog.get_definition(structure["archetype"])
+		var regen := float(definition.get("regeneration_per_second", 0.0))
+		if researched_upgrades.has(&"thorned_vines") and structure["archetype"] == &"vinewall":
+			regen += 3.0
+		if regen <= 0.0:
+			continue
+		structure["hp"] = mini(int(structure["max_hp"]), int(float(structure["hp"]) + regen * delta))
+		var node: KonStructure = structure.get("node", null)
+		if node != null and is_instance_valid(node):
+			node.set_runtime_stats(int(structure["player_id"]), int(structure["hp"]), int(structure["max_hp"]), int(structure.get("level", 1)))
+		structures[i] = structure
+
+func _update_bio_launchers(delta: float) -> void:
+	_launcher_elapsed += delta
+	if _launcher_elapsed < 0.25:
+		return
+	var step := _launcher_elapsed
+	_launcher_elapsed = 0.0
+	for i in structures.size():
+		var structure: Dictionary = structures[i]
+		if structure["archetype"] != &"bio_launcher" or not bool(structure.get("complete", false)):
+			continue
+		var cooldown := float(UnitCatalog.get_definition(&"bio_launcher").get("attack_cooldown_ticks", 40)) / 20.0
+		structure["attack_elapsed"] = float(structure.get("attack_elapsed", 0.0)) + step
+		if float(structure["attack_elapsed"]) < cooldown:
+			structures[i] = structure
+			continue
+		var target := _find_launcher_target(structure)
+		if target == null:
+			structures[i] = structure
+			continue
+		var shot_cost := int(UnitCatalog.get_definition(&"bio_launcher").get("shot_cost_bio", 3))
+		if economy_manager != null and not economy_manager.spend(int(structure["player_id"]), {&"bio": shot_cost}):
+			structures[i] = structure
+			continue
+		_fire_bio_launcher(structure, target)
+		structure["attack_elapsed"] = 0.0
+		structure["evolution_xp"] = float(structure.get("evolution_xp", 0.0)) + 18.0
+		structures[i] = structure
+
+func _find_launcher_target(structure: Dictionary) -> Node2D:
+	var raw_node = structure.get("node", null)
+	if raw_node == null or not is_instance_valid(raw_node) or not (raw_node is Node2D):
+		return null
+	var node := raw_node as Node2D
+	var range := float(UnitCatalog.get_definition(&"bio_launcher").get("attack_range_cells", 9)) * 64.0
+	var best: Node2D = null
+	var best_distance := INF
+	for unit in get_tree().get_nodes_in_group("units"):
+		if not is_instance_valid(unit) or not (unit is Node2D):
+			continue
+		if int(unit.get("owner_player_id")) == int(structure["player_id"]):
+			continue
+		if not unit.has_method("take_damage"):
+			continue
+		var unit_node := unit as Node2D
+		var distance := node.global_position.distance_squared_to(unit_node.global_position)
+		if distance <= range * range and distance < best_distance:
+			best = unit_node
+			best_distance = distance
+	return best
+
+func _fire_bio_launcher(structure: Dictionary, target: Node2D) -> void:
+	if target == null or not is_instance_valid(target):
+		return
+	var definition := UnitCatalog.get_definition(&"bio_launcher")
+	var damage := int(definition.get("attack_damage", 24))
+	var radius := float(definition.get("aoe_radius", 92.0))
+	if researched_upgrades.has(&"launcher_bile"):
+		damage += 8
+		radius += 34.0
+	var raw_source = structure.get("node", null)
+	var source_node: Node = raw_source if raw_source != null and is_instance_valid(raw_source) and raw_source is Node else null
+	for unit in get_tree().get_nodes_in_group("units"):
+		if not is_instance_valid(unit) or not (unit is Node2D) or not unit.has_method("take_damage"):
+			continue
+		if int(unit.get("owner_player_id")) == int(structure["player_id"]):
+			continue
+		var unit_node := unit as Node2D
+		if target == null or not is_instance_valid(target):
+			return
+		var distance: float = unit_node.global_position.distance_to(target.global_position)
+		if distance <= radius:
+			unit.take_damage(maxi(1, int(float(damage) * (1.0 - distance / (radius * 1.6)))), source_node)
+	_draw_launcher_burst(target.global_position, radius)
+
+func _draw_launcher_burst(pos: Vector2, radius: float) -> void:
+	var fx := Node2D.new()
+	fx.set_script(preload("res://scripts/fx/aoe_burst_fx.gd"))
+	get_parent().add_child(fx)
+	fx.global_position = pos
+	fx.call("configure", radius, Color("#7BC47F"), Color("#8B1A1F"))
 
 func _update_construction(delta: float) -> void:
 	for i in structures.size():
@@ -338,14 +523,15 @@ func _update_production(delta: float) -> void:
 		var structure: Dictionary = structures[i]
 		if not bool(structure.get("complete", false)):
 			continue
-		if StringName(structure.get("archetype", &"")) != &"barracks":
+		var structure_archetype: StringName = structure.get("archetype", &"")
+		if structure_archetype != &"barracks":
 			continue
-		var current := StringName(structure.get("training_archetype", &""))
-		if String(current).is_empty():
+		var current: StringName = structure.get("training_archetype", &"")
+		if str(current).is_empty():
 			_start_next_training(i)
 			structure = structures[i]
-			current = StringName(structure.get("training_archetype", &""))
-			if String(current).is_empty():
+			current = structure.get("training_archetype", &"")
+			if str(current).is_empty():
 				continue
 		var progress := float(structure.get("training_progress", 0.0)) + delta
 		var train_time := float(structure.get("training_time", UnitCatalog.train_time(current)))
@@ -367,7 +553,7 @@ func _start_next_training(index: int) -> void:
 		structures[index]["training_progress"] = 0.0
 		structures[index]["training_time"] = 0.0
 		return
-	var next := StringName(queue.pop_front())
+	var next: StringName = queue.pop_front()
 	structures[index]["production_queue"] = queue
 	structures[index]["training_archetype"] = next
 	structures[index]["training_progress"] = 0.0
@@ -378,13 +564,14 @@ func _sync_training_node(index: int) -> void:
 	if node == null or not is_instance_valid(node):
 		return
 	var queue: Array = structures[index].get("production_queue", [])
-	node.set_training_state(queue.size(), StringName(structures[index].get("training_archetype", &"")), float(structures[index].get("training_progress", 0.0)), float(structures[index].get("training_time", 0.0)))
+	var training_archetype: StringName = structures[index].get("training_archetype", &"")
+	node.set_training_state(queue.size(), training_archetype, float(structures[index].get("training_progress", 0.0)), float(structures[index].get("training_time", 0.0)))
 
 func _activate_completed_structure(structure: Dictionary) -> void:
 	if structure["archetype"] != &"bio_absorber" or economy_manager == null:
 		return
 	var player_id := int(structure["player_id"])
-	var plot_id := String(structure.get("plot_id", ""))
+	var plot_id := str(structure.get("plot_id", ""))
 	var cell: Vector2i = structure["cell"]
 	if not economy_manager.register_economy_building(player_id, plot_id, cell, structure["archetype"]):
 		build_rejected.emit("Bio Absorber could not attach to its economy space")
@@ -425,6 +612,59 @@ func _has_incomplete_structure_with_production(unit_archetype: StringName, playe
 			return true
 	return false
 
+func _has_completed_structure(player_id: int, archetype: StringName) -> bool:
+	for structure in structures:
+		if int(structure.get("player_id", -1)) == player_id and structure.get("archetype", &"") == archetype and bool(structure.get("complete", false)):
+			return true
+	return false
+
+func _upgrade_cost(upgrade_id: StringName) -> int:
+	match upgrade_id:
+		&"thorned_vines":
+			return 120
+		&"accelerated_evolution":
+			return 150
+		&"hardened_horrors":
+			return 140
+		&"launcher_bile":
+			return 160
+	return 99999
+
+func _apply_upgrade_to_existing_units(upgrade_id: StringName) -> void:
+	for unit in get_tree().get_nodes_in_group("units"):
+		if is_instance_valid(unit) and int(unit.get("owner_player_id")) == 1:
+			_apply_upgrades_to_unit(unit)
+	for i in structures.size():
+		var structure: Dictionary = structures[i]
+		if upgrade_id == &"thorned_vines" and structure.get("archetype", &"") == &"vinewall":
+			structure["max_hp"] = int(float(structure.get("max_hp", 1)) * 1.18)
+			structure["hp"] = mini(int(structure["max_hp"]), int(structure.get("hp", 1)) + 45)
+			var node: KonStructure = structure.get("node", null)
+			if node != null and is_instance_valid(node):
+				node.set_runtime_stats(int(structure["player_id"]), int(structure["hp"]), int(structure["max_hp"]), int(structure.get("level", 1)))
+		structures[i] = structure
+
+func _apply_upgrades_to_unit(unit: Node) -> void:
+	if unit == null or not is_instance_valid(unit):
+		return
+	if not _node_has_property(unit, "unit_archetype"):
+		return
+	var archetype: StringName = unit.get("unit_archetype")
+	if researched_upgrades.has(&"hardened_horrors") and archetype == &"horror" and not bool(unit.get_meta("hardened_horrors_applied", false)):
+		unit.set("max_health", int(unit.get("max_health")) + 20)
+		unit.set("health", int(unit.get("health")) + 20)
+		unit.set("attack_damage", int(unit.get("attack_damage")) + 2)
+		unit.set_meta("hardened_horrors_applied", true)
+	if researched_upgrades.has(&"accelerated_evolution") and _node_has_property(unit, "evolution_xp") and not bool(unit.get_meta("accelerated_evolution_applied", false)):
+		unit.set("evolution_xp", float(unit.get("evolution_xp")) + 28.0)
+		unit.set_meta("accelerated_evolution_applied", true)
+
+func _node_has_property(node: Node, property_name: String) -> bool:
+	for property in node.get_property_list():
+		if str(property.get("name", "")) == property_name:
+			return true
+	return false
+
 func _scene_for_unit(archetype: StringName) -> PackedScene:
 	match archetype:
 		&"terrible_thing", &"awful_thing":
@@ -440,15 +680,57 @@ func _draw() -> void:
 		return
 	if pending_archetype == &"vinewall" and _dragging_wall:
 		for cell in _line_cells(_wall_drag_start, _wall_drag_end):
-			var pos: Vector2 = map_generator.cell_to_world(cell)
-			draw_circle(pos, 20.0, Color("#2D5A3E", 0.32))
-			draw_arc(pos, 22.0, 0, TAU, 20, Color("#7BC47F", 0.8), 2.0)
+			_draw_cell_preview(cell, _can_place(&"vinewall", cell), _is_placement_cell_free(cell))
 	elif pending_archetype != &"":
 		var cell: Vector2i = map_generator.world_to_cell(get_global_mouse_position())
-		var pos: Vector2 = map_generator.cell_to_world(cell)
-		var color := Color("#7BC47F", 0.32) if _can_place(pending_archetype, cell) else Color("#C13030", 0.42)
-		var footprint: Vector2i = UnitCatalog.get_definition(pending_archetype).get("footprint", Vector2i.ONE)
-		draw_rect(Rect2(pos - Vector2(32, 24), Vector2(64 * footprint.x, 48 * footprint.y)), color, true)
+		var valid := _can_place(pending_archetype, cell)
+		var cells := get_placement_cells(pending_archetype, cell)
+		for preview_cell in get_placement_cells(pending_archetype, cell):
+			_draw_cell_preview(preview_cell, valid, _is_placement_cell_free(preview_cell))
+		_draw_structure_preview(pending_archetype, cells, valid)
+
+func _draw_cell_preview(cell: Vector2i, placement_valid: bool, cell_valid: bool) -> void:
+	var pos: Vector2 = map_generator.cell_to_world(cell)
+	var valid := placement_valid and cell_valid
+	var fill := Color("#7BC47F", 0.22) if valid else Color("#C13030", 0.36)
+	var line := Color("#7BC47F", 0.96) if valid else Color("#E85A5A", 0.98)
+	var points := PackedVector2Array([
+		pos + Vector2(0, -32),
+		pos + Vector2(64, 0),
+		pos + Vector2(0, 32),
+		pos + Vector2(-64, 0),
+	])
+	var outline := PackedVector2Array(points)
+	outline.append(points[0])
+	draw_colored_polygon(points, fill)
+	draw_polyline(outline, line, 2.0)
+
+func _draw_structure_preview(archetype: StringName, cells: Array[Vector2i], valid: bool) -> void:
+	if cells.is_empty() or not STRUCTURE_PREVIEW_TEXTURES.has(archetype):
+		return
+	var center := Vector2.ZERO
+	for cell in cells:
+		center += map_generator.cell_to_world(cell)
+	center /= float(cells.size())
+	var texture: Texture2D = STRUCTURE_PREVIEW_TEXTURES[archetype]
+	var footprint := _footprint_extents(cells)
+	var target_width := maxf(72.0, float(footprint.x) * 82.0)
+	var scale := target_width / maxf(1.0, float(texture.get_width()))
+	var size := Vector2(texture.get_width(), texture.get_height()) * scale
+	var tint := Color(1, 1, 1, 0.62) if valid else Color("#E85A5A", 0.52)
+	draw_texture_rect(texture, Rect2(center - Vector2(size.x * 0.5, size.y - 18.0), size), false, tint)
+
+func _footprint_extents(cells: Array[Vector2i]) -> Vector2i:
+	if cells.is_empty():
+		return Vector2i.ONE
+	var min_cell: Vector2i = cells[0]
+	var max_cell: Vector2i = cells[0]
+	for cell in cells:
+		min_cell.x = mini(min_cell.x, cell.x)
+		min_cell.y = mini(min_cell.y, cell.y)
+		max_cell.x = maxi(max_cell.x, cell.x)
+		max_cell.y = maxi(max_cell.y, cell.y)
+	return max_cell - min_cell + Vector2i.ONE
 
 func _structure_color(archetype: StringName) -> Color:
 	match archetype:
@@ -470,5 +752,5 @@ func _plot_id_for_cell(cell: Vector2i) -> String:
 	for zone in map_generator.get_economy_zones():
 		for economy_cell in zone.get("economy_spaces", []):
 			if economy_cell == cell:
-				return String(zone.get("plot_id", ""))
+				return str(zone.get("plot_id", ""))
 	return ""

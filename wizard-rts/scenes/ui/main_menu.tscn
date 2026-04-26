@@ -1,8 +1,75 @@
-[gd_scene load_steps=4 format=3 uid="uid://mainmenuwizardrts"]
+[gd_scene load_steps=10 format=3 uid="uid://mainmenuwizardrts"]
 
 [ext_resource type="Script" path="res://scripts/ui/main_menu.gd" id="1_menu"]
 [ext_resource type="Texture2D" path="res://assets/ui/characters/bad_kon_willow.png" id="2_bad_kon"]
 [ext_resource type="Texture2D" path="res://assets/ui/characters/hellfire_baby.png" id="3_hellfire"]
+[ext_resource type="Texture2D" path="res://assets/ui/characters/evangalion.png" id="4_evangalion"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card"]
+bg_color = Color(0.0392157, 0.0627451, 0.054902, 0.98)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.137255, 0.254902, 0.196078, 0.95)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card_hover"]
+bg_color = Color(0.054902, 0.0941176, 0.0784314, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.482353, 0.768627, 0.498039, 0.85)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card_selected"]
+bg_color = Color(0.0509804, 0.101961, 0.0784314, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.482353, 0.866667, 0.909804, 0.95)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+shadow_color = Color(0.12549, 0.611765, 0.580392, 0.28)
+shadow_size = 18
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_portrait"]
+bg_color = Color(0.0156863, 0.0313726, 0.027451, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.286275, 0.447059, 0.372549, 0.95)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_action"]
+bg_color = Color(0.0705882, 0.105882, 0.0901961, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.235294, 0.384314, 0.294118, 0.8)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -29,14 +96,14 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 36
-theme_override_constants/margin_top = 24
-theme_override_constants/margin_right = 36
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 28
+theme_override_constants/margin_right = 32
 theme_override_constants/margin_bottom = 24
 
 [node name="Layout" type="VBoxContainer" parent="RootMargin"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 10
 
 [node name="Title" type="Label" parent="RootMargin/Layout"]
 layout_mode = 2
@@ -78,142 +145,253 @@ text = "Quit"
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
-theme_override_constants/separation = 10
+theme_override_constants/separation = 14
 
 [node name="CharacterTitle" type="Label" parent="RootMargin/Layout/CharacterPanel"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 30
 text = "Select Character"
 
 [node name="CharacterScroll" type="ScrollContainer" parent="RootMargin/Layout/CharacterPanel"]
-custom_minimum_size = Vector2(1, 390)
+custom_minimum_size = Vector2(1, 620)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="CharacterCards" type="VBoxContainer" parent="RootMargin/Layout/CharacterPanel/CharacterScroll"]
+[node name="CharacterCards" type="HBoxContainer" parent="RootMargin/Layout/CharacterPanel/CharacterScroll"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 12
+size_flags_vertical = 3
+theme_override_constants/separation = 18
 
 [node name="BadKonCard" type="Button" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(980, 250)
+custom_minimum_size = Vector2(480, 590)
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 3
 focus_mode = 0
 toggle_mode = true
 text = ""
+theme_override_styles/normal = SubResource("StyleBoxFlat_card")
+theme_override_styles/hover = SubResource("StyleBoxFlat_card_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_card_selected")
+theme_override_styles/hover_pressed = SubResource("StyleBoxFlat_card_selected")
 
-[node name="CardLayout" type="HBoxContainer" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/BadKonCard"]
+[node name="CardLayout" type="VBoxContainer" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/BadKonCard"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 14.0
-offset_top = 14.0
-offset_right = -14.0
-offset_bottom = -14.0
+offset_left = 16.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = -16.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 16
+theme_override_constants/separation = 12
 
-[node name="Portrait" type="TextureRect" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/BadKonCard/CardLayout"]
-custom_minimum_size = Vector2(160, 220)
+[node name="PortraitFrame" type="PanelContainer" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/BadKonCard/CardLayout"]
+custom_minimum_size = Vector2(1, 330)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_portrait")
+
+[node name="Portrait" type="TextureRect" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/BadKonCard/CardLayout/PortraitFrame"]
+custom_minimum_size = Vector2(1, 330)
 layout_mode = 2
 texture = ExtResource("2_bad_kon")
 expand_mode = 1
-stretch_mode = 6
+stretch_mode = 5
 
 [node name="TextLayout" type="VBoxContainer" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/BadKonCard/CardLayout"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 6
+size_flags_vertical = 3
+theme_override_constants/separation = 8
 
 [node name="Name" type="Label" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/BadKonCard/CardLayout/TextLayout"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 24
+horizontal_alignment = 1
+autowrap_mode = 2
+theme_override_font_sizes/font_size = 25
 text = "Bad Kon Willow - Life Wizard"
 
 [node name="Class" type="Label" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/BadKonCard/CardLayout/TextLayout"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.482353, 0.866667, 0.909804, 1)
+horizontal_alignment = 1
+autowrap_mode = 2
 theme_override_font_sizes/font_size = 16
 text = "Miserable, and discarded."
 
 [node name="Description" type="RichTextLabel" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/BadKonCard/CardLayout/TextLayout"]
-custom_minimum_size = Vector2(740, 150)
+custom_minimum_size = Vector2(1, 170)
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 3
 bbcode_enabled = true
-scroll_active = true
-text = "For generations, Kon belonged to a cult of wizards who observed the ferocious cycle of evolution - watching life tear itself apart in a cycle of domination.They were students, not interventionists. Until evolution produced horrors so vile the cult had no choice but to seal them away.\n\nKon cared not.\n\nKon saw tools, and was willing. \"hang from willow\" they told him. A curse spoken often enough ny his kin it's now tethered to his very identity.\n\nHe is void of empathy, he can and will unleash the horrors."
+fit_content = false
+scroll_active = false
+text = "For generations, Kon belonged to a cult of wizards who observed the ferocious cycle of evolution, until evolution produced horrors so vile the cult had no choice but to seal them away.\n\nKon saw tools, and was willing. He is void of empathy, he can and will unleash the horrors."
 
 [node name="HellfireBabyCard" type="Button" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(980, 250)
+custom_minimum_size = Vector2(480, 590)
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 3
 focus_mode = 0
 toggle_mode = true
 text = ""
+theme_override_styles/normal = SubResource("StyleBoxFlat_card")
+theme_override_styles/hover = SubResource("StyleBoxFlat_card_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_card_selected")
+theme_override_styles/hover_pressed = SubResource("StyleBoxFlat_card_selected")
 
-[node name="CardLayout" type="HBoxContainer" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/HellfireBabyCard"]
+[node name="CardLayout" type="VBoxContainer" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/HellfireBabyCard"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 14.0
-offset_top = 14.0
-offset_right = -14.0
-offset_bottom = -14.0
+offset_left = 16.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = -16.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 16
+theme_override_constants/separation = 12
 
-[node name="Portrait" type="TextureRect" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/HellfireBabyCard/CardLayout"]
-custom_minimum_size = Vector2(160, 220)
+[node name="PortraitFrame" type="PanelContainer" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/HellfireBabyCard/CardLayout"]
+custom_minimum_size = Vector2(1, 330)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_portrait")
+
+[node name="Portrait" type="TextureRect" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/HellfireBabyCard/CardLayout/PortraitFrame"]
+custom_minimum_size = Vector2(1, 330)
 layout_mode = 2
 texture = ExtResource("3_hellfire")
 expand_mode = 1
-stretch_mode = 6
+stretch_mode = 5
 
 [node name="TextLayout" type="VBoxContainer" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/HellfireBabyCard/CardLayout"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 6
+size_flags_vertical = 3
+theme_override_constants/separation = 8
 
 [node name="Name" type="Label" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/HellfireBabyCard/CardLayout/TextLayout"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 24
+horizontal_alignment = 1
+autowrap_mode = 2
+theme_override_font_sizes/font_size = 25
 text = "The Hellfire baby - Fire Wizard"
 
 [node name="Class" type="Label" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/HellfireBabyCard/CardLayout/TextLayout"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.909804, 0.352941, 0.352941, 1)
+horizontal_alignment = 1
+autowrap_mode = 2
 theme_override_font_sizes/font_size = 16
 text = "Bright, careful, flame-born."
 
 [node name="Description" type="RichTextLabel" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/HellfireBabyCard/CardLayout/TextLayout"]
-custom_minimum_size = Vector2(740, 150)
+custom_minimum_size = Vector2(1, 170)
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 3
 bbcode_enabled = true
-scroll_active = true
+fit_content = false
+scroll_active = false
 text = "No longer a child, but her parents were singed as she was born with the ability to wield flame. She was quickly adopted by the arcana school to shape her into the polite, talented wizard she is today.\n\nNot quick to turn to violence, but embraces her abilities when they are needed."
+
+[node name="EvangalionCard" type="Button" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(480, 590)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+focus_mode = 0
+toggle_mode = true
+text = ""
+theme_override_styles/normal = SubResource("StyleBoxFlat_card")
+theme_override_styles/hover = SubResource("StyleBoxFlat_card_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_card_selected")
+theme_override_styles/hover_pressed = SubResource("StyleBoxFlat_card_selected")
+
+[node name="CardLayout" type="VBoxContainer" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/EvangalionCard"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 12
+
+[node name="PortraitFrame" type="PanelContainer" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/EvangalionCard/CardLayout"]
+custom_minimum_size = Vector2(1, 330)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_portrait")
+
+[node name="Portrait" type="TextureRect" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/EvangalionCard/CardLayout/PortraitFrame"]
+custom_minimum_size = Vector2(1, 330)
+layout_mode = 2
+texture = ExtResource("4_evangalion")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="TextLayout" type="VBoxContainer" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/EvangalionCard/CardLayout"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="Name" type="Label" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/EvangalionCard/CardLayout/TextLayout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.909804, 0.690196, 0.352941, 1)
+horizontal_alignment = 1
+autowrap_mode = 2
+theme_override_font_sizes/font_size = 25
+text = "Evangalion - Cosmic Wizard"
+
+[node name="Class" type="Label" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/EvangalionCard/CardLayout/TextLayout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.909804, 0.690196, 0.352941, 1)
+horizontal_alignment = 1
+autowrap_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Consort of the Serengey."
+
+[node name="Description" type="RichTextLabel" parent="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/EvangalionCard/CardLayout/TextLayout"]
+custom_minimum_size = Vector2(1, 170)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+bbcode_enabled = true
+fit_content = false
+scroll_active = false
+text = "Evangalion awakes to the cosmic storm, and serves as consort to his ship Serengey.\n\nWhile considered \"unconventional\" to marry a ship, Evangalion is a powerful wizard."
 
 [node name="CharacterButtons" type="HBoxContainer" parent="RootMargin/Layout/CharacterPanel"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 14
 
 [node name="CharacterBackButton" type="Button" parent="RootMargin/Layout/CharacterPanel/CharacterButtons"]
 custom_minimum_size = Vector2(160, 42)
 layout_mode = 2
 text = "Back"
+theme_override_styles/normal = SubResource("StyleBoxFlat_action")
 
 [node name="CharacterHint" type="Label" parent="RootMargin/Layout/CharacterPanel/CharacterButtons"]
 layout_mode = 2
+size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.482353, 0.768627, 0.498039, 1)
 text = "Select a wizard to choose a map"
 
@@ -223,6 +401,7 @@ custom_minimum_size = Vector2(180, 42)
 layout_mode = 2
 disabled = true
 text = "Proceed"
+theme_override_styles/normal = SubResource("StyleBoxFlat_action")
 
 [node name="MapPanel" type="VBoxContainer" parent="RootMargin/Layout"]
 unique_name_in_owner = true
@@ -365,6 +544,7 @@ text = "Back"
 [connection signal="pressed" from="RootMargin/Layout/MainPanel/QuitButton" to="." method="_on_quit_pressed"]
 [connection signal="pressed" from="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/BadKonCard" to="." method="_on_bad_kon_pressed"]
 [connection signal="pressed" from="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/HellfireBabyCard" to="." method="_on_hellfire_baby_pressed"]
+[connection signal="pressed" from="RootMargin/Layout/CharacterPanel/CharacterScroll/CharacterCards/EvangalionCard" to="." method="_on_evangalion_pressed"]
 [connection signal="pressed" from="RootMargin/Layout/CharacterPanel/CharacterButtons/CharacterBackButton" to="." method="_on_character_back_pressed"]
 [connection signal="pressed" from="RootMargin/Layout/CharacterPanel/CharacterButtons/CharacterContinueButton" to="." method="_on_character_continue_pressed"]
 [connection signal="pressed" from="RootMargin/Layout/MapPanel/MapCardButton" to="." method="_on_vampire_map_pressed"]

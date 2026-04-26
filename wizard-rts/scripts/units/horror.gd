@@ -1,4 +1,4 @@
-extends "res://scripts/units/rts_unit.gd"
+extends RTSUnit
 
 func _ready() -> void:
 	unit_archetype = &"horror"

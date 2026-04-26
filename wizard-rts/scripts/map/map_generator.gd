@@ -112,8 +112,8 @@ func _apply_session_settings() -> void:
 	if session == null:
 		return
 	if bool(session.get("new_game_requested")):
-		map_type_id = String(session.get("map_type_id"))
-		map_seed_text = String(session.get("map_seed_text"))
+		map_type_id = str(session.get("map_type_id"))
+		map_seed_text = str(session.get("map_seed_text"))
 
 func get_map_type_name() -> String:
 	match map_type_id:
@@ -787,7 +787,7 @@ func _register_plot(plot: Dictionary) -> void:
 
 func _stamp_plots_into_grid() -> void:
 	for plot in plots:
-		match String(plot.get("kind", "")):
+		match str(plot.get("kind", "")):
 			"base":
 				_stamp_base_plot(plot)
 			"quest":

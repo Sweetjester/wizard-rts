@@ -3,13 +3,13 @@ extends Node2D
 
 @export var map_path: NodePath = NodePath("../MapGenerator")
 @export var reveal_radius_cells: int = 8
-@export var hard_fog_alpha: float = 0.58
-@export var explored_fog_alpha: float = 0.22
-@export var edge_fog_alpha: float = 0.28
+@export var hard_fog_alpha: float = 0.94
+@export var explored_fog_alpha: float = 0.62
+@export var edge_fog_alpha: float = 0.72
 @export var update_interval: float = 0.8
-@export var draw_stride: int = 2
+@export var draw_stride: int = 4
 @export var reveal_enemy_vision: bool = false
-@export var max_revealers_per_update: int = 24
+@export var max_revealers_per_update: int = 10
 
 const FOG_COLOR := Color("#050807")
 
@@ -19,12 +19,13 @@ var visible_cells: Array = []
 var _elapsed := 0.0
 
 func _ready() -> void:
-	z_index = 3000
+	z_index = 4096
+	z_as_relative = false
 	var display_manager := get_node_or_null("/root/DisplayManager")
 	if display_manager != null and bool(display_manager.get("performance_mode")):
 		update_interval = 1.0
-		draw_stride = 3
-		max_revealers_per_update = 16
+		draw_stride = 5
+		max_revealers_per_update = 8
 	call_deferred("_rebuild")
 
 func _process(delta: float) -> void:
@@ -72,6 +73,7 @@ func _update_visibility() -> void:
 		revealer_count += 1
 		if revealer_count >= max_revealers_per_update:
 			break
+	_apply_entity_visibility()
 	queue_redraw()
 
 func _reveal_line_of_sight(center: Vector2i, radius: int) -> void:
@@ -108,6 +110,16 @@ func _has_line_of_sight(from_cell: Vector2i, to_cell: Vector2i, viewer_height: i
 			return false
 	return true
 
+func _apply_entity_visibility() -> void:
+	for node in get_tree().get_nodes_in_group("units"):
+		if not is_instance_valid(node) or not (node is Node2D):
+			continue
+		if _property_or(node, "owner_player_id", 1) == 1:
+			node.visible = true
+			continue
+		var cell: Vector2i = map.world_to_cell((node as Node2D).global_position)
+		node.visible = map.is_in_bounds(cell) and visible_cells[cell.x][cell.y]
+
 func _line_cells(from_cell: Vector2i, to_cell: Vector2i) -> Array[Vector2i]:
 	var cells: Array[Vector2i] = []
 	var delta := to_cell - from_cell
@@ -122,13 +134,13 @@ func _line_cells(from_cell: Vector2i, to_cell: Vector2i) -> Array[Vector2i]:
 	return cells
 
 func _sight_radius_for(unit: Node) -> int:
-	var archetype := StringName(_property_or(unit, "unit_archetype", &""))
+	var archetype: StringName = _property_or(unit, "unit_archetype", &"")
 	var definition := UnitCatalog.get_definition(archetype)
 	return int(definition.get("sight_radius_cells", reveal_radius_cells))
 
 func _property_or(node: Node, property_name: String, fallback: Variant) -> Variant:
 	for property in node.get_property_list():
-		if String(property.get("name", "")) == property_name:
+		if str(property.get("name", "")) == property_name:
 			return node.get(property_name)
 	return fallback
 

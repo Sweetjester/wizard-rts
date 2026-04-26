@@ -1,3 +1,4 @@
+class_name RTSUnit
 extends CharacterBody2D
 
 @export var move_speed: float = 180.0
@@ -13,6 +14,7 @@ extends CharacterBody2D
 @export var attack_range: float = 96.0
 @export var attack_cooldown: float = 1.0
 @export var projectile_speed: float = 620.0
+@export var ignores_terrain: bool = false
 
 static var _registered_units: Array[Node2D] = []
 static var _spatial_frame := -1
@@ -70,7 +72,7 @@ func issue_move_order(world_pos: Vector2) -> void:
 	attack_target = null
 	command_mode = &"move"
 	unit_state = &"moving"
-	if terrain == null:
+	if ignores_terrain or terrain == null:
 		path = [world_pos]
 	else:
 		path = terrain.find_path_world(global_position, world_pos)
@@ -214,7 +216,7 @@ func rts_combat_tick(delta: float, nearby_units: Array[Node2D]) -> void:
 func _chase_attack_target() -> void:
 	if attack_target == null:
 		return
-	if terrain == null:
+	if ignores_terrain or terrain == null:
 		path = [attack_target.global_position]
 	else:
 		path = terrain.find_path_world(global_position, attack_target.global_position)
@@ -224,7 +226,7 @@ func _chase_attack_target() -> void:
 	unit_state = &"attacking"
 
 func _set_path_to_world(world_pos: Vector2) -> void:
-	if terrain == null:
+	if ignores_terrain or terrain == null:
 		path = [world_pos]
 	else:
 		path = terrain.find_path_world(global_position, world_pos)
@@ -264,6 +266,8 @@ func _projectile_color() -> Color:
 			return Color("#7DDDE8")
 		&"fire_wizard":
 			return Color("#E85A5A")
+		&"evangalion_wizard":
+			return Color("#7DDDE8")
 	return Color("#D6C7AE")
 
 func take_damage(amount: int, _source: Node = null) -> void:
@@ -305,8 +309,8 @@ func _gain_evolution_xp(amount: float) -> void:
 			break
 
 func _evolve(definition: Dictionary) -> void:
-	var evolves_to := StringName(definition.get("evolves_to", ""))
-	if not String(evolves_to).is_empty():
+	var evolves_to: StringName = definition.get("evolves_to", &"")
+	if not str(evolves_to).is_empty():
 		unit_archetype = evolves_to
 	_apply_catalog_definition()
 	evolution_level += 1
@@ -350,6 +354,7 @@ func _apply_catalog_definition() -> void:
 	attack_range = float(definition.get("attack_range_cells", 1)) * 64.0
 	attack_cooldown = float(definition.get("attack_cooldown_ticks", 20)) / 20.0
 	projectile_speed = float(definition.get("projectile_speed", projectile_speed))
+	ignores_terrain = bool(definition.get("ignores_terrain", false))
 
 func _separation_velocity() -> Vector2:
 	var push := Vector2.ZERO
@@ -408,6 +413,8 @@ static func _bucket_for_position(position: Vector2) -> Vector2i:
 	return Vector2i(floori(position.x / _spatial_bucket_size), floori(position.y / _spatial_bucket_size))
 
 func _snap_to_walkable_terrain() -> void:
+	if ignores_terrain:
+		return
 	if terrain == null:
 		return
 	var cell: Vector2i = terrain.world_to_cell(global_position)

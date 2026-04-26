@@ -202,7 +202,7 @@ func _visual_height(cell: Vector2i) -> int:
 func _blocked_feature_draws_top(cell: Vector2i) -> bool:
 	if map == null or not map.is_in_bounds(cell):
 		return false
-	var feature := String(map.feature_grid[cell.x][cell.y])
+	var feature := str(map.feature_grid[cell.x][cell.y])
 	return feature.ends_with("_wall") or feature == "giant_mushroom"
 
 func _dominant_neighbor_height(cell: Vector2i) -> int:

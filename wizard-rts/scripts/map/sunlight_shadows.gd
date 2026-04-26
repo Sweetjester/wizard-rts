@@ -75,7 +75,8 @@ func _draw() -> void:
 	var drawn_units := 0
 	for unit in get_tree().get_nodes_in_group("units"):
 		if is_instance_valid(unit) and unit is Node2D:
-			if unit_index % unit_shadow_stride != 0 and StringName(unit.get("unit_archetype")) != &"life_wizard":
+			var unit_archetype := str(unit.get("unit_archetype"))
+			if unit_index % unit_shadow_stride != 0 and unit_archetype != "life_wizard":
 				unit_index += 1
 				continue
 			unit_index += 1

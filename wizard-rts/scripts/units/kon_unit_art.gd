@@ -32,7 +32,7 @@ func _process(delta: float) -> void:
 	hframes = max(1, sheet_columns)
 	vframes = max(1, sheet_rows)
 	var is_moving := bool(parent.get("moving"))
-	var state := StringName(parent.get("unit_state"))
+	var state: StringName = parent.get("unit_state")
 	var frame_time := frame_time_idle
 	if is_moving:
 		frame_time = frame_time_move

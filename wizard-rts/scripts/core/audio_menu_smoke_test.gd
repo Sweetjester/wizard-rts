@@ -36,6 +36,13 @@ func _run() -> void:
 		push_error("Expected Fire Wizard music after selecting Fire Wizard, got: %s" % stream_path)
 		quit(1)
 		return
+	menu.call("_on_evangalion_pressed")
+	await process_frame
+	stream_path = audio_manager.call("get_music_stream_path")
+	if stream_path != "res://Evangalion.mp3":
+		push_error("Expected Evangalion music after selecting Evangalion, got: %s" % stream_path)
+		quit(1)
+		return
 	menu.call("_on_character_continue_pressed")
 	await process_frame
 	menu.call("_on_map_back_pressed")

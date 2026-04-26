@@ -27,6 +27,9 @@ var production_queue_count: int = 0
 var training_archetype: StringName = &""
 var training_progress: float = 0.0
 var training_time: float = 0.0
+var rally_point := Vector2.ZERO
+var rally_enabled := false
+var attack_flash_msec: int = -10000
 var selected := false
 var art_sprite: Sprite2D
 
@@ -35,10 +38,11 @@ func configure(new_archetype: StringName, new_cell: Vector2i, new_footprint: Vec
 	cell = new_cell
 	footprint = new_footprint
 	selection_radius = maxf(34.0, maxf(float(footprint.x) * 38.0, float(footprint.y) * 32.0))
-	name = "%s_%s_%s" % [String(archetype), cell.x, cell.y]
+	name = "%s_%s_%s" % [str(archetype), cell.x, cell.y]
 	z_as_relative = false
 	add_to_group("selectable_units")
 	add_to_group("structures")
+	add_to_group("units")
 	_build_collision()
 	_build_art_sprite()
 	queue_redraw()
@@ -66,7 +70,7 @@ func is_inside_selection_rect(rect: Rect2) -> bool:
 	return rect.intersects(Rect2(global_position - size * 0.5 + Vector2(0, -16), size))
 
 func get_display_name() -> String:
-	return String(UnitCatalog.get_definition(archetype).get("display_name", String(archetype)))
+	return str(UnitCatalog.get_definition(archetype).get("display_name", str(archetype)))
 
 func get_selection_kind() -> StringName:
 	return &"structure"
@@ -82,6 +86,31 @@ func set_training_state(queue_count: int, current_archetype: StringName, progres
 	training_archetype = current_archetype
 	training_progress = progress
 	training_time = total_time
+	queue_redraw()
+
+func set_rally_point(point: Vector2) -> void:
+	rally_point = point
+	rally_enabled = true
+	queue_redraw()
+
+func get_rally_point() -> Vector2:
+	return rally_point
+
+func has_rally_point() -> bool:
+	return rally_enabled
+
+func take_damage(amount: int, source: Node = null) -> void:
+	health = maxi(0, health - amount)
+	if archetype == &"vinewall" and source != null and is_instance_valid(source) and source.has_method("take_damage"):
+		var retaliation := int(UnitCatalog.get_definition(&"vinewall").get("retaliation_damage", 8)) + level * 2
+		source.take_damage(retaliation, self)
+		attack_flash_msec = Time.get_ticks_msec()
+	queue_redraw()
+	if health <= 0:
+		queue_free()
+
+func heal_damage(amount: int) -> void:
+	health = mini(max_health, health + amount)
 	queue_redraw()
 
 func _build_collision() -> void:
@@ -129,11 +158,14 @@ func _draw() -> void:
 				_draw_barracks(draw_color)
 	if not complete:
 		_draw_construction_overlay(color)
-	elif not String(training_archetype).is_empty():
+	elif not str(training_archetype).is_empty():
 		_draw_training_overlay()
+	if attack_flash_msec > 0 and float(Time.get_ticks_msec() - attack_flash_msec) / 1000.0 < 0.24:
+		_draw_attack_flash()
 	_draw_selection()
 	_draw_health_bar()
 	_draw_level_badge()
+	_draw_rally_point()
 
 func _draw_selection() -> void:
 	if not selected:
@@ -174,6 +206,17 @@ func _draw_training_overlay() -> void:
 	draw_rect(Rect2(Vector2(-width * 0.5, 36), Vector2(width * progress, 5)), Color("#7BC47F", 0.95), true)
 	if production_queue_count > 0:
 		draw_string(ThemeDB.fallback_font, Vector2(width * 0.5 + 5, 41), "+%s" % production_queue_count, HORIZONTAL_ALIGNMENT_LEFT, 32.0, 11, Color("#D6C7AE"))
+
+func _draw_attack_flash() -> void:
+	var alpha := 1.0 - clampf(float(Time.get_ticks_msec() - attack_flash_msec) / 240.0, 0.0, 1.0)
+	draw_arc(Vector2(0, 8), selection_radius * 0.7, 0.2, PI - 0.2, 28, Color("#E85A5A", alpha), 4.0)
+
+func _draw_rally_point() -> void:
+	if not selected or not rally_enabled:
+		return
+	var local := to_local(rally_point)
+	draw_line(Vector2(0, 12), local, Color("#7DDDE8", 0.65), 2.0)
+	draw_circle(local, 6.0, Color("#7DDDE8", 0.85))
 
 func _draw_flat_ellipse(center: Vector2, size: Vector2, color: Color) -> void:
 	var points := PackedVector2Array()

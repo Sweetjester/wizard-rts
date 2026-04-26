@@ -33,7 +33,7 @@ func to_dict() -> Dictionary:
 		"type": int(type),
 		"entity_ids": entity_ids.duplicate(),
 		"target_cell": [target_cell.x, target_cell.y],
-		"archetype": String(archetype),
+		"archetype": str(archetype),
 		"target_entity_id": target_entity_id,
 		"payload": payload.duplicate(true),
 	}
@@ -49,7 +49,7 @@ static func from_dict(data: Dictionary) -> RTSCommand:
 	var target = data.get("target_cell", [0, 0])
 	if target is Array and target.size() >= 2:
 		command.target_cell = Vector2i(int(target[0]), int(target[1]))
-	command.archetype = StringName(data.get("archetype", "worker"))
+	command.archetype = str(data.get("archetype", "worker"))
 	command.target_entity_id = int(data.get("target_entity_id", 0))
 	command.payload = data.get("payload", {}).duplicate(true)
 	return command

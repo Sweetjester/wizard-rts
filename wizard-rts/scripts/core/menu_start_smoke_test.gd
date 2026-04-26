@@ -10,7 +10,7 @@ func _run() -> void:
 
 	menu.call("_on_start_pressed")
 	await process_frame
-	menu.call("_on_bad_kon_pressed")
+	menu.call("_on_evangalion_pressed")
 	await process_frame
 	menu.call("_on_character_continue_pressed")
 	await process_frame
@@ -28,6 +28,10 @@ func _run() -> void:
 
 	if root.get_node_or_null("AudioManager") == null:
 		push_error("AudioManager autoload missing after scene change")
+		quit(1)
+		return
+	if str(root.get_node("GameSession").get("wizard_class_id")) != "evangalion":
+		push_error("Expected Evangalion to be the selected wizard class")
 		quit(1)
 		return
 

@@ -41,7 +41,7 @@ func _rebuild() -> void:
 	plot_lights.clear()
 	for plot in map.get_plots():
 		var anchor: Vector2i = plot.get("anchor", Vector2i.ZERO)
-		var kind := String(plot.get("kind", ""))
+		var kind := str(plot.get("kind", ""))
 		plot_lights.append({
 			"pos": map.cell_to_world(anchor) + Vector2(0, -18),
 			"color": BLOOD_GLOW if kind == "enemy_outpost" else SOUL_SPARK,
@@ -80,13 +80,14 @@ func _draw_unit_lights() -> void:
 	for unit in get_tree().get_nodes_in_group("units"):
 		if not is_instance_valid(unit) or not (unit is Node2D):
 			continue
-		if unit_index % unit_light_stride != 0 and StringName(unit.get("unit_archetype")) != &"life_wizard":
+		var unit_archetype := str(unit.get("unit_archetype"))
+		if unit_index % unit_light_stride != 0 and unit_archetype != "life_wizard":
 			unit_index += 1
 			continue
 		unit_index += 1
 		var radius := 46.0
 		var color := LIFE_GLOW
-		if StringName(unit.get("unit_archetype")) == &"life_wizard":
+		if unit_archetype == "life_wizard":
 			radius = 76.0
 			color = SOUL_SPARK
 		_draw_glow(unit.global_position + Vector2(0, -18), radius + _night_amount() * 18.0, color, 0.032 * night_boost)

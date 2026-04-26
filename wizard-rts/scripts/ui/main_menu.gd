@@ -9,6 +9,7 @@ const GAME_SCENE := "res://scripts/map/main_map.tscn"
 @onready var map_panel: VBoxContainer = %MapPanel
 @onready var bad_kon_card: Button = %BadKonCard
 @onready var hellfire_baby_card: Button = %HellfireBabyCard
+@onready var evangalion_card: Button = %EvangalionCard
 @onready var character_continue_button: Button = %CharacterContinueButton
 @onready var begin_button: Button = %BeginButton
 @onready var volume_slider: HSlider = %VolumeSlider
@@ -47,6 +48,12 @@ func _on_hellfire_baby_pressed() -> void:
 	character_continue_button.disabled = false
 	_update_character_card_state()
 	AudioManager.play_fire_wizard_music()
+
+func _on_evangalion_pressed() -> void:
+	selected_character_id = "evangalion"
+	character_continue_button.disabled = false
+	_update_character_card_state()
+	AudioManager.play_evangalion_music()
 
 func _on_character_continue_pressed() -> void:
 	if selected_character_id.is_empty():
@@ -150,6 +157,8 @@ func _update_character_card_state() -> void:
 		bad_kon_card.button_pressed = selected_character_id == "bad_kon_willow"
 	if hellfire_baby_card != null:
 		hellfire_baby_card.button_pressed = selected_character_id == "hellfire_baby"
+	if evangalion_card != null:
+		evangalion_card.button_pressed = selected_character_id == "evangalion"
 
 func _setup_display_controls() -> void:
 	resolution_option.clear()

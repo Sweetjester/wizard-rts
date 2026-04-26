@@ -55,7 +55,7 @@ func _run_catalog_and_command_case() -> bool:
 	attack.entity_ids = [wizard_id]
 	attack.target_entity_id = enemy_id
 	state.step([attack])
-	if String(state.get_entity(wizard_id).get("state", "")) != "attacking":
+	if str(state.get_entity(wizard_id).get("state", "")) != "attacking":
 		push_error("Expected attack command to put entity into attacking state")
 		return false
 	var build := RTSCommand.new()

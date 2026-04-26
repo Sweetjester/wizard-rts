@@ -2,6 +2,7 @@ extends Node
 
 const LIFE_WIZARD_MUSIC_PATH := "res://Bad John Dillo Fixed.mp3"
 const FIRE_WIZARD_MUSIC_PATH := "res://Fire Wizard.mp3"
+const EVANGALION_MUSIC_PATH := "res://Evangalion.mp3"
 const MAP_MUSIC_PATH := "res://vampire mushroom forest.mp3"
 const MUSIC_BUS := "Music"
 
@@ -51,6 +52,9 @@ func play_life_wizard_music() -> void:
 
 func play_fire_wizard_music() -> void:
 	play_music(FIRE_WIZARD_MUSIC_PATH)
+
+func play_evangalion_music() -> void:
+	play_music(EVANGALION_MUSIC_PATH)
 
 func stop_music() -> void:
 	if _player:

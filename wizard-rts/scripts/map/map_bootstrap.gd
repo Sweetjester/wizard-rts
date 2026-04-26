@@ -44,19 +44,19 @@ func _register_simulation_entity(wizard: Node, spawn_cell: Vector2i) -> void:
 	var simulation_runner: SimulationRunner = get_node_or_null(simulation_runner_path)
 	if simulation_runner == null:
 		return
-	var archetype := StringName(wizard.get("unit_archetype"))
+	var archetype: StringName = wizard.get("unit_archetype")
 	var entity_id := simulation_runner.state.spawn_entity(int(wizard.get("owner_player_id")), archetype, spawn_cell)
 	wizard.set("simulation_entity_id", entity_id)
 
 func _place_starting_hq(spawn_cell: Vector2i) -> void:
-	var build_system: BuildSystem = get_parent().get_node_or_null("BuildSystem")
-	if build_system == null:
+	var build_system := get_parent().get_node_or_null("BuildSystem")
+	if build_system == null or not build_system.has_method("add_free_structure"):
 		return
-	build_system.add_free_structure(1, &"wizard_tower", spawn_cell + Vector2i(2, 0), spawn_base_plot_id)
+	build_system.call("add_free_structure", 1, &"wizard_tower", spawn_cell + Vector2i(2, 0), spawn_base_plot_id)
 
 func _find_spawn_cell(base_plots: Array, map_generator: Node) -> Vector2i:
 	for plot in base_plots:
-		if String(plot.get("id", "")) == spawn_base_plot_id:
+		if str(plot.get("id", "")) == spawn_base_plot_id:
 			return map_generator.nearest_walkable_cell(plot["anchor"], 8)
 	var fallback: Dictionary = base_plots[0]
 	return map_generator.nearest_walkable_cell(fallback["anchor"], 8)

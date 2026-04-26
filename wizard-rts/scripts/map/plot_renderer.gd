@@ -28,7 +28,7 @@ func _draw() -> void:
 	if map == null:
 		return
 	for plot in plots:
-		match String(plot.get("kind", "")):
+		match str(plot.get("kind", "")):
 			"base":
 				_draw_base_plot(plot)
 			"quest":

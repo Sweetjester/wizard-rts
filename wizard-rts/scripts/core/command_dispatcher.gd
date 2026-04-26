@@ -96,6 +96,6 @@ func _movable_units(units: Array[Node]) -> Array[Node]:
 
 func _has_property(node: Node, property_name: String) -> bool:
 	for property in node.get_property_list():
-		if String(property.get("name", "")) == property_name:
+		if str(property.get("name", "")) == property_name:
 			return true
 	return false
