@@ -1,0 +1,989 @@
+{
+  "project": "wizard-rts-kon-1-0",
+  "style": {
+    "base_prompt": "production-ready isometric pixel art for a rogue-like multiplayer RTS, matte finish, clean readable silhouette at StarCraft 2 camera distance, transparent background where appropriate, no UI, no text, no watermark. Kon faction has two linked themes: Observer theme is cyan glow, silver, glass, bone-white glyphs and controlled observation equipment; Evolution theme is dark moss green biomass, wet bark, roots, pulsing blood-red sacs, vampire mushroom growths. Keep consistent camera angle and footprint for sprite sheets and RTS buildings.",
+    "negative_prompt": "photorealistic, blurry, painterly smear, text, logo, watermark, messy crop, cut off silhouette, inconsistent camera angle, plastic shine, modern guns, large UI panels, random sci-fi metal unless specifically described"
+  },
+  "output_root": "assets/generated/pixellab/kon_1_0",
+  "batches": [
+    {
+      "id": "01_character_8dir_master_models",
+      "type": "character_8dir",
+      "enabled": false,
+      "size": 96,
+      "view": "low top-down",
+      "isometric": true,
+      "outline": "thin readable dark outline",
+      "shading": "soft matte pixel shading",
+      "detail": "high",
+      "animations": [
+        {
+          "name": "idle",
+          "template_animation_id": "breathing-idle",
+          "frame_count": 8
+        },
+        {
+          "name": "walk",
+          "template_animation_id": "crouched-walking",
+          "frame_count": 8
+        },
+        {
+          "name": "melee_attack",
+          "action_description": "forceful melee attack with claws, staff, roots, or body lunge",
+          "frame_count": 8
+        },
+        {
+          "name": "ranged_attack",
+          "action_description": "ranged spore or broken staff attack with clear recoil and muzzle/spore flash",
+          "frame_count": 8
+        },
+        {
+          "name": "cast",
+          "action_description": "spell cast animation, readable windup and release, observer cyan or evolution red green depending on unit",
+          "frame_count": 8
+        },
+        {
+          "name": "evolve",
+          "action_description": "unit mutates and hardens with pulsing biomass, red sacs, cyan sparks",
+          "frame_count": 8
+        },
+        {
+          "name": "death",
+          "action_description": "collapse into roots, spores, and dissolving biomass",
+          "frame_count": 8
+        }
+      ],
+      "assets": [
+        {
+          "id": "bad_kon_willow_observer",
+          "description": "Bad Kon Willow, miserable hooded life wizard, broken staff split into two casting foci, cyan glowing eyes and hand, observer cult robes, silver glyph tags, small red mushrooms growing through cloak",
+          "variants": 6
+        },
+        {
+          "id": "terrible_thing_base",
+          "description": "Terrible Thing base form, cheap hunched biomass unit, mixed melee claws and short ranged spit sac, roots, bone hooks, vampire mushroom caps, readable as basic swarm unit",
+          "variants": 8
+        },
+        {
+          "id": "terrible_thing_tank_evolved",
+          "description": "Terrible Thing evolved frontline tank dedication, armored bark plates, swollen red sacs, broad stance, shield-like fungal growths, still recognizably evolved from base form",
+          "variants": 6
+        },
+        {
+          "id": "terrible_thing_ranged_evolved",
+          "description": "Terrible Thing evolved backline ranged dedication, long spore barrel organ, thinner legs, cyan spore vents, roots stabilizing like a living tripod",
+          "variants": 6
+        },
+        {
+          "id": "horror_fast_ranged",
+          "description": "Horror, fast ranged vampire mushroom predator, lean sinewy root legs, spore launcher organ, cyan vents, red fungal eyes, speed-focused silhouette",
+          "variants": 8
+        },
+        {
+          "id": "apex_healer_form",
+          "description": "Apex healer form, medium-large support horror, maw and tendrils that consume allied biomass, bone crown, healing sacs, ominous but not fully monstrous yet",
+          "variants": 8
+        },
+        {
+          "id": "apex_predator_evolved",
+          "description": "Apex evolved predator form, very powerful melee monster, massive tendril maw, bone crown, dark green hide, pulsing red evolution sacs, elite readable silhouette",
+          "variants": 6
+        }
+      ]
+    },
+    {
+      "id": "02_building_static_variants",
+      "type": "map_object",
+      "enabled": false,
+      "view": "low top-down",
+      "outline": "single color outline",
+      "shading": "medium shading",
+      "detail": "high detail",
+      "no_background": true,
+      "assets": [
+        {
+          "id": "observation_tower_hq",
+          "description": "The Observation Tower HQ, large observer cult tower with glass dome roof, cyan telescope lenses, silver/bone supports, Kon can garrison inside to observe and build his base, 4x4 RTS footprint",
+          "width": 192,
+          "height": 224,
+          "variants": 10
+        },
+        {
+          "id": "bio_absorber_sentient_drill",
+          "description": "Bio Absorber economy building, large sentient organic drill tunneling into the ground, dark green biomass, pulsing red sacs, cyan healing vents, 2x2 footprint",
+          "width": 160,
+          "height": 160,
+          "variants": 10
+        },
+        {
+          "id": "barracks_overrun_lab",
+          "description": "Barracks, a horrible living lab of biomass where observer architecture is overrun by evolution, broken glass, silver lab frame, red roots and growth sacs, 3x3 footprint",
+          "width": 192,
+          "height": 160,
+          "variants": 10
+        },
+        {
+          "id": "terrible_vault_armory",
+          "description": "Terrible Vault armory, sealed observer research vault for upgrading units, cyan containment cracks, silver glyph locks, dark vines forcing it open, 3x3 footprint",
+          "width": 176,
+          "height": 160,
+          "variants": 10
+        },
+        {
+          "id": "vinewall_segment",
+          "description": "Vinewall single grid segment, regenerating retaliating thorn wall, starts wounded at half health, dark bark, red sacs, teeth-like thorns, 1x1 footprint",
+          "width": 96,
+          "height": 128,
+          "variants": 10
+        },
+        {
+          "id": "bio_launcher_rooted",
+          "description": "Bio Launcher rooted long range defense, static organic artillery plant, bone barrel, red sacs, green roots anchored into ground, clear attack direction, 2x2 footprint",
+          "width": 160,
+          "height": 160,
+          "variants": 10
+        },
+        {
+          "id": "bio_launcher_uprooted",
+          "description": "Bio Launcher uprooted mobile mode, same living artillery walking on roots with barrel lowered, readable moveable defense, 2x2 footprint",
+          "width": 160,
+          "height": 160,
+          "variants": 10
+        }
+      ]
+    },
+    {
+      "id": "03_building_level_and_idle_sheets",
+      "type": "image",
+      "enabled": false,
+      "endpoint": "generate-image-v2",
+      "no_background": true,
+      "assets": [
+        {
+          "id": "observation_tower_level_1",
+          "description": "observer tower HQ glass dome cyan/silver, evolution level 1, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "observation_tower_level_2",
+          "description": "observer tower HQ glass dome cyan/silver, evolution level 2, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "observation_tower_level_3",
+          "description": "observer tower HQ glass dome cyan/silver, evolution level 3, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "observation_tower_level_4",
+          "description": "observer tower HQ glass dome cyan/silver, evolution level 4, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "bio_absorber_level_1",
+          "description": "sentient biomass drill economy building, evolution level 1, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "bio_absorber_level_2",
+          "description": "sentient biomass drill economy building, evolution level 2, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "bio_absorber_level_3",
+          "description": "sentient biomass drill economy building, evolution level 3, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "bio_absorber_level_4",
+          "description": "sentient biomass drill economy building, evolution level 4, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "barracks_level_1",
+          "description": "observer lab overrun by evolution biomass, evolution level 1, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "barracks_level_2",
+          "description": "observer lab overrun by evolution biomass, evolution level 2, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "barracks_level_3",
+          "description": "observer lab overrun by evolution biomass, evolution level 3, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "barracks_level_4",
+          "description": "observer lab overrun by evolution biomass, evolution level 4, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "terrible_vault_level_1",
+          "description": "sealed observer vault and armory, evolution level 1, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "terrible_vault_level_2",
+          "description": "sealed observer vault and armory, evolution level 2, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "terrible_vault_level_3",
+          "description": "sealed observer vault and armory, evolution level 3, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "terrible_vault_level_4",
+          "description": "sealed observer vault and armory, evolution level 4, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "vinewall_level_1",
+          "description": "regenerating retaliating thorn vine wall, evolution level 1, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "vinewall_level_2",
+          "description": "regenerating retaliating thorn vine wall, evolution level 2, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "vinewall_level_3",
+          "description": "regenerating retaliating thorn vine wall, evolution level 3, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "vinewall_level_4",
+          "description": "regenerating retaliating thorn vine wall, evolution level 4, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "bio_launcher_level_1",
+          "description": "rooted organic artillery defense, evolution level 1, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "bio_launcher_level_2",
+          "description": "rooted organic artillery defense, evolution level 2, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "bio_launcher_level_3",
+          "description": "rooted organic artillery defense, evolution level 3, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        },
+        {
+          "id": "bio_launcher_level_4",
+          "description": "rooted organic artillery defense, evolution level 4, same footprint and camera angle, show clear upgrade progression without changing unit identity",
+          "width": 512,
+          "height": 160,
+          "variants": 4
+        }
+      ]
+    },
+    {
+      "id": "04_unit_animation_sheet_variants",
+      "type": "image",
+      "enabled": true,
+      "endpoint": "generate-image-v2",
+      "no_background": true,
+      "assets": [
+        {
+          "id": "bad_kon_willow_idle_8dir_sheet",
+          "description": "bad kon willow one idle frame per direction, 8 directions, evenly spaced, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "bad_kon_willow_walk_8dir_sheet",
+          "description": "bad kon willow 8 direction walk animation strip, readable foot/root motion, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "bad_kon_willow_melee_attack_8dir_sheet",
+          "description": "bad kon willow 8 direction melee attack animation strip, strong anticipation and impact, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "bad_kon_willow_ranged_attack_8dir_sheet",
+          "description": "bad kon willow 8 direction ranged attack animation strip, spore/staff recoil and launch flash, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "bad_kon_willow_death_sheet",
+          "description": "bad kon willow death animation strip, collapse into spores and roots, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "bad_kon_willow_evolution_sheet",
+          "description": "bad kon willow evolution transformation strip, biomass hardens and grows, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "terrible_thing_base_idle_8dir_sheet",
+          "description": "terrible thing base one idle frame per direction, 8 directions, evenly spaced, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "terrible_thing_base_walk_8dir_sheet",
+          "description": "terrible thing base 8 direction walk animation strip, readable foot/root motion, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "terrible_thing_base_melee_attack_8dir_sheet",
+          "description": "terrible thing base 8 direction melee attack animation strip, strong anticipation and impact, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "terrible_thing_base_ranged_attack_8dir_sheet",
+          "description": "terrible thing base 8 direction ranged attack animation strip, spore/staff recoil and launch flash, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "terrible_thing_base_death_sheet",
+          "description": "terrible thing base death animation strip, collapse into spores and roots, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "terrible_thing_base_evolution_sheet",
+          "description": "terrible thing base evolution transformation strip, biomass hardens and grows, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "terrible_thing_tank_evolved_idle_8dir_sheet",
+          "description": "terrible thing tank evolved one idle frame per direction, 8 directions, evenly spaced, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "terrible_thing_tank_evolved_walk_8dir_sheet",
+          "description": "terrible thing tank evolved 8 direction walk animation strip, readable foot/root motion, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "terrible_thing_tank_evolved_melee_attack_8dir_sheet",
+          "description": "terrible thing tank evolved 8 direction melee attack animation strip, strong anticipation and impact, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "terrible_thing_tank_evolved_ranged_attack_8dir_sheet",
+          "description": "terrible thing tank evolved 8 direction ranged attack animation strip, spore/staff recoil and launch flash, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "terrible_thing_tank_evolved_death_sheet",
+          "description": "terrible thing tank evolved death animation strip, collapse into spores and roots, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "terrible_thing_tank_evolved_evolution_sheet",
+          "description": "terrible thing tank evolved evolution transformation strip, biomass hardens and grows, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "terrible_thing_ranged_evolved_idle_8dir_sheet",
+          "description": "terrible thing ranged evolved one idle frame per direction, 8 directions, evenly spaced, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "terrible_thing_ranged_evolved_walk_8dir_sheet",
+          "description": "terrible thing ranged evolved 8 direction walk animation strip, readable foot/root motion, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "terrible_thing_ranged_evolved_melee_attack_8dir_sheet",
+          "description": "terrible thing ranged evolved 8 direction melee attack animation strip, strong anticipation and impact, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "terrible_thing_ranged_evolved_ranged_attack_8dir_sheet",
+          "description": "terrible thing ranged evolved 8 direction ranged attack animation strip, spore/staff recoil and launch flash, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "terrible_thing_ranged_evolved_death_sheet",
+          "description": "terrible thing ranged evolved death animation strip, collapse into spores and roots, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "terrible_thing_ranged_evolved_evolution_sheet",
+          "description": "terrible thing ranged evolved evolution transformation strip, biomass hardens and grows, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "horror_fast_ranged_idle_8dir_sheet",
+          "description": "horror fast ranged one idle frame per direction, 8 directions, evenly spaced, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "horror_fast_ranged_walk_8dir_sheet",
+          "description": "horror fast ranged 8 direction walk animation strip, readable foot/root motion, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "horror_fast_ranged_melee_attack_8dir_sheet",
+          "description": "horror fast ranged 8 direction melee attack animation strip, strong anticipation and impact, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "horror_fast_ranged_ranged_attack_8dir_sheet",
+          "description": "horror fast ranged 8 direction ranged attack animation strip, spore/staff recoil and launch flash, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "horror_fast_ranged_death_sheet",
+          "description": "horror fast ranged death animation strip, collapse into spores and roots, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "horror_fast_ranged_evolution_sheet",
+          "description": "horror fast ranged evolution transformation strip, biomass hardens and grows, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "apex_healer_form_idle_8dir_sheet",
+          "description": "apex healer form one idle frame per direction, 8 directions, evenly spaced, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "apex_healer_form_walk_8dir_sheet",
+          "description": "apex healer form 8 direction walk animation strip, readable foot/root motion, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "apex_healer_form_melee_attack_8dir_sheet",
+          "description": "apex healer form 8 direction melee attack animation strip, strong anticipation and impact, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "apex_healer_form_ranged_attack_8dir_sheet",
+          "description": "apex healer form 8 direction ranged attack animation strip, spore/staff recoil and launch flash, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "apex_healer_form_death_sheet",
+          "description": "apex healer form death animation strip, collapse into spores and roots, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "apex_healer_form_evolution_sheet",
+          "description": "apex healer form evolution transformation strip, biomass hardens and grows, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "apex_predator_evolved_idle_8dir_sheet",
+          "description": "apex predator evolved one idle frame per direction, 8 directions, evenly spaced, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "apex_predator_evolved_walk_8dir_sheet",
+          "description": "apex predator evolved 8 direction walk animation strip, readable foot/root motion, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "apex_predator_evolved_melee_attack_8dir_sheet",
+          "description": "apex predator evolved 8 direction melee attack animation strip, strong anticipation and impact, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "apex_predator_evolved_ranged_attack_8dir_sheet",
+          "description": "apex predator evolved 8 direction ranged attack animation strip, spore/staff recoil and launch flash, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "apex_predator_evolved_death_sheet",
+          "description": "apex predator evolved death animation strip, collapse into spores and roots, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        },
+        {
+          "id": "apex_predator_evolved_evolution_sheet",
+          "description": "apex predator evolved evolution transformation strip, biomass hardens and grows, transparent background, animation-ready sprite sheet, consistent cell size, no text",
+          "width": 768,
+          "height": 128,
+          "variants": 4
+        }
+      ]
+    },
+    {
+      "id": "05_combat_fx_animation_sheets",
+      "type": "image",
+      "enabled": true,
+      "endpoint": "generate-image-v2",
+      "no_background": true,
+      "assets": [
+        {
+          "id": "terrible_thing_claw_slash",
+          "description": "horizontal 8 frame sprite sheet of bone-white and red fungal melee slash, root tendril arc, transparent background, evenly spaced frames",
+          "width": 512,
+          "height": 96,
+          "variants": 6
+        },
+        {
+          "id": "terrible_thing_spit_attack",
+          "description": "horizontal 8 frame sprite sheet of small dark green biomass spit with pulsing red core, transparent background, evenly spaced frames",
+          "width": 512,
+          "height": 96,
+          "variants": 6
+        },
+        {
+          "id": "horror_spore_burst",
+          "description": "horizontal 8 frame sprite sheet of fast cyan spore burst with red fungal fragments, transparent background, evenly spaced frames",
+          "width": 512,
+          "height": 96,
+          "variants": 6
+        },
+        {
+          "id": "horror_speed_evolution_trail",
+          "description": "horizontal 8 frame sprite sheet of speed evolution afterimage trail, cyan vents and red spores, transparent background, evenly spaced frames",
+          "width": 512,
+          "height": 96,
+          "variants": 6
+        },
+        {
+          "id": "apex_eat_ally",
+          "description": "horizontal 8 frame sprite sheet of Apex consuming allied unit, biomass spiral pulled into tendril maw, transparent background, evenly spaced frames",
+          "width": 512,
+          "height": 96,
+          "variants": 6
+        },
+        {
+          "id": "apex_heal_pulse",
+          "description": "horizontal 8 frame sprite sheet of Apex healing pulse, dark green ring and cyan spores, transparent background, evenly spaced frames",
+          "width": 512,
+          "height": 96,
+          "variants": 6
+        },
+        {
+          "id": "apex_predator_maw_strike",
+          "description": "horizontal 8 frame sprite sheet of massive melee maw strike with red tendrils and bone shards, transparent background, evenly spaced frames",
+          "width": 512,
+          "height": 96,
+          "variants": 6
+        },
+        {
+          "id": "bio_launcher_impact_aoe",
+          "description": "horizontal 8 frame sprite sheet of large biomass artillery impact, red sacs bursting, cyan sparks, transparent background, evenly spaced frames",
+          "width": 512,
+          "height": 96,
+          "variants": 6
+        },
+        {
+          "id": "vinewall_retaliate_lash",
+          "description": "horizontal 8 frame sprite sheet of thorn vinewall retaliating lash, red thorns and green motion arc, transparent background, evenly spaced frames",
+          "width": 512,
+          "height": 96,
+          "variants": 6
+        },
+        {
+          "id": "evolution_level_up",
+          "description": "horizontal 8 frame sprite sheet of unit evolution level up burst, dark green roots and pulsing red sacs, transparent background, evenly spaced frames",
+          "width": 512,
+          "height": 96,
+          "variants": 6
+        }
+      ]
+    },
+    {
+      "id": "06_kon_spell_fx_library",
+      "type": "image",
+      "enabled": true,
+      "endpoint": "generate-image-v2",
+      "no_background": true,
+      "assets": [
+        {
+          "id": "bio_mend_select_cursor",
+          "description": "horizontal 8 frame sprite sheet of Bio Mend targeting cursor, evolution theme, green/red biomass healing symbol, transparent background, no text",
+          "width": 512,
+          "height": 96,
+          "variants": 8
+        },
+        {
+          "id": "bio_mend_cast_sheet",
+          "description": "horizontal 8 frame sprite sheet of Bio Mend cast animation, evolution theme, green spores and pulsing red organic warmth, transparent background, no text",
+          "width": 512,
+          "height": 96,
+          "variants": 8
+        },
+        {
+          "id": "bio_mend_impact_sheet",
+          "description": "horizontal 8 frame sprite sheet of Bio Mend impact on unit/building, roots knit wounds, soft cyan-green spores, transparent background, no text",
+          "width": 512,
+          "height": 96,
+          "variants": 8
+        },
+        {
+          "id": "seal_away_select_cursor",
+          "description": "horizontal 8 frame sprite sheet of Seal Away targeting cursor, observer theme, cyan silver containment reticle, transparent background, no text",
+          "width": 512,
+          "height": 96,
+          "variants": 8
+        },
+        {
+          "id": "seal_away_cast_sheet",
+          "description": "horizontal 8 frame sprite sheet of Seal Away cast animation, observer theme, cyan glyphs and silver locking rings, transparent background, no text",
+          "width": 512,
+          "height": 96,
+          "variants": 8
+        },
+        {
+          "id": "seal_away_enemy_stun_sheet",
+          "description": "horizontal 8 frame sprite sheet of Seal Away enemy stun, cyan glass prison/glyph cage closes around target, transparent background, no text",
+          "width": 512,
+          "height": 96,
+          "variants": 8
+        },
+        {
+          "id": "seal_away_salvage_sheet",
+          "description": "horizontal 8 frame sprite sheet of Seal Away allied salvage, biomass converts back into resource particles inside observer glyph circle, transparent background, no text",
+          "width": 512,
+          "height": 96,
+          "variants": 8
+        },
+        {
+          "id": "kon_dual_auto_attack_sheet",
+          "description": "horizontal 8 frame sprite sheet of Kon dual auto attack, broken staff halves fire two linked cyan bolts with dark red evolution sparks, transparent background, no text",
+          "width": 512,
+          "height": 96,
+          "variants": 8
+        }
+      ]
+    },
+    {
+      "id": "07_projectile_variants",
+      "type": "image",
+      "enabled": true,
+      "endpoint": "generate-image-v2",
+      "no_background": true,
+      "assets": [
+        {
+          "id": "kon_dual_staff_bolt",
+          "description": "single RTS projectile sprite, two linked cyan observer bolts from broken staff with faint silver glyph trail, transparent background, readable at 32 to 96 px",
+          "width": 96,
+          "height": 96,
+          "variants": 10
+        },
+        {
+          "id": "terrible_thing_biomass_spit",
+          "description": "single RTS projectile sprite, small dark green biomass glob with red pulsing core, transparent background, readable at 32 to 96 px",
+          "width": 96,
+          "height": 96,
+          "variants": 10
+        },
+        {
+          "id": "horror_spore_projectile",
+          "description": "single RTS projectile sprite, fast cyan spore projectile, thin comet trail, red fungal seed center, transparent background, readable at 32 to 96 px",
+          "width": 96,
+          "height": 96,
+          "variants": 10
+        },
+        {
+          "id": "apex_heal_projectile",
+          "description": "single RTS projectile sprite, soft cyan-green healing mote with root spiral, transparent background, readable at 32 to 96 px",
+          "width": 96,
+          "height": 96,
+          "variants": 10
+        },
+        {
+          "id": "bio_launcher_artillery_glob",
+          "description": "single RTS projectile sprite, large arcing dark biomass artillery glob, red sacs and cyan sparks, transparent background, readable at 32 to 96 px",
+          "width": 96,
+          "height": 96,
+          "variants": 10
+        },
+        {
+          "id": "seal_away_glyph_projectile",
+          "description": "single RTS projectile sprite, observer cyan silver glyph shard traveling to target, transparent background, readable at 32 to 96 px",
+          "width": 96,
+          "height": 96,
+          "variants": 10
+        }
+      ]
+    },
+    {
+      "id": "08_kon_portraits_and_emotes",
+      "type": "image",
+      "enabled": true,
+      "endpoint": "generate-image-v2",
+      "no_background": true,
+      "assets": [
+        {
+          "id": "kon_acknowledge",
+          "description": "character portrait/emote bust for UI, Kon acknowledging command with miserable contempt, hood, cyan eyes, red mushrooms, clean cropped readable face",
+          "width": 256,
+          "height": 256,
+          "variants": 8
+        },
+        {
+          "id": "kon_annoyed",
+          "description": "character portrait/emote bust for UI, Kon annoyed and judging the player, hood, cyan eyes, red mushrooms, clean cropped readable face",
+          "width": 256,
+          "height": 256,
+          "variants": 8
+        },
+        {
+          "id": "kon_unleash_horrors",
+          "description": "character portrait/emote bust for UI, Kon gleefully unleashing evolution horrors, hood, cyan eyes, red mushrooms, clean cropped readable face",
+          "width": 256,
+          "height": 256,
+          "variants": 8
+        },
+        {
+          "id": "kon_observing",
+          "description": "character portrait/emote bust for UI, Kon quietly observing through cyan lens, hood, cyan eyes, red mushrooms, clean cropped readable face",
+          "width": 256,
+          "height": 256,
+          "variants": 8
+        },
+        {
+          "id": "kon_injured",
+          "description": "character portrait/emote bust for UI, Kon wounded but unsympathetic, hood, cyan eyes, red mushrooms, clean cropped readable face",
+          "width": 256,
+          "height": 256,
+          "variants": 8
+        },
+        {
+          "id": "kon_victory",
+          "description": "character portrait/emote bust for UI, Kon after defeating the boss, cold triumph, hood, cyan eyes, red mushrooms, clean cropped readable face",
+          "width": 256,
+          "height": 256,
+          "variants": 8
+        },
+        {
+          "id": "kon_defeat",
+          "description": "character portrait/emote bust for UI, Kon realizing the seal failed, hood, cyan eyes, red mushrooms, clean cropped readable face",
+          "width": 256,
+          "height": 256,
+          "variants": 8
+        },
+        {
+          "id": "kon_research_complete",
+          "description": "character portrait/emote bust for UI, Kon pleased by terrible vault research, hood, cyan eyes, red mushrooms, clean cropped readable face",
+          "width": 256,
+          "height": 256,
+          "variants": 8
+        }
+      ]
+    },
+    {
+      "id": "09_ui_icons",
+      "type": "image",
+      "enabled": true,
+      "endpoint": "generate-image-v2",
+      "no_background": true,
+      "assets": [
+        {
+          "id": "icon_bio_resource",
+          "description": "64x64 RTS command icon, Bio resource icon, red green biomass drop, Kon faction palette, high contrast, no text",
+          "width": 64,
+          "height": 64,
+          "variants": 8
+        },
+        {
+          "id": "icon_evolution_xp",
+          "description": "64x64 RTS command icon, Evolution experience icon, red sac growing roots, Kon faction palette, high contrast, no text",
+          "width": 64,
+          "height": 64,
+          "variants": 8
+        },
+        {
+          "id": "icon_observer_theme",
+          "description": "64x64 RTS command icon, Observer tech icon, cyan glass lens silver frame, Kon faction palette, high contrast, no text",
+          "width": 64,
+          "height": 64,
+          "variants": 8
+        },
+        {
+          "id": "icon_bio_mend",
+          "description": "64x64 RTS command icon, Bio Mend ability icon, green healing spores, Kon faction palette, high contrast, no text",
+          "width": 64,
+          "height": 64,
+          "variants": 8
+        },
+        {
+          "id": "icon_seal_away",
+          "description": "64x64 RTS command icon, Seal Away ability icon, cyan silver glyph prison, Kon faction palette, high contrast, no text",
+          "width": 64,
+          "height": 64,
+          "variants": 8
+        },
+        {
+          "id": "icon_heal_aura_upgrade",
+          "description": "64x64 RTS command icon, Bio Absorber heal aura upgrade icon, Kon faction palette, high contrast, no text",
+          "width": 64,
+          "height": 64,
+          "variants": 8
+        },
+        {
+          "id": "icon_bio_launcher_upgrade",
+          "description": "64x64 RTS command icon, Bio Absorber bio launcher upgrade icon, Kon faction palette, high contrast, no text",
+          "width": 64,
+          "height": 64,
+          "variants": 8
+        },
+        {
+          "id": "icon_thorned_vines",
+          "description": "64x64 RTS command icon, Vinewall upgrade icon, thorns and red sacs, Kon faction palette, high contrast, no text",
+          "width": 64,
+          "height": 64,
+          "variants": 8
+        },
+        {
+          "id": "icon_accelerated_evolution",
+          "description": "64x64 RTS command icon, Accelerated evolution upgrade icon, Kon faction palette, high contrast, no text",
+          "width": 64,
+          "height": 64,
+          "variants": 8
+        },
+        {
+          "id": "icon_hardened_horrors",
+          "description": "64x64 RTS command icon, Hardened horror armor upgrade icon, Kon faction palette, high contrast, no text",
+          "width": 64,
+          "height": 64,
+          "variants": 8
+        },
+        {
+          "id": "icon_launcher_bile",
+          "description": "64x64 RTS command icon, Bio launcher bile upgrade icon, Kon faction palette, high contrast, no text",
+          "width": 64,
+          "height": 64,
+          "variants": 8
+        },
+        {
+          "id": "icon_attack_ground",
+          "description": "64x64 RTS command icon, Bio launcher attack ground command icon, Kon faction palette, high contrast, no text",
+          "width": 64,
+          "height": 64,
+          "variants": 8
+        }
+      ]
+    }
+  ]
+}

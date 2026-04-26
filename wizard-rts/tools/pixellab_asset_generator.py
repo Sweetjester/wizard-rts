@@ -329,7 +329,16 @@ def submit_requests(
             print(json.dumps(request.payload, indent=2))
             submitted += 1
             continue
-        response = client.post(request.endpoint, request.payload)
+        try:
+            response = client.post(request.endpoint, request.payload)
+        except PixelLabError as exc:
+            if "Maximum 8 concurrent background jobs allowed" in str(exc) or "HTTP 429" in str(exc):
+                print(f"[pixellab] queue full; submitted {submitted} new request(s), retry later")
+                break
+            if "Insufficient resources" in str(exc) or "HTTP 402" in str(exc):
+                print(f"[pixellab] generation allowance exhausted; submitted {submitted} new request(s)")
+                break
+            raise
         job_id = find_job_id(response)
         entity_id = find_entity_id(response, ["character_id", "tileset_id", "tile_id", "generation_id", "id"])
         status = "completed" if job_id is None else "submitted"
@@ -395,7 +404,8 @@ def submit_followups(client: PixelLabClient, job_store: dict[str, Any], parent_r
     for followup in followups:
         name = slug(str(followup["name"]))
         request_id = f"{parent_request_id}/animation_{name}"
-        if request_id in job_store["jobs"]:
+        existing = job_store["jobs"].get(request_id)
+        if existing and existing.get("status") in {"submitted", "processing", "completed"}:
             continue
         payload = dict(followup["payload"])
         payload["character_id"] = character_id
@@ -403,6 +413,9 @@ def submit_followups(client: PixelLabClient, job_store: dict[str, Any], parent_r
         try:
             response = client.post(followup["endpoint"], payload)
         except PixelLabError as exc:
+            if "Maximum 8 concurrent background jobs allowed" in str(exc) or "HTTP 429" in str(exc):
+                print(f"[pixellab] followup queue full after {submitted} animation request(s); retry later")
+                return submitted
             job_store["jobs"][request_id] = {
                 "request_id": request_id,
                 "batch_id": job["batch_id"],
