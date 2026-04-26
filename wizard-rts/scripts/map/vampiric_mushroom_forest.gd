@@ -6,7 +6,6 @@ extends Node2D
 @export var mushroom_density: int = 34
 @export var canopy_density: int = 48
 @export var wisp_density: int = 5
-@export var redraw_interval: float = 0.75
 
 const ABYSSAL_MOSS := Color("#0A1612")
 const DAMP_EARTH := Color("#142420")
@@ -40,7 +39,6 @@ var blood_blooms: Array[Dictionary] = []
 var wisps: Array[Dictionary] = []
 var pools: Array[Dictionary] = []
 var height_shadows: Array[Dictionary] = []
-var _redraw_elapsed := 0.0
 var _effective_seed := 1
 
 func _ready() -> void:
@@ -51,17 +49,8 @@ func _ready() -> void:
 		mushroom_density = int(float(mushroom_density) * 0.55)
 		canopy_density = int(float(canopy_density) * 0.55)
 		wisp_density = int(float(wisp_density) * 0.5)
-		redraw_interval = 1.0
+	set_process(false)
 	call_deferred("_rebuild")
-
-func _process(delta: float) -> void:
-	if wisps.is_empty():
-		set_process(false)
-		return
-	_redraw_elapsed += delta
-	if _redraw_elapsed >= redraw_interval:
-		_redraw_elapsed = 0.0
-		queue_redraw()
 
 func _rebuild() -> void:
 	map = get_node_or_null(map_path)
@@ -78,9 +67,9 @@ func _rebuild() -> void:
 	queue_redraw()
 
 func _apply_tile_palette() -> void:
-	map.layer_low.modulate = Color.WHITE
-	map.layer_mid.modulate = Color.WHITE
-	map.layer_high.modulate = Color.WHITE
+	map.layer_low.modulate = Color("#D4E0D3")
+	map.layer_mid.modulate = Color("#EEF9E9")
+	map.layer_high.modulate = Color("#FFF3D7")
 
 func _build_features() -> void:
 	mushrooms.clear()
@@ -204,8 +193,8 @@ func _draw_blood_bloom(bloom: Dictionary) -> void:
 		draw_line(pos, tip, _alpha(VAMPIRE_BLOOM, 0.65), 2.0)
 
 func _draw_wisp(wisp: Dictionary) -> void:
-	var t := float(Time.get_ticks_msec()) / 1000.0
-	var pos: Vector2 = wisp["pos"] + Vector2(0, sin(t * 2.0 + wisp["phase"]) * 5.0)
+	var phase := float(wisp["phase"])
+	var pos: Vector2 = wisp["pos"] + Vector2(0, sin(phase) * 3.0)
 	var radius: float = wisp["radius"]
 	draw_circle(pos, radius * 2.2, _alpha(WISP_LIGHT, 0.11))
 	draw_circle(pos, radius, _alpha(WISP_LIGHT, 0.45))

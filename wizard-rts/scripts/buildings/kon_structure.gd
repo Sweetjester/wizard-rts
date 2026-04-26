@@ -1,6 +1,15 @@
 class_name KonStructure
 extends StaticBody2D
 
+const STRUCTURE_TEXTURES := {
+	&"wizard_tower": preload("res://assets/buildings/kon/wizard_tower.png"),
+	&"bio_absorber": preload("res://assets/buildings/kon/bio_absorber.png"),
+	&"barracks": preload("res://assets/buildings/kon/barracks.png"),
+	&"terrible_vault": preload("res://assets/buildings/kon/terrible_vault.png"),
+	&"vinewall": preload("res://assets/buildings/kon/vinewall_segment.png"),
+	&"bio_launcher": preload("res://assets/buildings/kon/bio_launcher_rooted.png"),
+}
+
 var archetype: StringName = &"bio_absorber"
 var owner_player_id: int = 1
 var level: int = 1
@@ -19,6 +28,7 @@ var training_archetype: StringName = &""
 var training_progress: float = 0.0
 var training_time: float = 0.0
 var selected := false
+var art_sprite: Sprite2D
 
 func configure(new_archetype: StringName, new_cell: Vector2i, new_footprint: Vector2i) -> void:
 	archetype = new_archetype
@@ -30,6 +40,7 @@ func configure(new_archetype: StringName, new_cell: Vector2i, new_footprint: Vec
 	add_to_group("selectable_units")
 	add_to_group("structures")
 	_build_collision()
+	_build_art_sprite()
 	queue_redraw()
 
 func set_runtime_stats(player_id: int, hp: int, max_hp: int, new_level: int = 1) -> void:
@@ -83,26 +94,39 @@ func _build_collision() -> void:
 	collision.shape = shape
 	add_child(collision)
 
+func _build_art_sprite() -> void:
+	if art_sprite != null and is_instance_valid(art_sprite):
+		art_sprite.queue_free()
+	if not STRUCTURE_TEXTURES.has(archetype):
+		return
+	art_sprite = Sprite2D.new()
+	art_sprite.texture = STRUCTURE_TEXTURES[archetype]
+	art_sprite.centered = true
+	art_sprite.offset = _art_offset()
+	art_sprite.scale = _art_scale()
+	add_child(art_sprite)
+
 func _draw() -> void:
 	var color := _main_color()
 	var draw_color := color if complete else color.darkened(0.38)
 	var shadow_size := Vector2(66.0 * float(footprint.x), 22.0 * float(footprint.y))
 	_draw_flat_ellipse(Vector2(0, 20), shadow_size, Color(0, 0, 0, 0.36))
-	match archetype:
-		&"wizard_tower":
-			_draw_tower(draw_color)
-		&"bio_absorber":
-			_draw_absorber(draw_color)
-		&"barracks":
-			_draw_barracks(draw_color)
-		&"terrible_vault":
-			_draw_vault(draw_color)
-		&"vinewall":
-			_draw_vinewall(draw_color)
-		&"bio_launcher":
-			_draw_launcher(draw_color)
-		_:
-			_draw_barracks(draw_color)
+	if art_sprite == null:
+		match archetype:
+			&"wizard_tower":
+				_draw_tower(draw_color)
+			&"bio_absorber":
+				_draw_absorber(draw_color)
+			&"barracks":
+				_draw_barracks(draw_color)
+			&"terrible_vault":
+				_draw_vault(draw_color)
+			&"vinewall":
+				_draw_vinewall(draw_color)
+			&"bio_launcher":
+				_draw_launcher(draw_color)
+			_:
+				_draw_barracks(draw_color)
 	if not complete:
 		_draw_construction_overlay(color)
 	elif not String(training_archetype).is_empty():
@@ -219,3 +243,21 @@ func _main_color() -> Color:
 		&"bio_launcher":
 			return Color("#C13030")
 	return Color("#D6C7AE")
+
+func _art_offset() -> Vector2:
+	match archetype:
+		&"wizard_tower":
+			return Vector2(0, -50)
+		&"vinewall":
+			return Vector2(0, -24)
+		&"bio_launcher":
+			return Vector2(0, -34)
+	return Vector2(0, -36)
+
+func _art_scale() -> Vector2:
+	match archetype:
+		&"vinewall":
+			return Vector2(0.85, 0.85)
+		&"wizard_tower":
+			return Vector2(0.72, 0.72)
+	return Vector2(0.76, 0.76)

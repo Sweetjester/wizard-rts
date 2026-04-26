@@ -1,0 +1,279 @@
+{
+  "project": "wizard-rts",
+  "style": {
+    "base_prompt": "isometric pixel art for a rogue-like multiplayer RTS, matte finish, readable silhouette at RTS camera distance, dark vampiric mushroom forest palette, forest greens, meaningful blood reds, rare cyan bioluminescent glow, bone and wet bark neutrals, no text, no watermark",
+    "negative_prompt": "photorealistic, blurry, painterly smear, UI text, logo, watermark, oversized outline, plastic shine, modern sci-fi metal unless requested"
+  },
+  "output_root": "assets/generated/pixellab",
+  "batches": [
+    {
+      "id": "kon_core_units",
+      "type": "character_8dir",
+      "enabled": true,
+      "size": 64,
+      "view": "low top-down",
+      "isometric": true,
+      "outline": "thin",
+      "shading": "soft",
+      "detail": "high",
+      "animations": [
+        {"name": "idle", "template_animation_id": "breathing-idle", "frame_count": 8},
+        {"name": "walk", "template_animation_id": "crouched-walking", "frame_count": 8},
+        {"name": "attack", "action_description": "violent melee attack with claws and tendrils", "frame_count": 8},
+        {"name": "cast", "action_description": "dark life wizard casting with cyan spores and root tendrils", "frame_count": 8},
+        {"name": "death", "action_description": "collapse into mushrooms, roots, and dissolving cyan spores", "frame_count": 8}
+      ],
+      "assets": [
+        {
+          "id": "bad_kon_willow",
+          "description": "Bad Kon Willow, miserable life wizard in a ragged hood, dead willow staff, cyan glowing eyes and hand, red mushrooms growing from his cloak, cruel dark naturalist cult wizard"
+        },
+        {
+          "id": "terrible_thing",
+          "description": "cheap melee horror grown from roots and bone, hunched vampire mushroom creature, thorn claws, wet bark body, red fungal caps, aggressive RTS unit"
+        },
+        {
+          "id": "horror",
+          "disabled": true,
+          "description": "fast ranged vampire mushroom horror, lean fungal predator, spore sac launcher, cyan spore vents, sinewy root legs, readable ranged RTS unit"
+        },
+        {
+          "id": "apex",
+          "disabled": true,
+          "description": "large evolved apex life horror, healer that can become a powerful melee beast, bone crown, tendril maw, red mushroom armor plates, imposing RTS elite unit"
+        }
+      ]
+    },
+    {
+      "id": "kon_buildings",
+      "type": "map_object",
+      "enabled": true,
+      "view": "low top-down",
+      "outline": "single color outline",
+      "shading": "medium shading",
+      "detail": "high detail",
+      "no_background": true,
+      "assets": [
+        {
+          "id": "wizard_tower",
+          "width": 160,
+          "height": 160,
+          "description": "Kon's wizard tower HQ, ruined bone-and-bark tower wrapped in vampire mushrooms, cyan windows, grim life wizard faction building, fits WC3 grid footprint"
+        },
+        {
+          "id": "bio_absorber",
+          "width": 128,
+          "height": 128,
+          "description": "Bio Absorber economy building, pulsing organic root pump drinking biomass from the ground, red fungal sacs, cyan veins, dark naturalist RTS structure"
+        },
+        {
+          "id": "barracks",
+          "width": 160,
+          "height": 128,
+          "description": "Life wizard barracks, fleshy root kennel and bone cage that grows terrible things, matte wet bark, mushroom canopy, readable production building"
+        },
+        {
+          "id": "terrible_vault",
+          "width": 144,
+          "height": 128,
+          "description": "Terrible Vault armory, sealed evolution archive of bone slabs and living vines, cyan containment cracks, grim research building"
+        },
+        {
+          "id": "vinewall_segment",
+          "width": 64,
+          "height": 96,
+          "description": "single grid segment of retaliating regenerating vinewall, thorned roots, blood red fungal nodes, matte dark green bark, vertical defensive wall piece"
+        },
+        {
+          "id": "bio_launcher_rooted",
+          "width": 128,
+          "height": 128,
+          "description": "rooted bio launcher static defense, organic spore artillery plant with bone barrel and red sacs, long range defensive structure"
+        },
+        {
+          "id": "bio_launcher_uprooted",
+          "width": 128,
+          "height": 128,
+          "description": "uprooted mobile bio launcher, same organic artillery plant walking on roots, bone barrel tucked low, readable mobile defensive unit"
+        }
+      ]
+    },
+    {
+      "id": "combat_fx",
+      "type": "image",
+      "enabled": true,
+      "endpoint": "generate-image-v2",
+      "no_background": true,
+      "assets": [
+        {
+          "id": "horror_unit_sheet",
+          "width": 512,
+          "height": 64,
+          "description": "horizontal 8 direction sprite sheet for Horror unit, fast ranged vampire mushroom predator with spore launcher, one standing frame per direction, transparent background, evenly spaced frames"
+        },
+        {
+          "id": "horror_move_attack_sheet",
+          "width": 512,
+          "height": 128,
+          "description": "two row sprite sheet for Horror unit, top row 8 movement frames, bottom row 8 ranged attack frames with spore launcher recoil, transparent background, evenly spaced frames"
+        },
+        {
+          "id": "apex_unit_sheet",
+          "width": 512,
+          "height": 96,
+          "description": "horizontal 8 direction sprite sheet for Apex unit, large evolved life horror with bone crown and tendril maw, one standing frame per direction, transparent background, evenly spaced frames"
+        },
+        {
+          "id": "apex_move_attack_sheet",
+          "width": 512,
+          "height": 192,
+          "description": "two row sprite sheet for Apex unit, top row 8 heavy movement frames, bottom row 8 powerful melee attack frames, transparent background, evenly spaced frames"
+        },
+        {
+          "id": "bio_mend_spell_sheet",
+          "width": 256,
+          "height": 64,
+          "description": "horizontal 4 frame sprite sheet of Bio Mend healing spell, cyan green spores swirling into a unit, transparent background, each frame evenly spaced"
+        },
+        {
+          "id": "seal_away_spell_sheet",
+          "width": 256,
+          "height": 64,
+          "description": "horizontal 4 frame sprite sheet of Seal Away spell, bone-white glyph cage closing with cyan runes and dark roots, transparent background, each frame evenly spaced"
+        },
+        {
+          "id": "horror_spore_projectile",
+          "width": 64,
+          "height": 64,
+          "description": "single RTS projectile, glowing cyan spore shot with red fungal core and faint trail, transparent background, readable at small size"
+        },
+        {
+          "id": "bio_launcher_projectile",
+          "width": 96,
+          "height": 96,
+          "description": "large arcing bio artillery projectile, dark biomass glob with red fungal veins and cyan sparks, transparent background"
+        },
+        {
+          "id": "terrible_thing_melee_slash_sheet",
+          "width": 384,
+          "height": 64,
+          "description": "horizontal 6 frame sprite sheet of a melee claw slash for Terrible Thing, bone-white crescent with red fungal sparks and root tendrils, transparent background, each frame evenly spaced"
+        },
+        {
+          "id": "apex_eat_ally_fx_sheet",
+          "width": 384,
+          "height": 96,
+          "description": "horizontal 6 frame sprite sheet of Apex consuming an allied unit to accelerate evolution, green cyan biomass spiral, dark roots closing, red spores, transparent background"
+        }
+      ]
+    },
+    {
+      "id": "kon_building_animation_sheets",
+      "type": "image",
+      "enabled": true,
+      "endpoint": "generate-image-v2",
+      "no_background": true,
+      "assets": [
+        {
+          "id": "bio_absorber_idle_sheet",
+          "width": 512,
+          "height": 128,
+          "description": "horizontal 4 frame sprite sheet, Bio Absorber economy building pulsing and drawing biomass from the ground, red sacs inflating, cyan veins glowing, transparent background"
+        },
+        {
+          "id": "barracks_training_sheet",
+          "width": 512,
+          "height": 128,
+          "description": "horizontal 4 frame sprite sheet, Life wizard barracks growing a unit inside bone cages and roots, subtle movement, red fungal sacs pulsing, transparent background"
+        },
+        {
+          "id": "terrible_vault_research_sheet",
+          "width": 512,
+          "height": 128,
+          "description": "horizontal 4 frame sprite sheet, Terrible Vault armory researching evolution, cyan containment cracks pulsing across bone slabs and living vines, transparent background"
+        },
+        {
+          "id": "vinewall_retaliate_sheet",
+          "width": 384,
+          "height": 96,
+          "description": "horizontal 6 frame sprite sheet, thorned vinewall segment lashing out then regenerating, red fungal nodes and dark green bark, transparent background"
+        },
+        {
+          "id": "bio_launcher_fire_sheet",
+          "width": 512,
+          "height": 128,
+          "description": "horizontal 4 frame sprite sheet, rooted Bio Launcher charging and firing a biomass artillery glob, bone barrel recoils, red sacs flash, transparent background"
+        },
+        {
+          "id": "wizard_tower_idle_sheet",
+          "width": 512,
+          "height": 160,
+          "description": "horizontal 4 frame sprite sheet, Kon's wizard tower HQ idle animation, cyan windows breathing, mushrooms faintly pulsing, transparent background"
+        }
+      ]
+    },
+    {
+      "id": "kon_emotes",
+      "type": "image",
+      "enabled": true,
+      "endpoint": "generate-image-v2",
+      "no_background": true,
+      "assets": [
+        {
+          "id": "kon_emote_acknowledge_sheet",
+          "width": 384,
+          "height": 64,
+          "description": "horizontal 6 frame sprite sheet, Bad Kon Willow acknowledge emote, slight cruel nod, cyan eyes flare, transparent background"
+        },
+        {
+          "id": "kon_emote_annoyed_sheet",
+          "width": 384,
+          "height": 64,
+          "description": "horizontal 6 frame sprite sheet, Bad Kon Willow annoyed emote, slumped miserable posture then sharp glare, red mushrooms twitch, transparent background"
+        },
+        {
+          "id": "kon_emote_unleash_horrors_sheet",
+          "width": 384,
+          "height": 64,
+          "description": "horizontal 6 frame sprite sheet, Bad Kon Willow commanding horrors to attack, one hand raised, cyan spores burst outward, transparent background"
+        }
+      ]
+    },
+    {
+      "id": "vampire_forest_isometric_tiles",
+      "type": "isometric_tile",
+      "enabled": false,
+      "size": 64,
+      "tile_shape": "thin tile",
+      "outline": "lineless",
+      "shading": "soft",
+      "detail": "high",
+      "assets": [
+        {
+          "id": "low_ground",
+          "description": "low ground forest floor, dark moss, damp earth, subtle red spore flecks, matte readable isometric RTS terrain tile"
+        },
+        {
+          "id": "middle_ground",
+          "description": "middle ground raised mossy plateau top, richer forest green, bone flecks, matte readable isometric RTS terrain tile"
+        },
+        {
+          "id": "high_ground",
+          "description": "high ground pale moss and old bone plateau top, lighter value than mid ground, matte readable isometric RTS terrain tile"
+        },
+        {
+          "id": "ramp",
+          "description": "obvious isometric ramp tile climbing between terrain levels, worn stone and roots, pale edge highlights, matte RTS terrain"
+        },
+        {
+          "id": "water",
+          "description": "dark swamp water isometric tile, deep cyan pool with subtle bioluminescent algae, matte readable RTS terrain"
+        },
+        {
+          "id": "impassible_ridge",
+          "description": "impassible cliff ridge tile, black wet bark and jagged mushroom roots, blood red veins, clear unwalkable RTS terrain"
+        }
+      ]
+    }
+  ]
+}

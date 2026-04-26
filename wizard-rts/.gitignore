@@ -1,3 +1,13 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# Local secrets and generated PixelLab outputs
+.env
+.env.*
+!*.example
+assets/generated/pixellab/
+assets/review/pixellab/
+tools/pixellab/jobs/
+tools/pixellab/terrain_jobs/
+tools/pixellab/openapi_cache.json

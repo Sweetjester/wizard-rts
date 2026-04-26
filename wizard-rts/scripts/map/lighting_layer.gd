@@ -2,7 +2,9 @@ class_name LightingLayer
 extends Node2D
 
 @export var map_path: NodePath = NodePath("../MapGenerator")
-@export var update_interval: float = 0.5
+@export var update_interval: float = 1.0
+@export var max_unit_lights: int = 32
+@export var unit_light_stride: int = 8
 
 const AMBIENT := Color("#050807")
 const LIFE_GLOW := Color("#7BC47F")
@@ -18,7 +20,9 @@ func _ready() -> void:
 	z_index = 2500
 	var display_manager := get_node_or_null("/root/DisplayManager")
 	if display_manager != null and bool(display_manager.get("performance_mode")):
-		update_interval = 0.75
+		update_interval = 1.5
+		max_unit_lights = 18
+		unit_light_stride = 12
 	call_deferred("_rebuild")
 
 func _process(delta: float) -> void:
@@ -60,22 +64,23 @@ func _draw_ambient() -> void:
 		map.cell_to_world(Vector2i(map.MAP_W + 4, map.MAP_H + 4)),
 		map.cell_to_world(Vector2i(-4, map.MAP_H + 4)),
 	])
-	draw_polygon(corners, PackedColorArray([_alpha(AMBIENT, 0.08 + night * 0.20)]))
+	draw_polygon(corners, PackedColorArray([_alpha(AMBIENT, 0.035 + night * 0.11)]))
 
 func _draw_plot_lights() -> void:
 	var t := float(Time.get_ticks_msec()) / 1000.0
 	var night_boost := 1.0 + _night_amount() * 1.85
 	for light in plot_lights:
 		var pulse := 0.5 + sin(t * 1.2 + float(light["pos"].x) * 0.01) * 0.5
-		_draw_glow(light["pos"], float(light["radius"]) + pulse * 10.0 + _night_amount() * 28.0, light["color"], 0.055 * night_boost)
+		_draw_glow(light["pos"], float(light["radius"]) + pulse * 10.0 + _night_amount() * 28.0, light["color"], 0.035 * night_boost)
 
 func _draw_unit_lights() -> void:
 	var unit_index := 0
+	var drawn_count := 0
 	var night_boost := 1.0 + _night_amount() * 1.5
 	for unit in get_tree().get_nodes_in_group("units"):
 		if not is_instance_valid(unit) or not (unit is Node2D):
 			continue
-		if unit_index % 4 != 0 and StringName(unit.get("unit_archetype")) != &"life_wizard":
+		if unit_index % unit_light_stride != 0 and StringName(unit.get("unit_archetype")) != &"life_wizard":
 			unit_index += 1
 			continue
 		unit_index += 1
@@ -84,7 +89,10 @@ func _draw_unit_lights() -> void:
 		if StringName(unit.get("unit_archetype")) == &"life_wizard":
 			radius = 76.0
 			color = SOUL_SPARK
-		_draw_glow(unit.global_position + Vector2(0, -18), radius + _night_amount() * 18.0, color, 0.055 * night_boost)
+		_draw_glow(unit.global_position + Vector2(0, -18), radius + _night_amount() * 18.0, color, 0.032 * night_boost)
+		drawn_count += 1
+		if drawn_count >= max_unit_lights:
+			break
 
 func _draw_glow(pos: Vector2, radius: float, color: Color, alpha: float) -> void:
 	draw_circle(pos, radius, _alpha(color, alpha))

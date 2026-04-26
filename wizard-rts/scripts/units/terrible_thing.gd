@@ -8,6 +8,9 @@ func _ready() -> void:
 	collision_separation = 20.0
 
 func _draw() -> void:
+	if has_node("ArtSprite"):
+		_draw_selection_and_path()
+		return
 	_draw_unit_transform_begin()
 	_draw_body(Color("#5C0F14"), Color("#E85A5A"))
 	_draw_unit_transform_end()

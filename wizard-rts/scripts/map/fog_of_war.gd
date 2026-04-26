@@ -3,12 +3,13 @@ extends Node2D
 
 @export var map_path: NodePath = NodePath("../MapGenerator")
 @export var reveal_radius_cells: int = 8
-@export var hard_fog_alpha: float = 0.82
-@export var explored_fog_alpha: float = 0.38
-@export var update_interval: float = 0.5
+@export var hard_fog_alpha: float = 0.58
+@export var explored_fog_alpha: float = 0.22
+@export var edge_fog_alpha: float = 0.28
+@export var update_interval: float = 0.8
 @export var draw_stride: int = 2
 @export var reveal_enemy_vision: bool = false
-@export var max_revealers_per_update: int = 64
+@export var max_revealers_per_update: int = 24
 
 const FOG_COLOR := Color("#050807")
 
@@ -21,8 +22,9 @@ func _ready() -> void:
 	z_index = 3000
 	var display_manager := get_node_or_null("/root/DisplayManager")
 	if display_manager != null and bool(display_manager.get("performance_mode")):
-		update_interval = 0.75
-		draw_stride = 4
+		update_interval = 1.0
+		draw_stride = 3
+		max_revealers_per_update = 16
 	call_deferred("_rebuild")
 
 func _process(delta: float) -> void:
@@ -138,7 +140,9 @@ func _draw() -> void:
 			if _block_visible(x, y):
 				continue
 			var alpha := explored_fog_alpha if _block_explored(x, y) else hard_fog_alpha
-			draw_polygon(_cell_diamond(map.cell_to_world(Vector2i(x, y)), float(draw_stride) * 1.08), PackedColorArray([_alpha(FOG_COLOR, alpha)]))
+			if _block_touches_visible(x, y):
+				alpha = minf(alpha, edge_fog_alpha)
+			draw_polygon(_block_diamond(Vector2i(x, y), draw_stride), PackedColorArray([_alpha(FOG_COLOR, alpha)]))
 
 func _block_visible(start_x: int, start_y: int) -> bool:
 	for x in range(start_x, mini(start_x + draw_stride, map.MAP_W)):
@@ -153,6 +157,27 @@ func _block_explored(start_x: int, start_y: int) -> bool:
 			if explored[x][y]:
 				return true
 	return false
+
+func _block_touches_visible(start_x: int, start_y: int) -> bool:
+	var margin := draw_stride
+	for x in range(maxi(0, start_x - margin), mini(start_x + draw_stride + margin, map.MAP_W)):
+		for y in range(maxi(0, start_y - margin), mini(start_y + draw_stride + margin, map.MAP_H)):
+			if visible_cells[x][y]:
+				return true
+	return false
+
+func _block_diamond(cell: Vector2i, stride: int) -> PackedVector2Array:
+	var last := maxi(1, stride) - 1
+	var north: Vector2 = map.cell_to_world(cell)
+	var east: Vector2 = map.cell_to_world(cell + Vector2i(last, 0))
+	var south: Vector2 = map.cell_to_world(cell + Vector2i(last, last))
+	var west: Vector2 = map.cell_to_world(cell + Vector2i(0, last))
+	return PackedVector2Array([
+		north + Vector2(0, -36),
+		east + Vector2(68, 0),
+		south + Vector2(0, 36),
+		west + Vector2(-68, 0),
+	])
 
 func _cell_diamond(pos: Vector2, scale: float) -> PackedVector2Array:
 	return PackedVector2Array([

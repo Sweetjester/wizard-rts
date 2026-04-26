@@ -238,9 +238,6 @@ func _generate_cell_elevation(cell: Vector2i) -> int:
 	if _is_ramp_cell(cell):
 		return E_RAMP
 
-	if _is_main_high_plateau_edge(cell):
-		return E_BLOCKED
-
 	if cell.x >= hg_x1 and cell.x <= hg_x2 and cell.y >= hg_y1 and cell.y <= hg_y2:
 		return E_HIGH
 
@@ -249,12 +246,7 @@ func _generate_cell_elevation(cell: Vector2i) -> int:
 	var high_dy := float(cell.y - high_island.y) / 8.0
 	var high_island_distance := high_dx * high_dx + high_dy * high_dy
 	if high_island_distance < 1.0:
-		if high_island_distance > 0.72 and not _is_near_ramp_cell(cell, 2):
-			return E_BLOCKED
 		return E_HIGH
-
-	if _is_main_mid_plateau_edge(cell):
-		return E_BLOCKED
 
 	if cell.x >= mg_x1 and cell.x <= mg_x2 and cell.y >= mg_y1 and cell.y <= mg_y2:
 		return E_MID
@@ -273,13 +265,13 @@ func _generate_cell_elevation(cell: Vector2i) -> int:
 
 	var block := Vector2i(cell.x / BLOCK_SIZE, cell.y / BLOCK_SIZE)
 	var block_roll := _hash_cell(block, 41) % 1000
-	if block_roll < 72:
+	if block_roll < 34 and not _is_near_any_plateau(cell, 3):
 		return E_BLOCKED
-	if block_roll >= 72 and block_roll < 106:
+	if block_roll >= 72 and block_roll < 98:
 		return E_WATER
 
 	var ridge_roll := _hash_cell(block, 73) % 1000
-	if ridge_roll < 135 and cell.y < MAP_H - 10:
+	if ridge_roll < 70 and cell.y < MAP_H - 10:
 		return E_MID
 	return E_LOW
 
@@ -307,6 +299,11 @@ func _is_near_ramp_cell(cell: Vector2i, margin: int) -> bool:
 		if expanded.has_point(cell):
 			return true
 	return false
+
+func _is_near_any_plateau(cell: Vector2i, margin: int) -> bool:
+	var high_rect := Rect2i(Vector2i(hg_x1, hg_y1) - Vector2i(margin, margin), Vector2i(hg_x2 - hg_x1 + 1, hg_y2 - hg_y1 + 1) + Vector2i(margin * 2, margin * 2))
+	var mid_rect := Rect2i(Vector2i(mg_x1, mg_y1) - Vector2i(margin, margin), Vector2i(mg_x2 - mg_x1 + 1, mg_y2 - mg_y1 + 1) + Vector2i(margin * 2, margin * 2))
+	return high_rect.has_point(cell) or mid_rect.has_point(cell)
 
 func _is_lake_cell(cell: Vector2i) -> bool:
 	for lake in lakes:
@@ -420,13 +417,73 @@ func find_path_cells(start: Vector2i, target: Vector2i) -> Array[Vector2i]:
 		path.append(point)
 	if not path.is_empty() and path[0] == start:
 		path.pop_front()
-	return path
+	return _smooth_path_cells(start, path)
 
 func find_path_world(start_world: Vector2, target_world: Vector2) -> Array[Vector2]:
 	var world_path: Array[Vector2] = []
 	for cell in find_path_cells(world_to_cell(start_world), world_to_cell(target_world)):
 		world_path.append(cell_to_world(cell))
 	return world_path
+
+func _smooth_path_cells(start: Vector2i, raw_path: Array[Vector2i]) -> Array[Vector2i]:
+	if raw_path.size() <= 2:
+		return raw_path
+	var smoothed: Array[Vector2i] = []
+	var anchor := start
+	var index := 0
+	while index < raw_path.size():
+		var best_index := index
+		var lookahead_limit: int = mini(raw_path.size() - 1, index + 14)
+		for candidate_index in range(lookahead_limit, index - 1, -1):
+			if _has_clear_path_segment(anchor, raw_path[candidate_index]):
+				best_index = candidate_index
+				break
+		var next_cell := raw_path[best_index]
+		smoothed.append(next_cell)
+		anchor = next_cell
+		index = best_index + 1
+	return smoothed
+
+func _has_clear_path_segment(from_cell: Vector2i, to_cell: Vector2i) -> bool:
+	if from_cell == to_cell:
+		return true
+	var cells := _line_cells(from_cell, to_cell)
+	var previous := from_cell
+	for i in range(1, cells.size()):
+		var cell: Vector2i = cells[i]
+		if not _is_path_traversable_cell(cell):
+			return false
+		if not _can_step_between(previous, cell):
+			return false
+		previous = cell
+	return true
+
+func _is_path_traversable_cell(cell: Vector2i) -> bool:
+	return is_walkable_cell(cell) and not _is_unramped_height_edge(cell)
+
+func _can_step_between(from_cell: Vector2i, to_cell: Vector2i) -> bool:
+	if not is_in_bounds(from_cell) or not is_in_bounds(to_cell):
+		return false
+	if not is_walkable_cell(from_cell) or not is_walkable_cell(to_cell):
+		return false
+	var from_height := int(height_map[from_cell.x][from_cell.y])
+	var to_height := int(height_map[to_cell.x][to_cell.y])
+	if from_height == to_height:
+		return true
+	return grid[from_cell.x][from_cell.y] == E_RAMP or grid[to_cell.x][to_cell.y] == E_RAMP
+
+func _line_cells(from_cell: Vector2i, to_cell: Vector2i) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	var delta := to_cell - from_cell
+	var steps: int = maxi(abs(delta.x), abs(delta.y))
+	if steps <= 0:
+		return [from_cell]
+	for i in range(steps + 1):
+		var t := float(i) / float(steps)
+		var cell := Vector2i(roundi(lerpf(float(from_cell.x), float(to_cell.x), t)), roundi(lerpf(float(from_cell.y), float(to_cell.y), t)))
+		if cells.is_empty() or cells[cells.size() - 1] != cell:
+			cells.append(cell)
+	return cells
 
 func _build_pathfinder() -> void:
 	_pathfinder.region = Rect2i(0, 0, MAP_W, MAP_H)
@@ -438,9 +495,23 @@ func _build_pathfinder() -> void:
 	for x in MAP_W:
 		for y in MAP_H:
 			var cell := Vector2i(x, y)
-			_pathfinder.set_point_solid(cell, not is_walkable_cell(cell))
+			_pathfinder.set_point_solid(cell, not is_walkable_cell(cell) or _is_unramped_height_edge(cell))
 			if is_walkable_cell(cell):
 				_pathfinder.set_point_weight_scale(cell, get_movement_cost(cell))
+
+func _is_unramped_height_edge(cell: Vector2i) -> bool:
+	if not is_walkable_cell(cell) or grid[cell.x][cell.y] == E_RAMP:
+		return false
+	var height := int(height_map[cell.x][cell.y])
+	for offset: Vector2i in [Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(0, -1)]:
+		var neighbor: Vector2i = cell + offset
+		if not is_in_bounds(neighbor) or not is_walkable_cell(neighbor):
+			continue
+		if grid[neighbor.x][neighbor.y] == E_RAMP:
+			continue
+		if abs(int(height_map[neighbor.x][neighbor.y]) - height) > 0:
+			return true
+	return false
 
 func _height_for_cell(cell: Vector2i, elevation: int) -> int:
 	match elevation:
@@ -810,7 +881,9 @@ func _carve_road_cell(center: Vector2i, width: int) -> void:
 			if existing_feature.ends_with("_wall") or existing_feature == "giant_mushroom":
 				continue
 			if grid[x][y] == E_BLOCKED or grid[x][y] == E_WATER:
-				grid[x][y] = E_LOW
+				if not _is_near_ramp_cell(cell, 2):
+					continue
+				grid[x][y] = _dominant_elevation_near(cell)
 			feature_grid[x][y] = "path"
 			road_cells[cell] = true
 
@@ -859,7 +932,7 @@ func _paint() -> void:
 
 			match e:
 				E_BLOCKED:
-					layer_low.set_cell(pos, pick("foliage"), Vector2i(0,0))
+					pass
 				E_WATER:
 					# Water sits on low layer
 					layer_low.set_cell(pos, pick("water"), Vector2i(0,0))
@@ -871,7 +944,7 @@ func _paint() -> void:
 					layer_high.set_cell(pos, pick("high_ground"), Vector2i(0,0))
 				E_RAMP:
 					layer_low.set_cell(pos, pick("low_ground"), Vector2i(0,0))
-					layer_mid.set_cell(pos, pick("path"), Vector2i(0,0))
+					layer_mid.set_cell(pos, pick("path_slope"), Vector2i(0,0))
 
 	_paint_objects()
 	_paint_plots()
@@ -888,8 +961,8 @@ func _paint_objects() -> void:
 			if e == E_WATER:
 				continue
 			if e == E_BLOCKED:
-				if _has_walkable_drop(pos):
-					layer_low.set_cell(pos, pick("cliff"), Vector2i(0,0))
+				if not _has_walkable_drop(pos) and _is_deep_forest_cell(pos):
+					layer_low.set_cell(pos, pick("foliage"), Vector2i(0,0))
 				continue
 			if feature == "path":
 				_set_plot_cell(pos, "path")
@@ -897,7 +970,8 @@ func _paint_objects() -> void:
 
 			# Foliage border on low layer
 			if x <= 3 or x >= MAP_W-4 or y <= 3 or y >= MAP_H-4:
-				layer_low.set_cell(pos, pick("foliage"), Vector2i(0,0))
+				if (x + y) % 2 == 0:
+					layer_low.set_cell(pos, pick("foliage"), Vector2i(0,0))
 				continue
 
 			# Economy plot 1 — high ground plateau (easy)
@@ -920,7 +994,7 @@ func _paint_objects() -> void:
 			elif e == E_MID and (x*5+y*13)%37==0:
 				layer_mid.set_cell(pos, pick("decoration"), Vector2i(0,0))
 
-			elif e == E_RAMP and (x + y) % 2 == 0:
+			elif e == E_RAMP:
 				layer_mid.set_cell(pos, pick("path_slope"), Vector2i(0,0))
 
 func _has_walkable_drop(cell: Vector2i) -> bool:
@@ -929,6 +1003,18 @@ func _has_walkable_drop(cell: Vector2i) -> bool:
 		if is_in_bounds(neighbor) and is_walkable_cell(neighbor):
 			return true
 	return false
+
+func _is_deep_forest_cell(cell: Vector2i) -> bool:
+	if cell.x <= 2 or cell.x >= MAP_W - 3 or cell.y <= 2 or cell.y >= MAP_H - 3:
+		return true
+	for offset: Vector2i in [
+		Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(0, -1),
+		Vector2i(1, 1), Vector2i(-1, 1), Vector2i(1, -1), Vector2i(-1, -1),
+	]:
+		var neighbor: Vector2i = cell + offset
+		if is_in_bounds(neighbor) and is_walkable_cell(neighbor):
+			return false
+	return _hash_cell(cell, 311) % 1000 < 380
 
 func _paint_plots() -> void:
 	for plot in plots:
@@ -950,7 +1036,7 @@ func _paint_plots() -> void:
 						if _rng.chance_per_mille(540):
 							_set_plot_cell(cell, "bandit_floor")
 					"base_floor":
-						if _is_rect_edge(cell, rect) and _rng.chance_per_mille(360):
+						if _is_rect_edge(cell, rect) and _rng.chance_per_mille(90):
 							_set_plot_cell(cell, "foliage")
 					"economy_space":
 						_set_plot_cell(cell, "economy_plot")

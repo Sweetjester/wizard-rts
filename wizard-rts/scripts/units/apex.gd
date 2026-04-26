@@ -19,6 +19,9 @@ func eat_ally(target: Node) -> bool:
 	return true
 
 func _draw() -> void:
+	if has_node("ArtSprite"):
+		_draw_selection_and_path()
+		return
 	_draw_unit_transform_begin()
 	draw_circle(Vector2(0, 12), 17, Color(0, 0, 0, 0.34))
 	draw_circle(Vector2(0, -2), 18, Color("#332820"))

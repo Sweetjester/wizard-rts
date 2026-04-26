@@ -3,8 +3,9 @@ extends Node2D
 
 @export var map_path: NodePath = NodePath("../MapGenerator")
 @export var pulse_speed: float = 1.35
-@export var shimmer_stride: int = 18
-@export var redraw_interval: float = 0.5
+@export var shimmer_stride: int = 36
+@export var surface_stride: int = 8
+@export var max_magic_lights: int = 80
 
 const AMBIENT := Color("#0A1612")
 const DEEP_POOL := Color("#0E2C32")
@@ -19,21 +20,15 @@ var day_night: DayNightCycle
 var water_cells: Array[Vector2i] = []
 var shore_cells: Array[Vector2i] = []
 var light_cells: Array[Vector2i] = []
-var _redraw_elapsed := 0.0
-
 func _ready() -> void:
 	z_index = 5
 	var display_manager := get_node_or_null("/root/DisplayManager")
 	if display_manager != null and bool(display_manager.get("performance_mode")):
-		shimmer_stride = 28
-		redraw_interval = 0.75
+		shimmer_stride = 56
+		surface_stride = 12
+		max_magic_lights = 48
+	set_process(false)
 	call_deferred("_rebuild")
-
-func _process(delta: float) -> void:
-	_redraw_elapsed += delta
-	if _redraw_elapsed >= redraw_interval:
-		_redraw_elapsed = 0.0
-		queue_redraw()
 
 func _rebuild() -> void:
 	map = get_node_or_null(map_path)
@@ -51,11 +46,11 @@ func _rebuild() -> void:
 				water_cells.append(cell)
 				if _is_shore_cell(cell):
 					shore_cells.append(cell)
-				if (x * 5 + y * 7) % 37 == 0:
+				if light_cells.size() < max_magic_lights and (x * 5 + y * 7) % 37 == 0:
 					light_cells.append(cell)
 	var choke_index := 0
 	for choke in map.get_chokepoints():
-		if choke_index % 12 == 0:
+		if light_cells.size() < max_magic_lights and choke_index % 12 == 0:
 			light_cells.append(choke)
 		choke_index += 1
 	queue_redraw()
@@ -76,10 +71,10 @@ func _draw_ambient_wash() -> void:
 		map.cell_to_world(Vector2i(map.MAP_W + 4, map.MAP_H + 4)),
 		map.cell_to_world(Vector2i(-4, map.MAP_H + 4)),
 	])
-	draw_polygon(corners, PackedColorArray([_alpha(AMBIENT, 0.18)]))
+	draw_polygon(corners, PackedColorArray([_alpha(AMBIENT, 0.055)]))
 
 func _draw_water_shimmer() -> void:
-	var t := float(Time.get_ticks_msec()) / 1000.0
+	var t := 0.0
 	var night := _night_amount()
 	for i in water_cells.size():
 		if i % shimmer_stride != 0:
@@ -93,11 +88,11 @@ func _draw_water_shimmer() -> void:
 
 func _draw_water_surface() -> void:
 	for i in water_cells.size():
-		if i % 3 != 0:
+		if i % surface_stride != 0:
 			continue
 		var cell := water_cells[i]
 		var pos: Vector2 = map.cell_to_world(cell)
-		draw_polygon(_cell_diamond(pos, 1.02), PackedColorArray([_alpha(DEEP_POOL, 0.42)]))
+		draw_polygon(_cell_diamond(pos, 1.02), PackedColorArray([_alpha(DEEP_POOL, 0.26)]))
 		if (cell.x * 13 + cell.y * 17) % 5 == 0:
 			draw_line(pos + Vector2(-22, -4), pos + Vector2(18, 4), _alpha(ALGAE_BLOOM, 0.26), 2.0)
 

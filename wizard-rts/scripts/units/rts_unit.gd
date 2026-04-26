@@ -420,6 +420,7 @@ func _snap_to_walkable_terrain() -> void:
 		target_pos = global_position
 
 func _draw_selection_and_path() -> void:
+	_draw_sprite_shadow()
 	_draw_melee_swing_fx()
 	_draw_health_bar()
 	if not selected:
@@ -433,6 +434,16 @@ func _draw_selection_and_path() -> void:
 		draw_line(previous, local_point, Color(0.25, 0.95, 1.0, 0.55), 2.0)
 		previous = local_point
 	draw_circle(to_local(path[path.size() - 1]), 5.0, Color(0.25, 0.95, 1.0, 0.8))
+
+func _draw_sprite_shadow() -> void:
+	if not has_node("ArtSprite"):
+		return
+	var radius := maxf(12.0, selection_radius * 0.72)
+	var points := PackedVector2Array()
+	for i in 20:
+		var angle := float(i) * TAU / 20.0
+		points.append(Vector2(cos(angle) * radius, 10.0 + sin(angle) * radius * 0.28))
+	draw_colored_polygon(points, Color(0, 0, 0, 0.28))
 
 func _draw_unit_transform_begin() -> void:
 	var bob := 0.0

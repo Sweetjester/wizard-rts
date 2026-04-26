@@ -1,6 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/units/horror.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/units/kon/horror_move_attack_sheet.png" id="2_art"]
+[ext_resource type="Script" path="res://scripts/units/kon_unit_art.gd" id="3_art_script"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_horror"]
 radius = 10.0
@@ -12,3 +14,13 @@ script = ExtResource("1")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_horror")
+
+[node name="ArtSprite" type="Sprite2D" parent="."]
+texture = ExtResource("2_art")
+script = ExtResource("3_art_script")
+sheet_columns = 8
+sheet_rows = 2
+frame_offset = Vector2(0, -22)
+art_scale = Vector2(1.18, 1.18)
+move_bob_pixels = 4.0
+attack_lunge_pixels = 5.0

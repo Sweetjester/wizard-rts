@@ -2,7 +2,9 @@ class_name SunlightShadows
 extends Node2D
 
 @export var map_path: NodePath = NodePath("../MapGenerator")
-@export var redraw_interval: float = 0.75
+@export var redraw_interval: float = 1.5
+@export var unit_shadow_stride: int = 4
+@export var max_unit_shadows: int = 80
 
 const SUN := Color("#D6C7AE")
 const SHADOW := Color("#050807")
@@ -18,7 +20,9 @@ func _ready() -> void:
 	z_index = 6
 	var display_manager := get_node_or_null("/root/DisplayManager")
 	if display_manager != null and bool(display_manager.get("performance_mode")):
-		redraw_interval = 1.0
+		redraw_interval = 2.0
+		unit_shadow_stride = 8
+		max_unit_shadows = 48
 	call_deferred("_rebuild")
 
 func _process(delta: float) -> void:
@@ -67,9 +71,18 @@ func _draw() -> void:
 		var color := BLOOD_SUN if bool(patch["blood"]) else SUN
 		draw_circle(patch["pos"], patch["radius"], _alpha(color, 0.025 + daylight * 0.07))
 		draw_circle(patch["pos"] - sun_dir * 12.0, patch["radius"] * 0.38, _alpha(color, daylight * 0.06))
+	var unit_index := 0
+	var drawn_units := 0
 	for unit in get_tree().get_nodes_in_group("units"):
 		if is_instance_valid(unit) and unit is Node2D:
+			if unit_index % unit_shadow_stride != 0 and StringName(unit.get("unit_archetype")) != &"life_wizard":
+				unit_index += 1
+				continue
+			unit_index += 1
 			draw_ellipse(unit.global_position + Vector2(12, 18) + sun_dir * 12.0, 34.0, 9.0, _alpha(SHADOW, 0.14 + daylight * 0.22))
+			drawn_units += 1
+			if drawn_units >= max_unit_shadows:
+				break
 
 func _has_lower_south_neighbor(cell: Vector2i) -> bool:
 	var south := cell + Vector2i(0, 1)

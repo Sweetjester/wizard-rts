@@ -1,6 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/units/apex.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/units/kon/apex_move_attack_sheet.png" id="2_art"]
+[ext_resource type="Script" path="res://scripts/units/kon_unit_art.gd" id="3_art_script"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_apex"]
 radius = 13.0
@@ -12,3 +14,14 @@ script = ExtResource("1")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_apex")
+
+[node name="ArtSprite" type="Sprite2D" parent="."]
+texture = ExtResource("2_art")
+script = ExtResource("3_art_script")
+sheet_columns = 8
+sheet_rows = 2
+frame_offset = Vector2(0, -30)
+art_scale = Vector2(1.45, 1.45)
+move_bob_pixels = 2.5
+attack_lunge_pixels = 8.0
+attack_squash = 0.12

@@ -1,0 +1,122 @@
+{
+  "project": "wizard-rts",
+  "purpose": "Strict terrain-only PixelLab batches for the Vampiric Mushroom Forest map style.",
+  "style": {
+    "base_prompt": "isometric RTS terrain asset, matte pixel-painted finish, transparent background where appropriate, readable at StarCraft 2 camera distance, tile centered in a 111x128 canvas, no characters, no UI, no text, dark cramped vampiric mushroom forest, black bark silhouettes, forest greens #0A1612 #142420 #1E3A2D #2D5A3E, meaningful blood mushroom reds #8B1A1F #C13030 #E85A5A, rare cyan bioluminescence #3FA8B5 #7DDDE8, bone and wet bark neutrals #332820 #8A7560 #D6C7AE",
+    "negative_prompt": "single illustration scene, side-view diorama, photorealistic, blurry, oversized character, humanoid, text, watermark, logo, UI panel, border frame, non-isometric, flat square top-down tile, glossy plastic"
+  },
+  "output_root": "assets/generated/pixellab/terrain/vampire_mushroom_forest",
+  "promote_to": "assets/tiles/voxel",
+  "tile_canvas": {
+    "width": 111,
+    "height": 128,
+    "diamond_top": [55, 22],
+    "diamond_right": [108, 56],
+    "diamond_bottom": [55, 90],
+    "diamond_left": [2, 56]
+  },
+  "batches": [
+    {
+      "id": "vampire_forest_ground_tiles",
+      "type": "image",
+      "endpoint": "generate-image-v2",
+      "enabled": true,
+      "no_background": true,
+      "assets": [
+        {
+          "id": "low_ground_vm",
+          "width": 111,
+          "height": 128,
+          "variants": 3,
+          "description": "single seamless isometric diamond terrain tile, low ground forest floor, dark damp moss and root veins, subtle red spore flecks, low value, no props taller than grass"
+        },
+        {
+          "id": "mid_ground_vm",
+          "width": 111,
+          "height": 128,
+          "variants": 3,
+          "description": "single seamless isometric diamond terrain tile, middle ground raised moss floor, slightly lighter than low ground, bark roots, faint bone grit, readable plateau top"
+        },
+        {
+          "id": "high_ground_vm",
+          "width": 111,
+          "height": 128,
+          "variants": 3,
+          "description": "single seamless isometric diamond terrain tile, high ground plateau top, pale moss edge highlights and bone dust, clearly lighter than middle ground"
+        },
+        {
+          "id": "water_vm",
+          "width": 111,
+          "height": 128,
+          "variants": 3,
+          "description": "single isometric diamond water tile, dark swamp pool with cyan algae shimmer, low saturation, no waves outside tile diamond"
+        },
+        {
+          "id": "path_slope_vm",
+          "width": 111,
+          "height": 128,
+          "variants": 3,
+          "description": "single isometric ramp tile for RTS height transitions, worn bark-and-bone steps, obvious traversal path, clear diagonal slope marks"
+        },
+        {
+          "id": "cliff_vm",
+          "width": 111,
+          "height": 128,
+          "variants": 3,
+          "description": "single isometric impassable cliff tile, black wet bark vertical face under a moss lip, red root veins, visibly unwalkable"
+        }
+      ]
+    },
+    {
+      "id": "vampire_forest_plot_and_prop_tiles",
+      "type": "image",
+      "endpoint": "generate-image-v2",
+      "enabled": true,
+      "no_background": true,
+      "assets": [
+        {
+          "id": "foliage_vm",
+          "width": 111,
+          "height": 128,
+          "variants": 3,
+          "description": "single isometric blocking foliage tile, dense black forest undergrowth with blood-red mushrooms, reads as impassable clutter"
+        },
+        {
+          "id": "giant_mushroom_vm",
+          "width": 111,
+          "height": 128,
+          "variants": 3,
+          "description": "single isometric giant vampire mushroom prop tile, tall pale stem, glowing red cap, transparent background, grounded on diamond footprint"
+        },
+        {
+          "id": "ruin_floor_vm",
+          "width": 111,
+          "height": 128,
+          "variants": 3,
+          "description": "single isometric ruin floor tile for abandoned wizard tower, cracked bone stone, moss in seams, dark vampire forest palette"
+        },
+        {
+          "id": "wizard_tower_wall_vm",
+          "width": 111,
+          "height": 128,
+          "variants": 3,
+          "description": "single isometric wall tile for abandoned wizard tower plot, bone masonry and black bark roots, cyan cracks, grid-fitting"
+        },
+        {
+          "id": "bandit_wall_vm",
+          "width": 111,
+          "height": 128,
+          "variants": 3,
+          "description": "single isometric bandit camp palisade wall tile, wet bark stakes, bone lashings, vampire mushroom infestation, grid-fitting"
+        },
+        {
+          "id": "economy_plot_vm",
+          "width": 111,
+          "height": 128,
+          "variants": 3,
+          "description": "single isometric economy plot marker tile, biomass-rich soil ring with cyan spores and red fungal veins, clearly buildable"
+        }
+      ]
+    }
+  ]
+}

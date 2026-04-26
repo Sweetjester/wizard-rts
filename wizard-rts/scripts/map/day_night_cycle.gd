@@ -4,7 +4,7 @@ extends Node2D
 @export var map_path: NodePath = NodePath("../MapGenerator")
 @export var cycle_duration_seconds: float = 240.0
 @export_range(0.0, 1.0, 0.01) var start_time_of_day: float = 0.28
-@export var redraw_interval: float = 0.12
+@export var redraw_interval: float = 0.5
 
 const DAWN := Color("#E85A5A")
 const DAY := Color("#D6C7AE")
@@ -22,7 +22,7 @@ func _ready() -> void:
 	time_of_day = start_time_of_day
 	var display_manager := get_node_or_null("/root/DisplayManager")
 	if display_manager != null and bool(display_manager.get("performance_mode")):
-		redraw_interval = 0.25
+		redraw_interval = 0.85
 	call_deferred("_rebuild")
 
 func _process(delta: float) -> void:
@@ -71,8 +71,8 @@ func _draw() -> void:
 	var night := get_night_amount()
 	var tint := get_sun_color()
 	var night_color := NIGHT.lerp(MOON, 0.10)
-	draw_polygon(bounds, PackedColorArray([_alpha(tint, 0.05 + daylight * 0.10)]))
-	draw_polygon(bounds, PackedColorArray([_alpha(night_color, night * 0.56)]))
+	draw_polygon(bounds, PackedColorArray([_alpha(tint, 0.025 + daylight * 0.055)]))
+	draw_polygon(bounds, PackedColorArray([_alpha(night_color, night * 0.32)]))
 	_draw_sunshaft(bounds, daylight)
 	_draw_vignette(bounds, night)
 
@@ -90,15 +90,15 @@ func _draw_sunshaft(bounds: PackedVector2Array, daylight: float) -> void:
 		center + dir * length + cross * width * 0.55,
 		center - dir * length + cross * width,
 	])
-	draw_polygon(p, PackedColorArray([_alpha(DAY, daylight * 0.055)]))
+	draw_polygon(p, PackedColorArray([_alpha(DAY, daylight * 0.032)]))
 
 func _draw_vignette(bounds: PackedVector2Array, night: float) -> void:
 	if night <= 0.05:
 		return
 	var center := (bounds[0] + bounds[2]) * 0.5
 	var radius := bounds[0].distance_to(bounds[2]) * 0.32
-	draw_circle(center, radius, _alpha(MOON, night * 0.025))
-	draw_circle(center + Vector2(0, 220), radius * 1.35, _alpha(NIGHT, night * 0.16))
+	draw_circle(center, radius, _alpha(MOON, night * 0.016))
+	draw_circle(center + Vector2(0, 220), radius * 1.35, _alpha(NIGHT, night * 0.09))
 
 func _map_bounds() -> PackedVector2Array:
 	return PackedVector2Array([

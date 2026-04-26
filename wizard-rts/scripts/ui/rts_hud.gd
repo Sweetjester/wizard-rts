@@ -1,6 +1,10 @@
 class_name RTSHud
 extends CanvasLayer
 
+const ONE_SHOT_SPRITE_FX := preload("res://scripts/fx/one_shot_sprite_fx.gd")
+const BIO_MEND_FX: Texture2D = preload("res://assets/fx/kon/bio_mend_spell_sheet.png")
+const SEAL_AWAY_FX: Texture2D = preload("res://assets/fx/kon/seal_away_spell_sheet.png")
+
 @export var economy_manager_path: NodePath = NodePath("../EconomyManager")
 @export var wave_director_path: NodePath = NodePath("../WaveDirector")
 @export var selection_controller_path: NodePath = NodePath("../SelectionController")
@@ -329,6 +333,7 @@ func _bio_mend() -> void:
 	for unit in selection_controller.selected_units:
 		if is_instance_valid(unit) and unit.has_method("heal_damage"):
 			unit.heal_damage(45)
+			_spawn_spell_fx(unit, BIO_MEND_FX, Vector2(1.15, 1.15), Vector2(0, -10))
 			healed += 1
 	status_label.text = "Bio Mend healed %s selected allies" % healed
 
@@ -343,16 +348,31 @@ func _seal_away() -> void:
 		if int(unit.get("owner_player_id")) != 1:
 			if unit.has_method("stun_for_seconds"):
 				unit.stun_for_seconds(6.0)
+				_spawn_spell_fx(unit, SEAL_AWAY_FX, Vector2(1.25, 1.25), Vector2(0, -12))
 				stunned += 1
 			continue
 		if unit.get("unit_archetype") == &"life_wizard":
 			continue
 		if unit.has_method("salvage_value"):
 			refunded += int(unit.salvage_value())
+			_spawn_spell_fx(unit, SEAL_AWAY_FX, Vector2(1.35, 1.35), Vector2(0, -14))
 			unit.queue_free()
 	if refunded > 0:
 		economy_manager.add_resource(1, &"bio", refunded)
 	status_label.text = "Seal Away returned %s Bio and stunned %s enemies" % [refunded, stunned]
+
+func _spawn_spell_fx(target: Node, texture: Texture2D, visual_scale: Vector2, offset: Vector2) -> void:
+	if target == null or not is_instance_valid(target) or not (target is Node2D):
+		return
+	var parent := (target as Node2D).get_parent()
+	if parent == null:
+		parent = get_tree().current_scene
+	if parent == null:
+		return
+	var fx: Sprite2D = ONE_SHOT_SPRITE_FX.new()
+	parent.add_child(fx)
+	fx.global_position = (target as Node2D).global_position + offset
+	fx.configure(texture, 4, 1, 0.46, visual_scale, Vector2(0, -10))
 
 func _absorber_upgrade(upgrade_id: StringName) -> void:
 	if build_system != null and build_system.apply_first_absorber_upgrade(upgrade_id):

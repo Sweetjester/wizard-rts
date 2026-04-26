@@ -1,6 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/units/terrible_thing.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/units/kon/terrible_thing_directions.png" id="2_art"]
+[ext_resource type="Script" path="res://scripts/units/kon_unit_art.gd" id="3_art_script"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_thing"]
 radius = 10.0
@@ -12,3 +14,13 @@ script = ExtResource("1")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_thing")
+
+[node name="ArtSprite" type="Sprite2D" parent="."]
+texture = ExtResource("2_art")
+script = ExtResource("3_art_script")
+sheet_columns = 3
+sheet_rows = 8
+frame_offset = Vector2(0, -24)
+art_scale = Vector2(1.22, 1.22)
+move_bob_pixels = 4.0
+attack_lunge_pixels = 9.0
