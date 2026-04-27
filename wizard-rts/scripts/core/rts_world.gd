@@ -13,6 +13,11 @@ var _projectile_pool: Array[RtsProjectile] = []
 var _active_projectiles := 0
 var _total_projectiles_spawned := 0
 var _total_projectiles_recycled := 0
+var _projectiles_spawned_this_second := 0
+var _projectiles_recycled_this_second := 0
+var _last_projectiles_spawned_per_second := 0
+var _last_projectiles_recycled_per_second := 0
+var _projectile_meter_elapsed := 0.0
 var _damage_by_owner: Dictionary = {}
 var _total_damage := 0
 var _peak_units := 0
@@ -20,6 +25,16 @@ var _peak_units := 0
 func _ready() -> void:
 	for i in projectile_pool_preload:
 		_projectile_pool.append(_make_projectile())
+
+func _process(delta: float) -> void:
+	_projectile_meter_elapsed += delta
+	if _projectile_meter_elapsed < 1.0:
+		return
+	_last_projectiles_spawned_per_second = _projectiles_spawned_this_second
+	_last_projectiles_recycled_per_second = _projectiles_recycled_this_second
+	_projectiles_spawned_this_second = 0
+	_projectiles_recycled_this_second = 0
+	_projectile_meter_elapsed = 0.0
 
 func register_unit(unit: Node2D) -> void:
 	if unit == null or _units.has(unit):
@@ -116,6 +131,7 @@ func spawn_projectile(source: Node2D, target: Node2D, damage: int, color: Color,
 	projectile.activate(self)
 	_active_projectiles += 1
 	_total_projectiles_spawned += 1
+	_projectiles_spawned_this_second += 1
 	return projectile
 
 func recycle_projectile(projectile: RtsProjectile) -> void:
@@ -124,6 +140,7 @@ func recycle_projectile(projectile: RtsProjectile) -> void:
 	if projectile.visible:
 		_active_projectiles = maxi(0, _active_projectiles - 1)
 		_total_projectiles_recycled += 1
+		_projectiles_recycled_this_second += 1
 	projectile.visible = false
 	projectile.process_mode = Node.PROCESS_MODE_DISABLED
 	if _projectile_pool.size() < projectile_pool_cap:
@@ -162,15 +179,32 @@ func record_damage(source: Node, _target: Node, amount: int) -> void:
 
 func get_observation_telemetry() -> Dictionary:
 	var owner_counts := {}
+	var state_counts := {}
+	var moving_units := 0
+	var attacking_units := 0
 	for owner in _by_owner.keys():
 		owner_counts[owner] = count_units_for_owner(int(owner))
+	for unit in all_units():
+		if not is_instance_valid(unit):
+			continue
+		var state := str(unit.get("unit_state"))
+		state_counts[state] = int(state_counts.get(state, 0)) + 1
+		if bool(unit.get("moving")):
+			moving_units += 1
+		if state == "attacking":
+			attacking_units += 1
 	return {
 		"units": count_units_all(),
 		"structures": all_structures().size(),
 		"owner_counts": owner_counts,
+		"state_counts": state_counts,
+		"moving_units": moving_units,
+		"attacking_units": attacking_units,
 		"active_projectiles": _active_projectiles,
 		"projectiles_spawned": _total_projectiles_spawned,
 		"projectiles_recycled": _total_projectiles_recycled,
+		"projectiles_spawned_per_second": _last_projectiles_spawned_per_second,
+		"projectiles_recycled_per_second": _last_projectiles_recycled_per_second,
 		"damage_total": _total_damage,
 		"damage_by_owner": _damage_by_owner.duplicate(),
 		"peak_units": _peak_units,

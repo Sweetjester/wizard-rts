@@ -7,11 +7,13 @@ const EXPORT_DIR := "res://test_exports/session_data"
 @export var rts_world_path: NodePath = NodePath("../RTSWorld")
 @export var map_generator_path: NodePath = NodePath("../MapGenerator")
 @export var wave_director_path: NodePath = NodePath("../WaveDirector")
+@export var combat_system_path: NodePath = NodePath("../CombatSystem")
 @export var enabled: bool = true
 
 var rts_world: RTSWorld
 var map_generator: Node
 var wave_director: Node
+var combat_system: Node
 var session_id := ""
 var export_dir_absolute := ""
 var samples_path := ""
@@ -37,6 +39,7 @@ func _ready() -> void:
 	rts_world = get_node_or_null(rts_world_path)
 	map_generator = get_node_or_null(map_generator_path)
 	wave_director = get_node_or_null(wave_director_path)
+	combat_system = get_node_or_null(combat_system_path)
 	call_deferred("_start_logging")
 
 func _start_logging() -> void:
@@ -134,6 +137,7 @@ func _make_sample() -> Dictionary:
 	var world_stats: Dictionary = rts_world.get_observation_telemetry() if rts_world != null and rts_world.has_method("get_observation_telemetry") else {}
 	var path_stats: Dictionary = map_generator.get_path_telemetry() if map_generator != null and map_generator.has_method("get_path_telemetry") else {}
 	var spawn_stats: Dictionary = wave_director.get_ai_test_spawn_telemetry() if wave_director != null and wave_director.has_method("get_ai_test_spawn_telemetry") else {}
+	var combat_stats: Dictionary = combat_system.get_combat_telemetry() if combat_system != null and combat_system.has_method("get_combat_telemetry") else {}
 	var fps := float(Performance.get_monitor(Performance.TIME_FPS))
 	var process_ms := float(Performance.get_monitor(Performance.TIME_PROCESS)) * 1000.0
 	var physics_ms := float(Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)) * 1000.0
@@ -154,18 +158,32 @@ func _make_sample() -> Dictionary:
 		"structures": int(world_stats.get("structures", 0)),
 		"peak_units": int(world_stats.get("peak_units", 0)),
 		"owner_counts": _stringify_keys(world_stats.get("owner_counts", {})),
+		"state_counts": _stringify_keys(world_stats.get("state_counts", {})),
+		"moving_units": int(world_stats.get("moving_units", 0)),
+		"attacking_units": int(world_stats.get("attacking_units", 0)),
 		"active_projectiles": int(world_stats.get("active_projectiles", 0)),
 		"projectiles_spawned": int(world_stats.get("projectiles_spawned", 0)),
 		"projectiles_recycled": int(world_stats.get("projectiles_recycled", 0)),
+		"projectiles_spawned_per_second": int(world_stats.get("projectiles_spawned_per_second", 0)),
+		"projectiles_recycled_per_second": int(world_stats.get("projectiles_recycled_per_second", 0)),
 		"damage_total": int(world_stats.get("damage_total", 0)),
 		"damage_by_owner": _stringify_keys(world_stats.get("damage_by_owner", {})),
 		"spawn_queue": int(spawn_stats.get("spawn_queue", 0)),
 		"spawn_queue_limit": int(spawn_stats.get("spawn_queue_limit", 0)),
 		"spawn_budget_per_frame": int(spawn_stats.get("spawn_budget_per_frame", 0)),
+		"effective_spawn_budget_per_frame": int(spawn_stats.get("effective_spawn_budget_per_frame", 0)),
 		"spawned_per_second": int(spawn_stats.get("spawned_per_second", 0)),
 		"live_unit_soft_cap": int(spawn_stats.get("live_soft_cap", 0)),
+		"combat_tick_units": int(combat_stats.get("combat_tick_units", 0)),
+		"combat_tick_budget": int(combat_stats.get("combat_tick_budget", 0)),
+		"combat_candidate_queries": int(combat_stats.get("combat_candidate_queries", 0)),
+		"combat_candidate_total": int(combat_stats.get("combat_candidate_total", 0)),
+		"combat_avg_candidates": snapped(float(combat_stats.get("combat_avg_candidates", 0.0)), 0.001),
+		"combat_tick_ms": snapped(float(combat_stats.get("combat_tick_ms", 0.0)), 0.001),
 		"path_requests": int(path_stats.get("path_requests", 0)),
 		"path_cache_hits": int(path_stats.get("path_cache_hits", 0)),
+		"path_requests_per_second": int(path_stats.get("path_requests_per_second", 0)),
+		"path_cache_hits_per_second": int(path_stats.get("path_cache_hits_per_second", 0)),
 		"path_cache_size": int(path_stats.get("path_cache_size", 0)),
 	}
 

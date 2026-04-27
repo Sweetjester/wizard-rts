@@ -13,6 +13,7 @@ const VICTORY_RETURN_SECONDS := 5.0
 @export var build_system_path: NodePath = NodePath("../BuildSystem")
 @export var map_generator_path: NodePath = NodePath("../MapGenerator")
 @export var rts_world_path: NodePath = NodePath("../RTSWorld")
+@export var combat_system_path: NodePath = NodePath("../CombatSystem")
 
 var economy_manager: EconomyManager
 var wave_director: WaveDirector
@@ -20,6 +21,7 @@ var selection_controller: SelectionController
 var build_system: Node
 var map_generator: Node
 var rts_world: RTSWorld
+var combat_system: Node
 var resource_label: Label
 var phase_label: Label
 var selection_label: Label
@@ -47,6 +49,7 @@ func _ready() -> void:
 	build_system = get_node_or_null(build_system_path)
 	map_generator = get_node_or_null(map_generator_path)
 	rts_world = get_node_or_null(rts_world_path)
+	combat_system = get_node_or_null(combat_system_path)
 	_build_ui()
 	if economy_manager != null:
 		economy_manager.resources_changed.connect(_on_resources_changed)
@@ -216,6 +219,9 @@ func _setup_ai_test_controls() -> void:
 		return
 	ai_test_container.visible = true
 	ai_spawn_button = _add_button(ai_test_container, "Spawn AI Wave", _spawn_ai_test_wave)
+	_add_button(ai_test_container, "Target 500", func() -> void: _queue_ai_test_until(500))
+	_add_button(ai_test_container, "Target 1000", func() -> void: _queue_ai_test_until(1000))
+	_add_button(ai_test_container, "Target 1500", func() -> void: _queue_ai_test_until(1500))
 	if ai_telemetry_label != null:
 		ai_telemetry_label.visible = true
 	status_label.text = "Kon's Observation Arena: neutral observer mode. Spawn mirrored armies to test AI and performance."
@@ -231,16 +237,29 @@ func _spawn_ai_test_wave() -> void:
 		status_label.text = "AI wave rejected: %s | pending %s" % [reason.capitalize(), result.get("queued", 0)]
 	_update_ai_telemetry(999.0)
 
+func _queue_ai_test_until(target_live_units: int) -> void:
+	if wave_director == null or not wave_director.has_method("queue_ai_test_until"):
+		return
+	var result: Dictionary = wave_director.call("queue_ai_test_until", target_live_units)
+	status_label.text = "Benchmark target %s: queued %s units in %s waves | pending %s" % [
+		result.get("target", target_live_units),
+		result.get("queued_units", 0),
+		result.get("queued_waves", 0),
+		result.get("queued", 0),
+	]
+	_update_ai_telemetry(999.0)
+
 func _update_ai_telemetry(delta: float) -> void:
 	if ai_telemetry_label == null or not ai_telemetry_label.visible:
 		return
 	_telemetry_elapsed += delta
-	if _telemetry_elapsed < 0.25:
+	if _telemetry_elapsed < 0.5:
 		return
 	_telemetry_elapsed = 0.0
 	var world_stats: Dictionary = rts_world.get_observation_telemetry() if rts_world != null and rts_world.has_method("get_observation_telemetry") else {}
 	var path_stats: Dictionary = map_generator.get_path_telemetry() if map_generator != null and map_generator.has_method("get_path_telemetry") else {}
 	var spawn_stats: Dictionary = wave_director.get_ai_test_spawn_telemetry() if wave_director != null and wave_director.has_method("get_ai_test_spawn_telemetry") else {}
+	var combat_stats: Dictionary = combat_system.get_combat_telemetry() if combat_system != null and combat_system.has_method("get_combat_telemetry") else {}
 	var owners: Dictionary = world_stats.get("owner_counts", {})
 	var damage_by_owner: Dictionary = world_stats.get("damage_by_owner", {})
 	var owner_2_units := int(owners.get(2, 0))
@@ -258,9 +277,12 @@ func _update_ai_telemetry(delta: float) -> void:
 	if ai_spawn_button != null:
 		ai_spawn_button.disabled = pending_spawns >= int(spawn_stats.get("spawn_queue_limit", 640))
 		ai_spawn_button.text = "Queueing..." if pending_spawns > 0 else "Spawn AI Wave"
-	ai_telemetry_label.text = "Live units %s  |  Pending %s @ %s/frame %s/s  |  MassSim %s  |  West %s / East %s  |  Peak %s  |  Damage W:%s E:%s Total:%s  |  Projectiles active %s total %s  |  Paths %s cache %s  |  FPS %.0f frame %.1fms process %.1fms physics %.1fms nodes %s" % [
+	ai_telemetry_label.text = "Live %s M:%s A:%s  |  Pending %s @ %s/%s frame %s/s  |  MassSim %s  |  West %s / East %s  |  Peak %s  |  Damage W:%s E:%s Total:%s  |  Proj %s active %s/s total %s  |  Combat %sms avgCand %.1f  |  Paths %s/s total %s cache %s  |  FPS %.0f frame %.1fms process %.1fms physics %.1fms nodes %s" % [
 		live_units,
+		int(world_stats.get("moving_units", 0)),
+		int(world_stats.get("attacking_units", 0)),
 		pending_spawns,
+		int(spawn_stats.get("effective_spawn_budget_per_frame", 0)),
 		int(spawn_stats.get("spawn_budget_per_frame", 0)),
 		int(spawn_stats.get("spawned_per_second", 0)),
 		"ON" if mass_sim else "OFF",
@@ -271,7 +293,11 @@ func _update_ai_telemetry(delta: float) -> void:
 		owner_3_damage,
 		int(world_stats.get("damage_total", 0)),
 		int(world_stats.get("active_projectiles", 0)),
+		int(world_stats.get("projectiles_spawned_per_second", 0)),
 		int(world_stats.get("projectiles_spawned", 0)),
+		snapped(float(combat_stats.get("combat_tick_ms", 0.0)), 0.1),
+		float(combat_stats.get("combat_avg_candidates", 0.0)),
+		int(path_stats.get("path_requests_per_second", 0)),
 		int(path_stats.get("path_requests", 0)),
 		int(path_stats.get("path_cache_size", 0)),
 		fps,

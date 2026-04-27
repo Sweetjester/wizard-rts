@@ -80,6 +80,11 @@ var _path_cache_version: int = 0
 const PATH_CACHE_LIMIT := 768
 var path_requests_total := 0
 var path_cache_hits_total := 0
+var _path_requests_this_second := 0
+var _path_cache_hits_this_second := 0
+var _path_requests_per_second := 0
+var _path_cache_hits_per_second := 0
+var _path_meter_elapsed := 0.0
 
 var spawn_positions: Array = []
 var enemy_spawns:    Array = []
@@ -114,6 +119,16 @@ func _ready() -> void:
 		" | Chokepoints:", chokepoints.size(),
 		" | Plots:", plots.size())
 	map_generated.emit(get_map_summary())
+
+func _process(delta: float) -> void:
+	_path_meter_elapsed += delta
+	if _path_meter_elapsed < 1.0:
+		return
+	_path_requests_per_second = _path_requests_this_second
+	_path_cache_hits_per_second = _path_cache_hits_this_second
+	_path_requests_this_second = 0
+	_path_cache_hits_this_second = 0
+	_path_meter_elapsed = 0.0
 
 func _apply_session_settings() -> void:
 	var session := get_node_or_null("/root/GameSession")
@@ -466,6 +481,21 @@ func cell_to_world(cell: Vector2i) -> Vector2:
 		return Vector2(float(cell.x) * float(GRID_TEST_CELL_SIZE) + float(GRID_TEST_CELL_SIZE) * 0.5, float(cell.y) * float(GRID_TEST_CELL_SIZE) + float(GRID_TEST_CELL_SIZE) * 0.5)
 	return layer_low.to_global(layer_low.map_to_local(cell))
 
+func get_world_bounds() -> Rect2:
+	if _uses_square_grid_map():
+		return Rect2(Vector2.ZERO, Vector2(float(MAP_W * GRID_TEST_CELL_SIZE), float(MAP_H * GRID_TEST_CELL_SIZE)))
+	var min_point := Vector2(INF, INF)
+	var max_point := Vector2(-INF, -INF)
+	for x in MAP_W:
+		for y in MAP_H:
+			var point := cell_to_world(Vector2i(x, y))
+			min_point.x = minf(min_point.x, point.x)
+			min_point.y = minf(min_point.y, point.y)
+			max_point.x = maxf(max_point.x, point.x)
+			max_point.y = maxf(max_point.y, point.y)
+	var tile_margin := Vector2(256.0, 192.0)
+	return Rect2(min_point - tile_margin, (max_point - min_point) + tile_margin * 2.0)
+
 func nearest_walkable_cell(origin: Vector2i, max_radius: int = 8) -> Vector2i:
 	if is_walkable_cell(origin):
 		return origin
@@ -481,6 +511,7 @@ func nearest_walkable_cell(origin: Vector2i, max_radius: int = 8) -> Vector2i:
 
 func find_path_cells(start: Vector2i, target: Vector2i) -> Array[Vector2i]:
 	path_requests_total += 1
+	_path_requests_this_second += 1
 	var original_start := start
 	var original_target := target
 	var path: Array[Vector2i] = []
@@ -493,6 +524,7 @@ func find_path_cells(start: Vector2i, target: Vector2i) -> Array[Vector2i]:
 	var cache_key := "%s:%s:%s:%s:%s" % [_path_cache_version, original_start.x, original_start.y, original_target.x, original_target.y]
 	if _path_cache.has(cache_key):
 		path_cache_hits_total += 1
+		_path_cache_hits_this_second += 1
 		var cached: Array[Vector2i] = []
 		for cell in _path_cache[cache_key]:
 			cached.append(cell)
@@ -1357,6 +1389,8 @@ func get_path_telemetry() -> Dictionary:
 	return {
 		"path_requests": path_requests_total,
 		"path_cache_hits": path_cache_hits_total,
+		"path_requests_per_second": _path_requests_per_second,
+		"path_cache_hits_per_second": _path_cache_hits_per_second,
 		"path_cache_size": _path_cache.size(),
 		"path_cache_version": _path_cache_version,
 	}

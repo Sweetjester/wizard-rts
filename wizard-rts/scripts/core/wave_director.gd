@@ -23,9 +23,12 @@ signal boss_defeated()
 @export var max_active_enemies: int = 120
 @export var retarget_interval: float = 2.0
 @export var max_retargets_per_tick: int = 12
-@export var ai_test_spawn_budget_per_frame: int = 96
+@export var ai_test_spawn_budget_per_frame: int = 48
+@export var ai_test_min_spawn_budget_per_frame: int = 8
 @export var ai_test_spawn_queue_limit: int = 640
 @export var ai_test_live_unit_soft_cap: int = 1800
+@export var ai_test_spawn_pause_fps: float = 28.0
+@export var ai_test_spawn_slow_fps: float = 45.0
 
 var map_generator: Node
 var rts_world: RTSWorld
@@ -120,17 +123,19 @@ func spawn_ai_test_wave() -> Dictionary:
 	if map_generator == null:
 		return {"wave": ai_test_wave_index, "west": 0, "east": 0, "queued": _ai_test_spawn_queue.size(), "accepted": false}
 	var live_units: int = rts_world.count_units_all() if rts_world != null and rts_world.has_method("count_units_all") else _count_ai_test_units_fallback()
-	if live_units + _ai_test_spawn_queue.size() >= ai_test_live_unit_soft_cap:
+	var remaining_capacity: int = ai_test_live_unit_soft_cap - live_units - _ai_test_spawn_queue.size()
+	if remaining_capacity <= 0:
 		return {"wave": ai_test_wave_index, "west": 0, "east": 0, "queued": _ai_test_spawn_queue.size(), "accepted": false, "reason": "soft_cap"}
 	if _ai_test_spawn_queue.size() >= ai_test_spawn_queue_limit:
 		return {"wave": ai_test_wave_index, "west": 0, "east": 0, "queued": _ai_test_spawn_queue.size(), "accepted": false, "reason": "spawn_queue_full"}
 	ai_test_wave_index += 1
 	var count_per_side: int = mini(12 + ai_test_wave_index * 4, 80)
+	var max_requests: int = mini(mini(count_per_side * 2, remaining_capacity), ai_test_spawn_queue_limit - _ai_test_spawn_queue.size())
 	var parent := get_parent()
 	var west_queued := 0
 	var east_queued := 0
 	for i in count_per_side:
-		if _ai_test_spawn_queue.size() >= ai_test_spawn_queue_limit:
+		if west_queued + east_queued >= max_requests:
 			break
 		var west_cell := _ai_test_spawn_cell(Vector2i(18, 37), i, -1)
 		var east_cell := _ai_test_spawn_cell(Vector2i(78, 37), i, 1)
@@ -138,17 +143,39 @@ func spawn_ai_test_wave() -> Dictionary:
 		var east_target: Vector2 = _ai_test_lane_target(Vector2i(30, 37), i)
 		_ai_test_spawn_queue.append({"index": i, "side": 2, "cell": west_cell, "target": west_target, "parent": parent})
 		west_queued += 1
-		if _ai_test_spawn_queue.size() >= ai_test_spawn_queue_limit:
+		if west_queued + east_queued >= max_requests:
 			break
 		_ai_test_spawn_queue.append({"index": i, "side": 3, "cell": east_cell, "target": east_target, "parent": parent})
 		east_queued += 1
 	return {"wave": ai_test_wave_index, "west": west_queued, "east": east_queued, "queued": _ai_test_spawn_queue.size(), "accepted": west_queued + east_queued > 0}
+
+func queue_ai_test_until(target_live_units: int) -> Dictionary:
+	var queued_waves := 0
+	var queued_units := 0
+	var last_result := {}
+	for _i in 40:
+		var live_units: int = rts_world.count_units_all() if rts_world != null and rts_world.has_method("count_units_all") else _count_ai_test_units_fallback()
+		if live_units + _ai_test_spawn_queue.size() >= target_live_units:
+			break
+		last_result = spawn_ai_test_wave()
+		if not bool(last_result.get("accepted", false)):
+			break
+		queued_waves += 1
+		queued_units += int(last_result.get("west", 0)) + int(last_result.get("east", 0))
+	return {
+		"target": target_live_units,
+		"queued_waves": queued_waves,
+		"queued_units": queued_units,
+		"queued": _ai_test_spawn_queue.size(),
+		"last_reason": str(last_result.get("reason", "")),
+	}
 
 func get_ai_test_spawn_telemetry() -> Dictionary:
 	return {
 		"spawn_queue": _ai_test_spawn_queue.size(),
 		"spawn_queue_limit": ai_test_spawn_queue_limit,
 		"spawn_budget_per_frame": ai_test_spawn_budget_per_frame,
+		"effective_spawn_budget_per_frame": _effective_ai_test_spawn_budget(),
 		"spawned_per_second": _ai_test_last_units_spawned_per_second,
 		"live_soft_cap": ai_test_live_unit_soft_cap,
 	}
@@ -161,9 +188,15 @@ func _update_ai_test_spawn_queue(delta: float) -> void:
 		_ai_test_spawn_meter_elapsed = 0.0
 	if _ai_test_spawn_queue.is_empty():
 		return
-	var budget := maxi(1, ai_test_spawn_budget_per_frame)
+	var budget := _effective_ai_test_spawn_budget()
+	if budget <= 0:
+		return
 	var spawned := 0
 	while spawned < budget and not _ai_test_spawn_queue.is_empty():
+		var live_units: int = rts_world.count_units_all() if rts_world != null and rts_world.has_method("count_units_all") else _count_ai_test_units_fallback()
+		if live_units >= ai_test_live_unit_soft_cap:
+			_ai_test_spawn_queue.clear()
+			return
 		var request: Dictionary = _ai_test_spawn_queue.pop_front()
 		var unit := _spawn_queued_ai_test_unit(request)
 		if unit != null:
@@ -171,6 +204,28 @@ func _update_ai_test_spawn_queue(delta: float) -> void:
 			_ai_test_units_spawned_this_second += 1
 	if spawned > 0:
 		wave_spawned.emit(ai_test_wave_index, spawned)
+
+func _effective_ai_test_spawn_budget() -> int:
+	var fps := float(Performance.get_monitor(Performance.TIME_FPS))
+	var process_ms := float(Performance.get_monitor(Performance.TIME_PROCESS)) * 1000.0
+	var physics_ms := float(Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)) * 1000.0
+	var live_units: int = rts_world.count_units_all() if rts_world != null and rts_world.has_method("count_units_all") else _count_ai_test_units_fallback()
+	if fps > 1.0 and fps < ai_test_spawn_pause_fps:
+		return 0
+	if process_ms > 75.0 or physics_ms > 45.0:
+		return 0
+	var max_budget := ai_test_spawn_budget_per_frame
+	if live_units >= 1500:
+		max_budget = mini(max_budget, 12)
+	elif live_units >= 1000:
+		max_budget = mini(max_budget, 24)
+	elif live_units >= 600:
+		max_budget = mini(max_budget, 32)
+	if fps > 1.0 and fps < ai_test_spawn_slow_fps:
+		return mini(max_budget, ai_test_min_spawn_budget_per_frame)
+	if process_ms > 40.0 or physics_ms > 24.0:
+		return maxi(ai_test_min_spawn_budget_per_frame, max_budget / 3)
+	return maxi(ai_test_min_spawn_budget_per_frame, max_budget)
 
 func _spawn_queued_ai_test_unit(request: Dictionary) -> Node:
 	var index := int(request.get("index", 0))

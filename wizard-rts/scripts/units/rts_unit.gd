@@ -50,6 +50,8 @@ var _stuck_elapsed := 0.0
 var _last_repath_msec: int = -10000
 var _last_chase_repath_msec: int = -10000
 var _redraw_elapsed := 0.0
+var _mass_physics_accum := 0.0
+var _last_leash_repath_msec: int = -10000
 var mass_lane_offset := Vector2.ZERO
 var arena_leash_enabled := false
 var arena_leash_rect := Rect2()
@@ -132,16 +134,21 @@ func issue_shared_path_order(shared_path: Array[Vector2], offset: Vector2) -> vo
 	queue_redraw()
 
 func _physics_process(delta: float) -> void:
+	var mass_mode := _mass_performance_mode()
+	var sim_delta := _mass_simulation_delta(delta, mass_mode)
+	if sim_delta <= 0.0:
+		return
 	if _is_stunned():
 		velocity = Vector2.ZERO
-		move_and_slide()
+		if not mass_mode:
+			move_and_slide()
 		return
 	_update_z_index()
 	if arena_leash_enabled and not arena_leash_rect.has_point(global_position):
 		_pull_back_to_arena()
 	if path.is_empty():
 		_reset_stuck_watch()
-		velocity = Vector2.ZERO if _mass_performance_mode() else _separation_velocity()
+		velocity = Vector2.ZERO if mass_mode else _separation_velocity()
 		moving = false
 		if command_mode == &"patrol" and attack_target == null:
 			_resume_patrol_leg()
@@ -151,7 +158,7 @@ func _physics_process(delta: float) -> void:
 			unit_state = &"attack_move"
 		elif attack_target == null:
 			unit_state = &"idle"
-		if not _mass_performance_mode():
+		if not mass_mode:
 			move_and_slide()
 		return
 
@@ -165,7 +172,7 @@ func _physics_process(delta: float) -> void:
 	var dir := target_pos - global_position
 	if absf(dir.x) > 0.5:
 		_facing_sign = signf(dir.x)
-	var step := move_speed * delta
+	var step := move_speed * sim_delta
 	if dir.length() <= max(stop_distance, step):
 		global_position = target_pos
 		velocity = Vector2.ZERO
@@ -181,13 +188,12 @@ func _physics_process(delta: float) -> void:
 		queue_redraw()
 		return
 
-	var mass_mode := _mass_performance_mode()
 	velocity = dir.normalized() * move_speed + (Vector2.ZERO if mass_mode else _separation_velocity(dir.normalized()))
 	if mass_mode:
-		global_position += velocity * delta
+		global_position += velocity * sim_delta
 	else:
 		move_and_slide()
-	_update_stuck_recovery(delta)
+	_update_stuck_recovery(sim_delta)
 
 func issue_attack_target(target: Node2D) -> void:
 	if target == null or not is_instance_valid(target):
@@ -271,7 +277,8 @@ func _chase_attack_target() -> void:
 	if attack_target == null:
 		return
 	var now := Time.get_ticks_msec()
-	var repath_interval := 850 if _mass_performance_mode() else 300
+	var mass_mode := _mass_performance_mode()
+	var repath_interval := _mass_repath_interval() if mass_mode else 300
 	if moving and now - _last_chase_repath_msec < repath_interval:
 		return
 	_last_chase_repath_msec = now
@@ -280,7 +287,7 @@ func _chase_attack_target() -> void:
 		chase_target = _clamp_to_arena(chase_target)
 	_command_destination = _legal_destination(chase_target)
 	_has_command_destination = true
-	if ignores_terrain or terrain == null:
+	if ignores_terrain or terrain == null or _uses_direct_mass_arena_chase():
 		path = [_command_destination]
 	else:
 		path = terrain.find_path_world(global_position, _command_destination)
@@ -582,6 +589,8 @@ func _separation_velocity(move_dir: Vector2 = Vector2.ZERO) -> Vector2:
 	return push.limit_length(move_speed * 0.42)
 
 func _advance_path_lookahead() -> void:
+	if _skip_path_lookahead_for_mass_mode():
+		return
 	if terrain == null or path.size() < 3 or not terrain.has_method("world_to_cell") or not terrain.has_method("_has_clear_path_segment"):
 		return
 	var current_cell: Vector2i = terrain.world_to_cell(global_position)
@@ -724,12 +733,67 @@ func _mass_performance_mode() -> bool:
 		return rts_world == null or not is_instance_valid(rts_world) or rts_world.count_units_all() >= 120
 	return rts_world != null and is_instance_valid(rts_world) and rts_world.count_units_all() >= 360
 
+func _mass_simulation_delta(delta: float, mass_mode: bool) -> float:
+	if not mass_mode or selected:
+		_mass_physics_accum = 0.0
+		return delta
+	var stride := _mass_physics_stride()
+	if stride <= 1:
+		_mass_physics_accum = 0.0
+		return delta
+	_mass_physics_accum += delta
+	var frame := int(Engine.get_physics_frames())
+	if posmod(frame + int(get_instance_id()), stride) != 0:
+		return 0.0
+	var result := _mass_physics_accum
+	_mass_physics_accum = 0.0
+	return result
+
+func _mass_physics_stride() -> int:
+	if rts_world == null or not is_instance_valid(rts_world):
+		return 1
+	var count := rts_world.count_units_all()
+	if terrain != null and str(terrain.get("map_type_id")) == "ai_testing_ground":
+		if count >= 1500:
+			return 3
+		if count >= 900:
+			return 2
+		return 1
+	if count >= 1200:
+		return 2
+	return 1
+
+func _mass_repath_interval() -> int:
+	if rts_world == null or not is_instance_valid(rts_world):
+		return 850
+	var count := rts_world.count_units_all()
+	if count >= 1500:
+		return 1800
+	if count >= 900:
+		return 1300
+	return 850
+
+func _skip_path_lookahead_for_mass_mode() -> bool:
+	if not _mass_performance_mode():
+		return false
+	if terrain != null and str(terrain.get("map_type_id")) == "ai_testing_ground":
+		return true
+	return rts_world != null and is_instance_valid(rts_world) and rts_world.count_units_all() >= 900
+
+func _uses_direct_mass_arena_chase() -> bool:
+	return _mass_performance_mode() and terrain != null and str(terrain.get("map_type_id")) == "ai_testing_ground"
+
 func set_arena_leash(rect: Rect2, home: Vector2) -> void:
 	arena_leash_enabled = true
 	arena_leash_rect = rect
 	arena_home = home
 
 func _pull_back_to_arena() -> void:
+	var now := Time.get_ticks_msec()
+	if now - _last_leash_repath_msec < _mass_repath_interval():
+		global_position = _clamp_to_arena(global_position)
+		return
+	_last_leash_repath_msec = now
 	var return_target := _clamp_to_arena(global_position)
 	if return_target.distance_squared_to(global_position) < 4.0:
 		return_target = arena_home
