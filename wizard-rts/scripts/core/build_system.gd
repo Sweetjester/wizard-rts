@@ -20,6 +20,7 @@ signal upgrade_researched(player_id: int, upgrade_id: StringName)
 @export var economy_manager_path: NodePath = NodePath("../EconomyManager")
 @export var map_generator_path: NodePath = NodePath("../MapGenerator")
 @export var simulation_runner_path: NodePath = NodePath("../SimulationRunner")
+@export var rts_world_path: NodePath = NodePath("../RTSWorld")
 @export var terrible_thing_scene: PackedScene = preload("res://scenes/units/terrible_thing.tscn")
 @export var horror_scene: PackedScene = preload("res://scenes/units/horror.tscn")
 @export var apex_scene: PackedScene = preload("res://scenes/units/apex.tscn")
@@ -27,6 +28,7 @@ signal upgrade_researched(player_id: int, upgrade_id: StringName)
 var economy_manager: EconomyManager
 var map_generator: Node
 var simulation_runner: SimulationRunner
+var rts_world: RTSWorld
 var structures: Array[Dictionary] = []
 var pending_archetype: StringName = &""
 var _dragging_wall := false
@@ -39,6 +41,7 @@ func _ready() -> void:
 	economy_manager = get_node_or_null(economy_manager_path)
 	map_generator = get_node_or_null(map_generator_path)
 	simulation_runner = get_node_or_null(simulation_runner_path)
+	rts_world = get_node_or_null(rts_world_path)
 	z_index = 120
 
 func _process(delta: float) -> void:
@@ -354,7 +357,7 @@ func _create_structure_node(structure: Dictionary) -> KonStructure:
 	var footprint: Vector2i = structure.get("footprint", Vector2i.ONE)
 	node.configure(structure["archetype"], cell, footprint)
 	node.set_runtime_stats(int(structure["player_id"]), int(structure.get("hp", 1)), int(structure.get("max_hp", 1)), int(structure.get("level", 1)))
-	node.global_position = map_generator.cell_to_world(cell)
+	node.global_position = _footprint_center_world(cell, footprint)
 	node.z_index = int(node.global_position.y) + 160
 	node.set_construction_state(float(structure.get("build_progress", 0.0)), float(structure.get("build_time", 0.0)), bool(structure.get("complete", true)))
 	get_parent().add_child(node)
@@ -425,6 +428,8 @@ func _update_bio_launchers(delta: float) -> void:
 		return
 	var step := _launcher_elapsed
 	_launcher_elapsed = 0.0
+	if rts_world != null:
+		rts_world.rebuild_spatial()
 	for i in structures.size():
 		var structure: Dictionary = structures[i]
 		if structure["archetype"] != &"bio_launcher" or not bool(structure.get("complete", false)):
@@ -455,7 +460,8 @@ func _find_launcher_target(structure: Dictionary) -> Node2D:
 	var range := float(UnitCatalog.get_definition(&"bio_launcher").get("attack_range_cells", 9)) * 64.0
 	var best: Node2D = null
 	var best_distance := INF
-	for unit in get_tree().get_nodes_in_group("units"):
+	var candidates: Array[Node2D] = rts_world.query_enemy_units(node.global_position, range, int(structure["player_id"])) if rts_world != null else _fallback_unit_nodes()
+	for unit in candidates:
 		if not is_instance_valid(unit) or not (unit is Node2D):
 			continue
 		if int(unit.get("owner_player_id")) == int(structure["player_id"]):
@@ -480,7 +486,13 @@ func _fire_bio_launcher(structure: Dictionary, target: Node2D) -> void:
 		radius += 34.0
 	var raw_source = structure.get("node", null)
 	var source_node: Node = raw_source if raw_source != null and is_instance_valid(raw_source) and raw_source is Node else null
-	for unit in get_tree().get_nodes_in_group("units"):
+	if rts_world != null and source_node is Node2D:
+		var weapon := WeaponCatalog.get_weapon(&"bio_launcher")
+		var projectile := rts_world.spawn_projectile(source_node as Node2D, target, damage, weapon.get("color", Color("#8B1A1F")), float(weapon.get("speed", 420.0)), (source_node as Node2D).global_position + Vector2(0, -40))
+		projectile.set_aoe_radius(radius)
+		return
+	var candidates: Array[Node2D] = _fallback_unit_nodes()
+	for unit in candidates:
 		if not is_instance_valid(unit) or not (unit is Node2D) or not unit.has_method("take_damage"):
 			continue
 		if int(unit.get("owner_player_id")) == int(structure["player_id"]):
@@ -492,6 +504,13 @@ func _fire_bio_launcher(structure: Dictionary, target: Node2D) -> void:
 		if distance <= radius:
 			unit.take_damage(maxi(1, int(float(damage) * (1.0 - distance / (radius * 1.6)))), source_node)
 	_draw_launcher_burst(target.global_position, radius)
+
+func _fallback_unit_nodes() -> Array[Node2D]:
+	var units: Array[Node2D] = []
+	for unit in get_tree().get_nodes_in_group("units"):
+		if unit is Node2D:
+			units.append(unit)
+	return units
 
 func _draw_launcher_burst(pos: Vector2, radius: float) -> void:
 	var fx := Node2D.new()
@@ -685,21 +704,14 @@ func _draw() -> void:
 		var cell: Vector2i = map_generator.world_to_cell(get_global_mouse_position())
 		var valid := _can_place(pending_archetype, cell)
 		var cells := get_placement_cells(pending_archetype, cell)
-		for preview_cell in get_placement_cells(pending_archetype, cell):
-			_draw_cell_preview(preview_cell, valid, _is_placement_cell_free(preview_cell))
+		_draw_footprint_pad(cells, valid, true)
 		_draw_structure_preview(pending_archetype, cells, valid)
 
 func _draw_cell_preview(cell: Vector2i, placement_valid: bool, cell_valid: bool) -> void:
-	var pos: Vector2 = map_generator.cell_to_world(cell)
 	var valid := placement_valid and cell_valid
 	var fill := Color("#7BC47F", 0.22) if valid else Color("#C13030", 0.36)
 	var line := Color("#7BC47F", 0.96) if valid else Color("#E85A5A", 0.98)
-	var points := PackedVector2Array([
-		pos + Vector2(0, -32),
-		pos + Vector2(64, 0),
-		pos + Vector2(0, 32),
-		pos + Vector2(-64, 0),
-	])
+	var points := _cell_polygon(cell)
 	var outline := PackedVector2Array(points)
 	outline.append(points[0])
 	draw_colored_polygon(points, fill)
@@ -708,17 +720,92 @@ func _draw_cell_preview(cell: Vector2i, placement_valid: bool, cell_valid: bool)
 func _draw_structure_preview(archetype: StringName, cells: Array[Vector2i], valid: bool) -> void:
 	if cells.is_empty() or not STRUCTURE_PREVIEW_TEXTURES.has(archetype):
 		return
-	var center := Vector2.ZERO
-	for cell in cells:
-		center += map_generator.cell_to_world(cell)
-	center /= float(cells.size())
 	var texture: Texture2D = STRUCTURE_PREVIEW_TEXTURES[archetype]
 	var footprint := _footprint_extents(cells)
-	var target_width := maxf(72.0, float(footprint.x) * 82.0)
+	var center := _footprint_center_world(cells[0], footprint)
+	var tile_size := _grid_cell_size()
+	var target_width := maxf(58.0, float(footprint.x + footprint.y) * tile_size.x * 0.31)
 	var scale := target_width / maxf(1.0, float(texture.get_width()))
 	var size := Vector2(texture.get_width(), texture.get_height()) * scale
 	var tint := Color(1, 1, 1, 0.62) if valid else Color("#E85A5A", 0.52)
-	draw_texture_rect(texture, Rect2(center - Vector2(size.x * 0.5, size.y - 18.0), size), false, tint)
+	var base_bottom := _footprint_bottom_y(cells)
+	draw_texture_rect(texture, Rect2(Vector2(center.x - size.x * 0.5, base_bottom - size.y + 6.0), size), false, tint)
+
+func _draw_footprint_outline(cells: Array[Vector2i], valid: bool) -> void:
+	if cells.is_empty():
+		return
+	var color := Color("#7BC47F", 1.0) if valid else Color("#E85A5A", 1.0)
+	for cell in cells:
+		var points := _cell_polygon(cell)
+		var outline := PackedVector2Array(points)
+		outline.append(points[0])
+		draw_polyline(outline, color, 3.0)
+
+func _draw_footprint_pad(cells: Array[Vector2i], valid: bool, show_cell_lines: bool) -> void:
+	if cells.is_empty():
+		return
+	var fill := Color("#7BC47F", 0.22) if valid else Color("#C13030", 0.34)
+	var edge := Color("#7BC47F", 0.95) if valid else Color("#E85A5A", 0.95)
+	for cell in cells:
+		draw_colored_polygon(_cell_polygon(cell), fill)
+	if show_cell_lines:
+		for cell in cells:
+			var points := _cell_polygon(cell)
+			var outline := PackedVector2Array(points)
+			outline.append(points[0])
+			draw_polyline(outline, edge, 2.6)
+
+func _footprint_bottom_y(cells: Array[Vector2i]) -> float:
+	var bottom := -INF
+	for cell in cells:
+		for point in _cell_polygon(cell):
+			bottom = maxf(bottom, point.y)
+	return bottom
+
+func _footprint_boundary_segments(cells: Array[Vector2i]) -> Array[Array]:
+	var occupied := {}
+	for cell in cells:
+		occupied[cell] = true
+	var segments: Array[Array] = []
+	for cell in cells:
+		var points := _cell_polygon(cell)
+		if not occupied.has(cell + Vector2i(0, -1)):
+			segments.append([points[0], points[1]])
+		if not occupied.has(cell + Vector2i(1, 0)):
+			segments.append([points[1], points[2]])
+		if not occupied.has(cell + Vector2i(0, 1)):
+			segments.append([points[2], points[3]])
+		if not occupied.has(cell + Vector2i(-1, 0)):
+			segments.append([points[3], points[0]])
+	return segments
+
+func _footprint_center_world(origin: Vector2i, footprint: Vector2i) -> Vector2:
+	var sum := Vector2.ZERO
+	var count := 0
+	for cell in _footprint_cells(origin, footprint):
+		sum += map_generator.cell_to_world(cell)
+		count += 1
+	if count <= 0:
+		return map_generator.cell_to_world(origin)
+	return sum / float(count)
+
+func _cell_polygon(cell: Vector2i) -> PackedVector2Array:
+	var center: Vector2 = map_generator.cell_to_world(cell)
+	var size := _grid_cell_size()
+	var half_width := size.x * 0.5
+	var half_height := size.y * 0.5
+	return PackedVector2Array([
+		center + Vector2(0, -half_height),
+		center + Vector2(half_width, 0),
+		center + Vector2(0, half_height),
+		center + Vector2(-half_width, 0),
+	])
+
+func _grid_cell_size() -> Vector2:
+	var layer = map_generator.get("layer_low")
+	if layer != null and is_instance_valid(layer) and layer.get("tile_set") != null:
+		return Vector2(layer.get("tile_set").tile_size)
+	return Vector2(111, 55)
 
 func _footprint_extents(cells: Array[Vector2i]) -> Vector2i:
 	if cells.is_empty():

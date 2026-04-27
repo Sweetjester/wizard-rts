@@ -2,30 +2,34 @@ class_name FogOfWar
 extends Node2D
 
 @export var map_path: NodePath = NodePath("../MapGenerator")
+@export var rts_world_path: NodePath = NodePath("../RTSWorld")
 @export var reveal_radius_cells: int = 8
 @export var hard_fog_alpha: float = 0.94
 @export var explored_fog_alpha: float = 0.62
 @export var edge_fog_alpha: float = 0.72
-@export var update_interval: float = 0.8
+@export var update_interval: float = 0.45
 @export var draw_stride: int = 4
 @export var reveal_enemy_vision: bool = false
-@export var max_revealers_per_update: int = 10
+@export var max_revealers_per_update: int = 96
 
 const FOG_COLOR := Color("#050807")
 
 var map: Node
+var rts_world: RTSWorld
 var explored: Array = []
 var visible_cells: Array = []
 var _elapsed := 0.0
+var _revealer_cursor := 0
 
 func _ready() -> void:
 	z_index = 4096
 	z_as_relative = false
+	rts_world = get_node_or_null(rts_world_path)
 	var display_manager := get_node_or_null("/root/DisplayManager")
 	if display_manager != null and bool(display_manager.get("performance_mode")):
-		update_interval = 1.0
+		update_interval = 0.65
 		draw_stride = 5
-		max_revealers_per_update = 8
+		max_revealers_per_update = 64
 	call_deferred("_rebuild")
 
 func _process(delta: float) -> void:
@@ -58,8 +62,14 @@ func _update_visibility() -> void:
 			visible_cells[x][y] = false
 
 	var revealed_origins: Dictionary = {}
+	var revealers := _vision_revealers()
 	var revealer_count := 0
-	for unit in get_tree().get_nodes_in_group("units"):
+	if not revealers.is_empty():
+		_revealer_cursor = posmod(_revealer_cursor, revealers.size())
+	for offset in revealers.size():
+		if revealer_count >= max_revealers_per_update:
+			break
+		var unit: Node2D = revealers[posmod(_revealer_cursor + offset, revealers.size())]
 		if not is_instance_valid(unit) or not (unit is Node2D):
 			continue
 		if not reveal_enemy_vision and _property_or(unit, "owner_player_id", 1) != 1:
@@ -71,10 +81,18 @@ func _update_visibility() -> void:
 		var radius := _sight_radius_for(unit)
 		_reveal_line_of_sight(center, radius)
 		revealer_count += 1
-		if revealer_count >= max_revealers_per_update:
-			break
+	_revealer_cursor += revealer_count
 	_apply_entity_visibility()
 	queue_redraw()
+
+func _vision_revealers() -> Array[Node2D]:
+	if rts_world != null:
+		return rts_world.all_units() if reveal_enemy_vision else rts_world.units_for_owner(1)
+	var revealers: Array[Node2D] = []
+	for unit in get_tree().get_nodes_in_group("units"):
+		if unit is Node2D:
+			revealers.append(unit)
+	return revealers
 
 func _reveal_line_of_sight(center: Vector2i, radius: int) -> void:
 	if not map.is_in_bounds(center):
@@ -111,7 +129,8 @@ func _has_line_of_sight(from_cell: Vector2i, to_cell: Vector2i, viewer_height: i
 	return true
 
 func _apply_entity_visibility() -> void:
-	for node in get_tree().get_nodes_in_group("units"):
+	var entities := rts_world.all_units() if rts_world != null else _vision_revealers()
+	for node in entities:
 		if not is_instance_valid(node) or not (node is Node2D):
 			continue
 		if _property_or(node, "owner_player_id", 1) == 1:

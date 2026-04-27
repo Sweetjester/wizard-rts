@@ -32,8 +32,20 @@ var rally_enabled := false
 var attack_flash_msec: int = -10000
 var selected := false
 var art_sprite: Sprite2D
+var rts_world: RTSWorld
+
+func _ready() -> void:
+	rts_world = get_node_or_null("../RTSWorld")
+	if rts_world != null:
+		rts_world.register_structure(self)
+
+func _exit_tree() -> void:
+	if rts_world != null and is_instance_valid(rts_world):
+		rts_world.unregister_structure(self)
 
 func configure(new_archetype: StringName, new_cell: Vector2i, new_footprint: Vector2i) -> void:
+	collision_layer = 0
+	collision_mask = 0
 	archetype = new_archetype
 	cell = new_cell
 	footprint = new_footprint
@@ -117,9 +129,10 @@ func _build_collision() -> void:
 	for child in get_children():
 		child.queue_free()
 	var shape := RectangleShape2D.new()
-	shape.size = Vector2(72.0 * float(footprint.x), 48.0 * float(footprint.y))
+	shape.size = Vector2(58.0 * float(footprint.x), 34.0 * float(footprint.y))
 	var collision := CollisionShape2D.new()
-	collision.position = Vector2(0, -16)
+	collision.position = Vector2.ZERO
+	collision.disabled = true
 	collision.shape = shape
 	add_child(collision)
 
@@ -131,15 +144,14 @@ func _build_art_sprite() -> void:
 	art_sprite = Sprite2D.new()
 	art_sprite.texture = STRUCTURE_TEXTURES[archetype]
 	art_sprite.centered = true
-	art_sprite.offset = _art_offset()
 	art_sprite.scale = _art_scale()
+	art_sprite.position = _art_position(art_sprite.texture, art_sprite.scale)
 	add_child(art_sprite)
 
 func _draw() -> void:
 	var color := _main_color()
 	var draw_color := color if complete else color.darkened(0.38)
-	var shadow_size := Vector2(66.0 * float(footprint.x), 22.0 * float(footprint.y))
-	_draw_flat_ellipse(Vector2(0, 20), shadow_size, Color(0, 0, 0, 0.36))
+	_draw_footprint_base()
 	if art_sprite == null:
 		match archetype:
 			&"wizard_tower":
@@ -170,9 +182,12 @@ func _draw() -> void:
 func _draw_selection() -> void:
 	if not selected:
 		return
-	var size := Vector2(78.0 * float(footprint.x), 42.0 * float(footprint.y))
-	_draw_flat_ellipse(Vector2(0, 13), size, Color("#7DDDE8", 0.16))
-	draw_arc(Vector2(0, 13), size.x * 0.5, 0, TAU, 48, Color("#7DDDE8", 0.9), 2.0)
+	for cell in _footprint_local_cells():
+		var points := _cell_polygon_local(cell)
+		var outline := PackedVector2Array(points)
+		outline.append(points[0])
+		draw_colored_polygon(points, Color("#7DDDE8", 0.12))
+		draw_polyline(outline, Color("#7DDDE8", 0.9), 2.5)
 
 func _draw_health_bar() -> void:
 	var ratio := 1.0
@@ -224,6 +239,66 @@ func _draw_flat_ellipse(center: Vector2, size: Vector2, color: Color) -> void:
 		var angle := float(i) * TAU / 24.0
 		points.append(center + Vector2(cos(angle) * size.x * 0.5, sin(angle) * size.y * 0.5))
 	draw_colored_polygon(points, color)
+
+func _draw_footprint_base() -> void:
+	for local_cell in _footprint_local_cells():
+		var points := _cell_polygon_local(local_cell)
+		var outline := PackedVector2Array(points)
+		outline.append(points[0])
+		draw_colored_polygon(points, Color("#332820", 0.55))
+		draw_polyline(outline, Color("#D6C7AE", 0.42), 1.6)
+
+func _footprint_local_cells() -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	for x in footprint.x:
+		for y in footprint.y:
+			cells.append(Vector2i(x, y))
+	return cells
+
+func _footprint_boundary_segments(cells: Array[Vector2i]) -> Array[Array]:
+	var occupied := {}
+	for local_cell in cells:
+		occupied[local_cell] = true
+	var segments: Array[Array] = []
+	for local_cell in cells:
+		var points := _cell_polygon_local(local_cell)
+		if not occupied.has(local_cell + Vector2i(0, -1)):
+			segments.append([points[0], points[1]])
+		if not occupied.has(local_cell + Vector2i(1, 0)):
+			segments.append([points[1], points[2]])
+		if not occupied.has(local_cell + Vector2i(0, 1)):
+			segments.append([points[2], points[3]])
+		if not occupied.has(local_cell + Vector2i(-1, 0)):
+			segments.append([points[3], points[0]])
+	return segments
+
+func _cell_polygon_local(local_cell: Vector2i) -> PackedVector2Array:
+	var center := _local_cell_center(local_cell)
+	var size := _grid_cell_size()
+	var half_width := size.x * 0.5
+	var half_height := size.y * 0.5
+	return PackedVector2Array([
+		center + Vector2(0, -half_height),
+		center + Vector2(half_width, 0),
+		center + Vector2(0, half_height),
+		center + Vector2(-half_width, 0),
+	])
+
+func _local_cell_center(local_cell: Vector2i) -> Vector2:
+	var size := _grid_cell_size()
+	var average := Vector2(float(footprint.x - 1), float(footprint.y - 1)) * 0.5
+	var delta := Vector2(float(local_cell.x), float(local_cell.y)) - average
+	return Vector2((delta.x - delta.y) * size.x * 0.5, (delta.x + delta.y) * size.y * 0.5)
+
+func _grid_cell_size() -> Vector2:
+	return Vector2(111, 55)
+
+func _footprint_bottom_y() -> float:
+	var bottom := -INF
+	for local_cell in _footprint_local_cells():
+		for point in _cell_polygon_local(local_cell):
+			bottom = maxf(bottom, point.y)
+	return bottom
 
 func _draw_tower(color: Color) -> void:
 	draw_rect(Rect2(Vector2(-24, -82), Vector2(48, 82)), color.darkened(0.25))
@@ -287,20 +362,16 @@ func _main_color() -> Color:
 			return Color("#C13030")
 	return Color("#D6C7AE")
 
-func _art_offset() -> Vector2:
-	match archetype:
-		&"wizard_tower":
-			return Vector2(0, -50)
-		&"vinewall":
-			return Vector2(0, -24)
-		&"bio_launcher":
-			return Vector2(0, -34)
-	return Vector2(0, -36)
+func _art_position(texture: Texture2D, scale: Vector2) -> Vector2:
+	var scaled_height := float(texture.get_height()) * scale.y
+	return Vector2(0, _footprint_bottom_y() - scaled_height * 0.5 + 6.0)
 
 func _art_scale() -> Vector2:
-	match archetype:
-		&"vinewall":
-			return Vector2(0.85, 0.85)
-		&"wizard_tower":
-			return Vector2(0.72, 0.72)
-	return Vector2(0.76, 0.76)
+	if not STRUCTURE_TEXTURES.has(archetype):
+		return Vector2.ONE
+	var texture: Texture2D = STRUCTURE_TEXTURES[archetype]
+	var target_width := maxf(54.0, float(footprint.x + footprint.y) * _grid_cell_size().x * 0.24)
+	var scale := target_width / maxf(1.0, float(texture.get_width()))
+	if archetype == &"vinewall":
+		scale *= 0.82
+	return Vector2(scale, scale)

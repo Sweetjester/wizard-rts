@@ -26,6 +26,7 @@ var target_pos := Vector2.ZERO
 var moving := false
 var path: Array[Vector2] = []
 var terrain: Node
+var rts_world: RTSWorld
 var simulation_entity_id: int = 0
 var health: int = 80
 var unit_state: StringName = &"idle"
@@ -42,18 +43,30 @@ var _last_z_cell_y := 999999
 var _visual_elapsed := 0.0
 var _facing_sign := 1.0
 var _last_melee_attack_msec: int = -10000
+var _command_destination := Vector2.ZERO
+var _has_command_destination := false
+var _last_progress_position := Vector2.ZERO
+var _stuck_elapsed := 0.0
+var _last_repath_msec: int = -10000
 
 func _ready() -> void:
+	collision_layer = 2
+	collision_mask = 2
 	target_pos = global_position
 	_apply_catalog_definition()
 	health = max_health
 	terrain = get_node_or_null(terrain_path)
+	rts_world = get_node_or_null("../RTSWorld")
 	add_to_group("selectable_units")
 	add_to_group("units")
+	if rts_world != null:
+		rts_world.register_unit(self)
 	_register_unit(self)
 	call_deferred("_snap_to_walkable_terrain")
 
 func _exit_tree() -> void:
+	if rts_world != null and is_instance_valid(rts_world):
+		rts_world.unregister_unit(self)
 	_unregister_unit(self)
 
 func _process(delta: float) -> void:
@@ -72,13 +85,7 @@ func issue_move_order(world_pos: Vector2) -> void:
 	attack_target = null
 	command_mode = &"move"
 	unit_state = &"moving"
-	if ignores_terrain or terrain == null:
-		path = [world_pos]
-	else:
-		path = terrain.find_path_world(global_position, world_pos)
-	moving = not path.is_empty()
-	if moving:
-		target_pos = path[0]
+	_set_path_to_world(world_pos, true)
 	queue_redraw()
 
 func issue_move_order_offset(world_pos: Vector2, offset: Vector2) -> void:
@@ -89,11 +96,18 @@ func issue_shared_path_order(shared_path: Array[Vector2], offset: Vector2) -> vo
 	command_mode = &"move"
 	unit_state = &"moving"
 	path.clear()
-	for point in shared_path:
-		path.append(point + offset)
+	if shared_path.is_empty():
+		moving = false
+		_has_command_destination = false
+		return
+	var final_target := _legal_destination(shared_path[shared_path.size() - 1] + offset)
+	_command_destination = final_target
+	_has_command_destination = true
+	path = _joined_shared_path(shared_path, final_target)
 	moving = not path.is_empty()
 	if moving:
 		target_pos = path[0]
+		_reset_stuck_watch()
 	queue_redraw()
 
 func _physics_process(delta: float) -> void:
@@ -103,6 +117,7 @@ func _physics_process(delta: float) -> void:
 		return
 	_update_z_index()
 	if path.is_empty():
+		_reset_stuck_watch()
 		velocity = _separation_velocity()
 		moving = false
 		if command_mode == &"patrol" and attack_target == null:
@@ -116,6 +131,12 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 
+	target_pos = path[0]
+	_advance_path_lookahead()
+	if path.is_empty():
+		_reset_stuck_watch()
+		moving = false
+		return
 	target_pos = path[0]
 	var dir := target_pos - global_position
 	if absf(dir.x) > 0.5:
@@ -136,14 +157,16 @@ func _physics_process(delta: float) -> void:
 		queue_redraw()
 		return
 
-	velocity = dir.normalized() * move_speed + _separation_velocity()
+	velocity = dir.normalized() * move_speed + _separation_velocity(dir.normalized())
 	move_and_slide()
+	_update_stuck_recovery(delta)
 
 func issue_attack_target(target: Node2D) -> void:
 	if target == null or not is_instance_valid(target):
 		return
 	attack_target = target
 	command_mode = &"attack_target"
+	_has_command_destination = false
 	path.clear()
 	moving = false
 	unit_state = &"attacking"
@@ -159,12 +182,13 @@ func issue_patrol_order(world_pos: Vector2) -> void:
 	patrol_a = global_position
 	patrol_b = world_pos
 	_patrol_heading_to_b = true
-	_set_path_to_world(patrol_b)
+	_set_path_to_world(patrol_b, true)
 	unit_state = &"patrol"
 
 func issue_hold_position_order() -> void:
 	attack_target = null
 	command_mode = &"hold"
+	_has_command_destination = false
 	path.clear()
 	moving = false
 	velocity = Vector2.ZERO
@@ -174,6 +198,7 @@ func issue_hold_position_order() -> void:
 func issue_stop_order() -> void:
 	attack_target = null
 	command_mode = &"idle"
+	_has_command_destination = false
 	path.clear()
 	moving = false
 	velocity = Vector2.ZERO
@@ -204,7 +229,8 @@ func rts_combat_tick(delta: float, nearby_units: Array[Node2D]) -> void:
 		return
 	_attack_elapsed = 0.0
 	if attack_target.has_method("take_damage"):
-		var casts := 2 if bool(UnitCatalog.get_definition(unit_archetype).get("dual_cast", false)) else 1
+		var weapon := WeaponCatalog.get_weapon(unit_archetype)
+		var casts := int(weapon.get("casts", 2 if bool(UnitCatalog.get_definition(unit_archetype).get("dual_cast", false)) else 1))
 		for _i in casts:
 			if is_instance_valid(attack_target):
 				_fire_attack(attack_target)
@@ -216,27 +242,149 @@ func rts_combat_tick(delta: float, nearby_units: Array[Node2D]) -> void:
 func _chase_attack_target() -> void:
 	if attack_target == null:
 		return
+	_command_destination = _legal_destination(attack_target.global_position)
+	_has_command_destination = true
 	if ignores_terrain or terrain == null:
-		path = [attack_target.global_position]
+		path = [_command_destination]
 	else:
-		path = terrain.find_path_world(global_position, attack_target.global_position)
+		path = terrain.find_path_world(global_position, _command_destination)
 	moving = not path.is_empty()
 	if moving:
 		target_pos = path[0]
+		_reset_stuck_watch()
 	unit_state = &"attacking"
 
-func _set_path_to_world(world_pos: Vector2) -> void:
+func _set_path_to_world(world_pos: Vector2, track_destination: bool = false) -> void:
+	var legal_target := _legal_destination(world_pos)
+	if track_destination:
+		_command_destination = legal_target
+		_has_command_destination = true
 	if ignores_terrain or terrain == null:
-		path = [world_pos]
+		path = [legal_target]
 	else:
-		path = terrain.find_path_world(global_position, world_pos)
+		path = terrain.find_path_world(global_position, legal_target)
 	moving = not path.is_empty()
 	if moving:
 		target_pos = path[0]
+		_reset_stuck_watch()
+
+func _legal_destination(world_pos: Vector2) -> Vector2:
+	if ignores_terrain or terrain == null or not terrain.has_method("world_to_cell") or not terrain.has_method("is_walkable_cell"):
+		return world_pos
+	var target_cell: Vector2i = terrain.world_to_cell(world_pos)
+	if terrain.is_walkable_cell(target_cell):
+		return terrain.cell_to_world(target_cell)
+	if terrain.has_method("nearest_walkable_cell"):
+		var legal_cell: Vector2i = terrain.nearest_walkable_cell(target_cell, 12)
+		if terrain.is_walkable_cell(legal_cell):
+			return terrain.cell_to_world(legal_cell)
+	return world_pos
+
+func _joined_shared_path(shared_path: Array[Vector2], final_target: Vector2) -> Array[Vector2]:
+	if shared_path.is_empty():
+		return []
+	if ignores_terrain or terrain == null or not terrain.has_method("find_path_world"):
+		return _dedupe_path([final_target])
+	var join_limit: int = mini(shared_path.size(), 8)
+	for join_index in join_limit:
+		var join_path: Array[Vector2] = []
+		for point in terrain.find_path_world(global_position, shared_path[join_index]):
+			join_path.append(point)
+		if join_path.is_empty():
+			continue
+		for i in range(join_index + 1, shared_path.size()):
+			join_path.append(shared_path[i])
+		if not join_path.is_empty():
+			join_path[join_path.size() - 1] = final_target
+		return _dedupe_path(join_path)
+	return _world_path_to(final_target)
+
+func _world_path_to(world_pos: Vector2) -> Array[Vector2]:
+	var target := _legal_destination(world_pos)
+	if ignores_terrain or terrain == null or not terrain.has_method("find_path_world"):
+		return [target]
+	var world_path: Array[Vector2] = []
+	for point in terrain.find_path_world(global_position, target):
+		world_path.append(point)
+	return _dedupe_path(world_path)
+
+func _dedupe_path(points: Array[Vector2]) -> Array[Vector2]:
+	var clean: Array[Vector2] = []
+	for point in points:
+		if clean.is_empty() or clean[clean.size() - 1].distance_squared_to(point) > 9.0:
+			clean.append(point)
+	return clean
+
+func _reset_stuck_watch() -> void:
+	_last_progress_position = global_position
+	_stuck_elapsed = 0.0
+
+func _update_stuck_recovery(delta: float) -> void:
+	if ignores_terrain or terrain == null or path.is_empty():
+		_reset_stuck_watch()
+		return
+	if global_position.distance_squared_to(_last_progress_position) > 36.0:
+		_reset_stuck_watch()
+		return
+	if global_position.distance_squared_to(target_pos) <= 144.0:
+		_reset_stuck_watch()
+		return
+	_stuck_elapsed += delta
+	if _stuck_elapsed < 0.65:
+		return
+	var now := Time.get_ticks_msec()
+	if now - _last_repath_msec < 650:
+		return
+	_last_repath_msec = now
+	_recover_from_stuck()
+
+func _recover_from_stuck() -> void:
+	_reset_stuck_watch()
+	_nudge_to_walkable_cell()
+	if _has_command_destination:
+		path = _world_path_to(_command_destination)
+	elif not path.is_empty():
+		path = _world_path_to(path[path.size() - 1])
+	if path.is_empty():
+		path = _escape_path_to_neighbor()
+	moving = not path.is_empty()
+	if moving:
+		target_pos = path[0]
+	else:
+		velocity = Vector2.ZERO
+
+func _nudge_to_walkable_cell() -> void:
+	if terrain == null or not terrain.has_method("world_to_cell") or not terrain.has_method("is_walkable_cell") or not terrain.has_method("nearest_walkable_cell"):
+		return
+	var cell: Vector2i = terrain.world_to_cell(global_position)
+	if terrain.is_walkable_cell(cell):
+		return
+	var legal_cell: Vector2i = terrain.nearest_walkable_cell(cell, 4)
+	if terrain.is_walkable_cell(legal_cell):
+		global_position = terrain.cell_to_world(legal_cell)
+
+func _escape_path_to_neighbor() -> Array[Vector2]:
+	var escape: Array[Vector2] = []
+	if terrain == null or not terrain.has_method("world_to_cell") or not terrain.has_method("is_walkable_cell"):
+		return escape
+	var origin: Vector2i = terrain.world_to_cell(global_position)
+	for radius in range(1, 4):
+		for x in range(origin.x - radius, origin.x + radius + 1):
+			for y in range(origin.y - radius, origin.y + radius + 1):
+				if abs(x - origin.x) != radius and abs(y - origin.y) != radius:
+					continue
+				var cell := Vector2i(x, y)
+				if not terrain.is_walkable_cell(cell):
+					continue
+				if terrain.has_method("_has_clear_path_segment") and not terrain.call("_has_clear_path_segment", origin, cell):
+					continue
+				escape.append(terrain.cell_to_world(cell))
+				return escape
+	return escape
 
 func _resume_patrol_leg() -> void:
 	_patrol_heading_to_b = not _patrol_heading_to_b
-	_set_path_to_world(patrol_b if _patrol_heading_to_b else patrol_a)
+	_set_path_to_world(patrol_b if _patrol_heading_to_b else patrol_a, true)
 	unit_state = &"patrol"
 
 func _fire_attack(target: Node2D) -> void:
@@ -248,13 +396,19 @@ func _fire_attack(target: Node2D) -> void:
 		target.take_damage(attack_damage, self)
 
 func _uses_projectile() -> bool:
-	return attack_range > 100.0
+	return WeaponCatalog.uses_projectile(unit_archetype)
 
 func _spawn_projectile(target: Node2D) -> void:
+	var origin := global_position + Vector2(0, -12)
+	if rts_world != null and is_instance_valid(rts_world):
+		var weapon := WeaponCatalog.get_weapon(unit_archetype)
+		var projectile := rts_world.spawn_projectile(self, target, int(weapon.get("damage", attack_damage)), weapon.get("color", _projectile_color()), float(weapon.get("speed", projectile_speed)), origin)
+		projectile.set_aoe_radius(float(weapon.get("aoe_radius", 0.0)))
+		return
 	var projectile := RtsProjectile.new()
 	projectile.configure(self, target, attack_damage, _projectile_color(), projectile_speed)
 	get_parent().add_child(projectile)
-	projectile.global_position = global_position + Vector2(0, -12)
+	projectile.global_position = origin
 
 func _projectile_color() -> Color:
 	match unit_archetype:
@@ -335,15 +489,30 @@ func _is_enemy_unit(other: Node) -> bool:
 
 func _find_nearest_enemy(units: Array[Node2D]) -> Node2D:
 	var best: Node2D = null
-	var best_distance := INF
+	var best_score := INF
 	for unit in units:
 		if not is_instance_valid(unit) or not _is_enemy_unit(unit):
 			continue
 		var distance := global_position.distance_squared_to(unit.global_position)
-		if distance < best_distance:
+		var score := distance / maxf(0.1, _target_priority(unit))
+		if score < best_score:
 			best = unit
-			best_distance = distance
+			best_score = score
 	return best
+
+func _target_priority(unit: Node) -> float:
+	if owner_player_id != 2:
+		return 1.0
+	if unit.has_method("get_selection_kind") and unit.get_selection_kind() == &"structure":
+		var archetype := str(unit.get("archetype"))
+		if archetype == "wizard_tower":
+			return 8.0
+		if archetype == "bio_launcher":
+			return 5.5
+		if archetype == "bio_absorber":
+			return 4.0
+		return 3.0
+	return 1.25
 
 func _apply_catalog_definition() -> void:
 	var definition := UnitCatalog.get_definition(unit_archetype)
@@ -356,7 +525,7 @@ func _apply_catalog_definition() -> void:
 	projectile_speed = float(definition.get("projectile_speed", projectile_speed))
 	ignores_terrain = bool(definition.get("ignores_terrain", false))
 
-func _separation_velocity() -> Vector2:
+func _separation_velocity(move_dir: Vector2 = Vector2.ZERO) -> Vector2:
 	var push := Vector2.ZERO
 	for unit in _nearby_units():
 		if unit == self or not (unit is Node2D):
@@ -365,8 +534,25 @@ func _separation_velocity() -> Vector2:
 		var distance: float = delta.length()
 		if distance <= 0.01 or distance >= collision_separation:
 			continue
-		push += delta.normalized() * (collision_separation - distance) * 8.0
-	return push
+		var weight := 8.0
+		if move_dir != Vector2.ZERO and delta.normalized().dot(move_dir) < -0.35:
+			weight = 3.0
+		push += delta.normalized() * (collision_separation - distance) * weight
+	return push.limit_length(move_speed * 0.42)
+
+func _advance_path_lookahead() -> void:
+	if terrain == null or path.size() < 3 or not terrain.has_method("world_to_cell") or not terrain.has_method("_has_clear_path_segment"):
+		return
+	var current_cell: Vector2i = terrain.world_to_cell(global_position)
+	var best_index := 0
+	var limit: int = mini(path.size() - 1, 4)
+	for i in range(limit, 0, -1):
+		var cell: Vector2i = terrain.world_to_cell(path[i])
+		if terrain.call("_has_clear_path_segment", current_cell, cell):
+			best_index = i
+			break
+	for i in best_index:
+		path.pop_front()
 
 func _update_z_index() -> void:
 	var cell_y := int(global_position.y / 8.0)

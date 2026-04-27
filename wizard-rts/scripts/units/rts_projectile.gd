@@ -11,8 +11,11 @@ var projectile_color := Color("#7DDDE8")
 var speed: float = 620.0
 var projectile_texture: Texture2D
 var source_archetype: String = ""
+var aoe_radius: float = 0.0
+var owner_player_id: int = -1
 var _life: float = 1.4
 var _hit := false
+var _world: RTSWorld = null
 
 func configure(new_source: Node2D, new_target: Node2D, new_damage: int, color: Color, new_speed: float) -> void:
 	source = new_source
@@ -22,13 +25,22 @@ func configure(new_source: Node2D, new_target: Node2D, new_damage: int, color: C
 	speed = new_speed
 	source_archetype = _archetype_for_source(new_source)
 	projectile_texture = _texture_for_source(new_source)
+	owner_player_id = int(new_source.get("owner_player_id")) if new_source != null and is_instance_valid(new_source) and _has_property(new_source, "owner_player_id") else -1
+	aoe_radius = 0.0
 	z_as_relative = false
 	z_index = 3600
+	_life = 1.4
+	_hit = false
+	queue_redraw()
+
+func activate(world: RTSWorld) -> void:
+	_world = world
+	set_process(true)
 
 func _process(delta: float) -> void:
 	_life -= delta
 	if _life <= 0.0 or target == null or not is_instance_valid(target):
-		queue_free()
+		_recycle()
 		return
 	var aim := target.global_position + Vector2(0, -12)
 	var to_target := aim - global_position
@@ -45,12 +57,36 @@ func _hit_target() -> void:
 	if _hit:
 		return
 	_hit = true
-	if target != null and is_instance_valid(target) and target.has_method("take_damage"):
+	if aoe_radius > 0.0 and _world != null and is_instance_valid(_world):
+		_hit_area()
+	elif target != null and is_instance_valid(target) and target.has_method("take_damage"):
 		var damage_source: Node = null
 		if source != null and is_instance_valid(source):
 			damage_source = source
 		target.take_damage(damage, damage_source)
-	queue_free()
+	_recycle()
+
+func set_aoe_radius(radius: float) -> void:
+	aoe_radius = radius
+
+func _hit_area() -> void:
+	var damage_source: Node = null
+	if source != null and is_instance_valid(source):
+		damage_source = source
+	for unit in _world.query_enemy_units(global_position, aoe_radius, owner_player_id):
+		if not is_instance_valid(unit) or not unit.has_method("take_damage"):
+			continue
+		var distance := unit.global_position.distance_to(global_position)
+		var falloff := clampf(1.0 - distance / maxf(1.0, aoe_radius * 1.35), 0.25, 1.0)
+		unit.take_damage(maxi(1, int(float(damage) * falloff)), damage_source)
+
+func _recycle() -> void:
+	source = null
+	target = null
+	if _world != null and is_instance_valid(_world):
+		_world.recycle_projectile(self)
+	else:
+		queue_free()
 
 func _draw() -> void:
 	if projectile_texture != null:
@@ -74,4 +110,14 @@ func _texture_for_source(new_source: Node2D) -> Texture2D:
 func _archetype_for_source(new_source: Node2D) -> String:
 	if new_source == null or not is_instance_valid(new_source):
 		return ""
-	return str(new_source.get("unit_archetype"))
+	if _has_property(new_source, "unit_archetype"):
+		return str(new_source.get("unit_archetype"))
+	if _has_property(new_source, "archetype"):
+		return str(new_source.get("archetype"))
+	return ""
+
+func _has_property(node: Node, property_name: String) -> bool:
+	for property in node.get_property_list():
+		if str(property.get("name", "")) == property_name:
+			return true
+	return false

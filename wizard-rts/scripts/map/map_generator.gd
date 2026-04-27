@@ -72,6 +72,9 @@ var ramps: Array[Rect2i] = []
 var landmarks: Array[Dictionary] = []
 var road_cells: Dictionary = {}
 var dynamic_blocked_cells: Dictionary = {}
+var _path_cache: Dictionary = {}
+var _path_cache_version: int = 0
+const PATH_CACHE_LIMIT := 768
 
 var spawn_positions: Array = []
 var enemy_spawns:    Array = []
@@ -374,17 +377,25 @@ func is_walkable_cell(cell: Vector2i) -> bool:
 	return grid[cell.x][cell.y] != E_WATER and grid[cell.x][cell.y] != E_BLOCKED
 
 func add_dynamic_blockers(cells: Array[Vector2i]) -> void:
+	var changed := false
 	for cell in cells:
 		if is_in_bounds(cell):
 			dynamic_blocked_cells[cell] = true
 			if _pathfinder.is_in_boundsv(cell):
 				_pathfinder.set_point_solid(cell, true)
+			changed = true
+	if changed:
+		_invalidate_path_cache()
 
 func remove_dynamic_blockers(cells: Array[Vector2i]) -> void:
+	var changed := false
 	for cell in cells:
 		dynamic_blocked_cells.erase(cell)
 		if is_in_bounds(cell) and _pathfinder.is_in_boundsv(cell):
 			_pathfinder.set_point_solid(cell, not is_walkable_cell(cell))
+			changed = true
+	if changed:
+		_invalidate_path_cache()
 
 func world_to_cell(world_position: Vector2) -> Vector2i:
 	return layer_low.local_to_map(layer_low.to_local(world_position))
@@ -406,6 +417,8 @@ func nearest_walkable_cell(origin: Vector2i, max_radius: int = 8) -> Vector2i:
 	return Vector2i(-1, -1)
 
 func find_path_cells(start: Vector2i, target: Vector2i) -> Array[Vector2i]:
+	var original_start := start
+	var original_target := target
 	var path: Array[Vector2i] = []
 	if not is_walkable_cell(start):
 		start = nearest_walkable_cell(start)
@@ -413,11 +426,19 @@ func find_path_cells(start: Vector2i, target: Vector2i) -> Array[Vector2i]:
 		target = nearest_walkable_cell(target)
 	if not is_walkable_cell(start) or not is_walkable_cell(target):
 		return path
+	var cache_key := "%s:%s:%s:%s:%s" % [_path_cache_version, original_start.x, original_start.y, original_target.x, original_target.y]
+	if _path_cache.has(cache_key):
+		var cached: Array[Vector2i] = []
+		for cell in _path_cache[cache_key]:
+			cached.append(cell)
+		return cached
 	for point in _pathfinder.get_id_path(start, target):
 		path.append(point)
 	if not path.is_empty() and path[0] == start:
 		path.pop_front()
-	return _smooth_path_cells(start, path)
+	var smoothed := _smooth_path_cells(start, path)
+	_remember_path(cache_key, smoothed)
+	return smoothed.duplicate()
 
 func find_path_world(start_world: Vector2, target_world: Vector2) -> Array[Vector2]:
 	var world_path: Array[Vector2] = []
@@ -498,6 +519,16 @@ func _build_pathfinder() -> void:
 			_pathfinder.set_point_solid(cell, not is_walkable_cell(cell) or _is_unramped_height_edge(cell))
 			if is_walkable_cell(cell):
 				_pathfinder.set_point_weight_scale(cell, get_movement_cost(cell))
+	_invalidate_path_cache()
+
+func _remember_path(cache_key: String, path: Array[Vector2i]) -> void:
+	if _path_cache.size() >= PATH_CACHE_LIMIT:
+		_path_cache.clear()
+	_path_cache[cache_key] = path.duplicate()
+
+func _invalidate_path_cache() -> void:
+	_path_cache_version += 1
+	_path_cache.clear()
 
 func _is_unramped_height_edge(cell: Vector2i) -> bool:
 	if not is_walkable_cell(cell) or grid[cell.x][cell.y] == E_RAMP:

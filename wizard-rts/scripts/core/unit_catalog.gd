@@ -171,7 +171,7 @@ const DEFINITIONS := {
 		"build_time_seconds": 0.0,
 		"auto_evolves": true,
 		"evolution_seconds": 90.0,
-		"footprint": Vector2i(4, 4),
+		"footprint": Vector2i(3, 3),
 	},
 	&"bio_absorber": {
 		"display_name": "Bio Absorber",
@@ -201,7 +201,7 @@ const DEFINITIONS := {
 		"build_time_seconds": 7.0,
 		"auto_evolves": true,
 		"evolution_seconds": 120.0,
-		"footprint": Vector2i(3, 3),
+		"footprint": Vector2i(2, 2),
 	},
 	&"vinewall": {
 		"display_name": "Vinewall",

@@ -1,4 +1,4 @@
-[gd_scene load_steps=27 format=4 uid="uid://cadog5s2ne74q"]
+[gd_scene load_steps=29 format=4 uid="uid://cadog5s2ne74q"]
 
 [ext_resource type="Script" uid="uid://c55e5b81k5mcw" path="res://scripts/map/map_manager.gd" id="1_yq3ld"]
 [ext_resource type="Script" uid="uid://co8oyntpicxw5" path="res://scripts/camera/camera_controller.gd" id="2_v4mqy"]
@@ -23,6 +23,8 @@
 [ext_resource type="Script" path="res://scripts/ui/rts_hud.gd" id="24_hud"]
 [ext_resource type="Script" path="res://scripts/map/terrain_relief_layer.gd" id="25_relief"]
 [ext_resource type="Script" path="res://scripts/map/day_night_cycle.gd" id="26_daynight"]
+[ext_resource type="Script" path="res://scripts/core/rts_world.gd" id="27_world"]
+[ext_resource type="Script" path="res://scripts/map/grid_overlay.gd" id="28_grid"]
 
 [node name="Node2D" type="Node2D" unique_id=2018844996]
 script = ExtResource("1_yq3ld")
@@ -37,6 +39,9 @@ script = ExtResource("8_iuo1j")
 [node name="MultiplayerSession" type="Node" parent="." unique_id=1679202663]
 script = ExtResource("9_pmc20")
 simulation_runner_path = NodePath("../SimulationRunner")
+
+[node name="RTSWorld" type="Node" parent="."]
+script = ExtResource("27_world")
 
 [node name="CommandDispatcher" type="Node" parent="."]
 script = ExtResource("19_cmd")
@@ -96,6 +101,9 @@ script = ExtResource("15_fog")
 
 [node name="SelectionController" type="Node2D" parent="." unique_id=391249446]
 script = ExtResource("11_select")
+
+[node name="GridOverlay" type="Node2D" parent="."]
+script = ExtResource("28_grid")
 
 [node name="PlotRenderer" type="Node2D" parent="." unique_id=1814913037]
 script = ExtResource("14_plot")

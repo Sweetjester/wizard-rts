@@ -7,6 +7,7 @@ signal boss_spawned()
 signal boss_defeated()
 
 @export var map_generator_path: NodePath = NodePath("../MapGenerator")
+@export var rts_world_path: NodePath = NodePath("../RTSWorld")
 @export var enemy_scene: PackedScene = preload("res://scenes/units/vampire_mushroom_thrall.tscn")
 @export var enabled: bool = true
 @export var scouting_seconds: float = 45.0
@@ -21,6 +22,7 @@ signal boss_defeated()
 @export var max_retargets_per_tick: int = 12
 
 var map_generator: Node
+var rts_world: RTSWorld
 var phase: StringName = &"scouting"
 var elapsed := 0.0
 var next_wave_at := 75.0
@@ -32,6 +34,7 @@ var _retarget_elapsed := 0.0
 
 func _ready() -> void:
 	map_generator = get_node_or_null(map_generator_path)
+	rts_world = get_node_or_null(rts_world_path)
 	next_wave_at = first_wave_seconds
 
 func _process(delta: float) -> void:
@@ -67,10 +70,7 @@ func _update_phase() -> void:
 func _spawn_wave() -> void:
 	if map_generator == null or enemy_scene == null:
 		return
-	var active := 0
-	for unit in get_tree().get_nodes_in_group("units"):
-		if is_instance_valid(unit) and int(unit.get("owner_player_id")) == 2:
-			active += 1
+	var active := rts_world.count_units_for_owner(2) if rts_world != null else _count_enemy_units_fallback()
 	if active >= max_active_enemies:
 		return
 	wave_index += 1
@@ -142,7 +142,8 @@ func _retarget_enemy_army() -> void:
 	if target == Vector2.ZERO:
 		return
 	var retargeted := 0
-	for unit in get_tree().get_nodes_in_group("units"):
+	var enemies: Array[Node2D] = rts_world.units_for_owner(2) if rts_world != null else _enemy_units_fallback()
+	for unit in enemies:
 		if not is_instance_valid(unit) or int(unit.get("owner_player_id")) != 2:
 			continue
 		if unit.has_method("issue_attack_move_order") and _should_retarget(unit):
@@ -165,7 +166,8 @@ func _player_target_world() -> Vector2:
 	var any_structure := _nearest_player_structure(&"")
 	if any_structure != null:
 		return _reachable_world_near(any_structure.global_position)
-	for unit in get_tree().get_nodes_in_group("units"):
+	var player_units: Array[Node2D] = rts_world.units_for_owner(1) if rts_world != null else _player_units_fallback()
+	for unit in player_units:
 		if is_instance_valid(unit) and int(unit.get("owner_player_id")) == 1:
 			return _reachable_world_near(unit.global_position)
 	return Vector2.ZERO
@@ -222,7 +224,8 @@ func _player_target_candidates() -> Array[Node]:
 	for structure in get_tree().get_nodes_in_group("structures"):
 		if is_instance_valid(structure) and int(structure.get("owner_player_id")) == 1:
 			candidates.append(structure)
-	for unit in get_tree().get_nodes_in_group("units"):
+	var player_units: Array[Node2D] = rts_world.units_for_owner(1) if rts_world != null else _player_units_fallback()
+	for unit in player_units:
 		if is_instance_valid(unit) and int(unit.get("owner_player_id")) == 1:
 			candidates.append(unit)
 	return candidates
@@ -246,3 +249,24 @@ func _nearest_player_structure(archetype: StringName) -> Node2D:
 			best = structure
 			best_distance = distance
 	return best
+
+func _count_enemy_units_fallback() -> int:
+	var active := 0
+	for unit in get_tree().get_nodes_in_group("units"):
+		if is_instance_valid(unit) and int(unit.get("owner_player_id")) == 2:
+			active += 1
+	return active
+
+func _enemy_units_fallback() -> Array[Node2D]:
+	var enemies: Array[Node2D] = []
+	for unit in get_tree().get_nodes_in_group("units"):
+		if is_instance_valid(unit) and unit is Node2D and int(unit.get("owner_player_id")) == 2:
+			enemies.append(unit)
+	return enemies
+
+func _player_units_fallback() -> Array[Node2D]:
+	var players: Array[Node2D] = []
+	for unit in get_tree().get_nodes_in_group("units"):
+		if is_instance_valid(unit) and unit is Node2D and int(unit.get("owner_player_id")) == 1:
+			players.append(unit)
+	return players

@@ -5,7 +5,7 @@ signal selection_changed(selected: Array[Node])
 
 @export var drag_threshold: float = 8.0
 @export var formation_spacing: float = 34.0
-@export var shared_path_threshold: int = 16
+@export var shared_path_threshold: int = 4
 @export var command_dispatcher_path: NodePath = NodePath("../CommandDispatcher")
 @export var build_system_path: NodePath = NodePath("../BuildSystem")
 
