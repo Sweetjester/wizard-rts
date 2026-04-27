@@ -9,6 +9,7 @@ const STRUCTURE_TEXTURES := {
 	&"vinewall": preload("res://assets/buildings/kon/vinewall_segment.png"),
 	&"bio_launcher": preload("res://assets/buildings/kon/bio_launcher_rooted.png"),
 }
+const USE_PLACEHOLDER_FOOTPRINT_ART := true
 
 var archetype: StringName = &"bio_absorber"
 var owner_player_id: int = 1
@@ -38,6 +39,8 @@ func _ready() -> void:
 	rts_world = get_node_or_null("../RTSWorld")
 	if rts_world != null:
 		rts_world.register_structure(self)
+	if art_sprite != null and is_instance_valid(art_sprite):
+		art_sprite.position = _art_position(art_sprite.texture, art_sprite.scale)
 
 func _exit_tree() -> void:
 	if rts_world != null and is_instance_valid(rts_world):
@@ -137,6 +140,8 @@ func _build_collision() -> void:
 	add_child(collision)
 
 func _build_art_sprite() -> void:
+	if USE_PLACEHOLDER_FOOTPRINT_ART:
+		return
 	if art_sprite != null and is_instance_valid(art_sprite):
 		art_sprite.queue_free()
 	if not STRUCTURE_TEXTURES.has(archetype):
@@ -153,21 +158,24 @@ func _draw() -> void:
 	var draw_color := color if complete else color.darkened(0.38)
 	_draw_footprint_base()
 	if art_sprite == null:
-		match archetype:
-			&"wizard_tower":
-				_draw_tower(draw_color)
-			&"bio_absorber":
-				_draw_absorber(draw_color)
-			&"barracks":
-				_draw_barracks(draw_color)
-			&"terrible_vault":
-				_draw_vault(draw_color)
-			&"vinewall":
-				_draw_vinewall(draw_color)
-			&"bio_launcher":
-				_draw_launcher(draw_color)
-			_:
-				_draw_barracks(draw_color)
+		if USE_PLACEHOLDER_FOOTPRINT_ART:
+			_draw_placeholder_structure(draw_color)
+		else:
+			match archetype:
+				&"wizard_tower":
+					_draw_tower(draw_color)
+				&"bio_absorber":
+					_draw_absorber(draw_color)
+				&"barracks":
+					_draw_barracks(draw_color)
+				&"terrible_vault":
+					_draw_vault(draw_color)
+				&"vinewall":
+					_draw_vinewall(draw_color)
+				&"bio_launcher":
+					_draw_launcher(draw_color)
+				_:
+					_draw_barracks(draw_color)
 	if not complete:
 		_draw_construction_overlay(color)
 	elif not str(training_archetype).is_empty():
@@ -248,6 +256,38 @@ func _draw_footprint_base() -> void:
 		draw_colored_polygon(points, Color("#332820", 0.55))
 		draw_polyline(outline, Color("#D6C7AE", 0.42), 1.6)
 
+func _draw_placeholder_structure(color: Color) -> void:
+	var top_offset := Vector2(0, -22.0 - float(footprint.x + footprint.y) * 2.0)
+	for local_cell in _footprint_local_cells():
+		var base := _cell_polygon_local(local_cell)
+		var top := PackedVector2Array()
+		for point in base:
+			top.append(point + top_offset)
+		draw_colored_polygon(base, color.darkened(0.45))
+		draw_colored_polygon(top, color)
+		for i in base.size():
+			var next := (i + 1) % base.size()
+			draw_line(base[i], top[i], color.darkened(0.35), 2.0)
+			draw_line(top[i], top[next], color.lightened(0.15), 2.0)
+	var label := _placeholder_label()
+	draw_string(ThemeDB.fallback_font, Vector2(-24, top_offset.y - 8), label, HORIZONTAL_ALIGNMENT_CENTER, 48.0, 13, Color("#F0E7D0"))
+
+func _placeholder_label() -> String:
+	match archetype:
+		&"wizard_tower":
+			return "HQ"
+		&"bio_absorber":
+			return "BIO"
+		&"barracks":
+			return "BAR"
+		&"terrible_vault":
+			return "VLT"
+		&"vinewall":
+			return "W"
+		&"bio_launcher":
+			return "BL"
+	return "B"
+
 func _footprint_local_cells() -> Array[Vector2i]:
 	var cells: Array[Vector2i] = []
 	for x in footprint.x:
@@ -275,22 +315,24 @@ func _footprint_boundary_segments(cells: Array[Vector2i]) -> Array[Array]:
 func _cell_polygon_local(local_cell: Vector2i) -> PackedVector2Array:
 	var center := _local_cell_center(local_cell)
 	var size := _grid_cell_size()
-	var half_width := size.x * 0.5
-	var half_height := size.y * 0.5
+	var half := size * 0.5
 	return PackedVector2Array([
-		center + Vector2(0, -half_height),
-		center + Vector2(half_width, 0),
-		center + Vector2(0, half_height),
-		center + Vector2(-half_width, 0),
+		center + Vector2(-half.x, -half.y),
+		center + Vector2(half.x, -half.y),
+		center + Vector2(half.x, half.y),
+		center + Vector2(-half.x, half.y),
 	])
 
 func _local_cell_center(local_cell: Vector2i) -> Vector2:
 	var size := _grid_cell_size()
 	var average := Vector2(float(footprint.x - 1), float(footprint.y - 1)) * 0.5
 	var delta := Vector2(float(local_cell.x), float(local_cell.y)) - average
-	return Vector2((delta.x - delta.y) * size.x * 0.5, (delta.x + delta.y) * size.y * 0.5)
+	return Vector2(delta.x * size.x, delta.y * size.y)
 
 func _grid_cell_size() -> Vector2:
+	var map := get_node_or_null("../MapGenerator")
+	if map != null and str(map.get("map_type_id")) == "grid_test_canvas":
+		return Vector2(64, 64)
 	return Vector2(111, 55)
 
 func _footprint_bottom_y() -> float:

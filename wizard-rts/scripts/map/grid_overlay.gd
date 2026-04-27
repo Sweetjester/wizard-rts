@@ -31,6 +31,9 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	if map == null or not _map_ready():
 		return
+	if _uses_square_test_grid():
+		_draw_square_test_grid()
+		return
 	var width: int = int(map.get("MAP_W"))
 	var height: int = int(map.get("MAP_H"))
 	for x in range(0, width + 1):
@@ -39,6 +42,21 @@ func _draw() -> void:
 	for y in range(0, height + 1):
 		var color := grid_color.lightened(0.25) if y % major_line_every == 0 else grid_color
 		draw_line(map.cell_to_world(Vector2i(0, y)), map.cell_to_world(Vector2i(width, y)), color, line_width)
+
+func _draw_square_test_grid() -> void:
+	var width: int = int(map.get("MAP_W"))
+	var height: int = int(map.get("MAP_H"))
+	var size := _grid_cell_size()
+	var total := Vector2(float(width) * size.x, float(height) * size.y)
+	draw_rect(Rect2(Vector2.ZERO, total), Color("#12331F", 0.38), true)
+	for x in range(0, width + 1):
+		var color := grid_color.lightened(0.25) if x % major_line_every == 0 else grid_color
+		var px := float(x) * size.x
+		draw_line(Vector2(px, 0), Vector2(px, total.y), color, line_width)
+	for y in range(0, height + 1):
+		var color := grid_color.lightened(0.25) if y % major_line_every == 0 else grid_color
+		var py := float(y) * size.y
+		draw_line(Vector2(0, py), Vector2(total.x, py), color, line_width)
 
 func _map_ready() -> bool:
 	if not map.has_method("cell_to_world"):
@@ -68,7 +86,12 @@ func _cell_outline(cell: Vector2i) -> PackedVector2Array:
 	])
 
 func _grid_cell_size() -> Vector2:
+	if _uses_square_test_grid():
+		return Vector2(64, 64)
 	var layer = map.get("layer_low")
 	if layer != null and is_instance_valid(layer) and layer.get("tile_set") != null:
 		return Vector2(layer.get("tile_set").tile_size)
 	return Vector2(111, 55)
+
+func _uses_square_test_grid() -> bool:
+	return map != null and str(map.get("map_type_id")) == "grid_test_canvas"

@@ -57,6 +57,15 @@ func _rebuild() -> void:
 	if map == null or map.grid.is_empty():
 		call_deferred("_rebuild")
 		return
+	if str(map.get("map_type_id")) != "vampire_mushroom_forest":
+		mushrooms.clear()
+		canopies.clear()
+		giant_mushrooms.clear()
+		blood_blooms.clear()
+		wisps.clear()
+		height_shadows.clear()
+		queue_redraw()
+		return
 	_effective_seed = int(map.get_seed_value()) if style_seed == 0 and map.has_method("get_seed_value") else style_seed
 	_apply_tile_palette()
 	_build_features()

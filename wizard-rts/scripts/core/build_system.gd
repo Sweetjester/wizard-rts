@@ -9,6 +9,7 @@ const STRUCTURE_PREVIEW_TEXTURES := {
 	&"vinewall": preload("res://assets/buildings/kon/vinewall_segment.png"),
 	&"bio_launcher": preload("res://assets/buildings/kon/bio_launcher_rooted.png"),
 }
+const USE_PLACEHOLDER_BUILDING_PREVIEWS := true
 
 signal structure_placed(player_id: int, archetype: StringName, cell: Vector2i)
 signal structure_completed(player_id: int, archetype: StringName, cell: Vector2i)
@@ -718,7 +719,12 @@ func _draw_cell_preview(cell: Vector2i, placement_valid: bool, cell_valid: bool)
 	draw_polyline(outline, line, 2.0)
 
 func _draw_structure_preview(archetype: StringName, cells: Array[Vector2i], valid: bool) -> void:
-	if cells.is_empty() or not STRUCTURE_PREVIEW_TEXTURES.has(archetype):
+	if cells.is_empty():
+		return
+	if USE_PLACEHOLDER_BUILDING_PREVIEWS:
+		_draw_placeholder_structure_preview(archetype, cells, valid)
+		return
+	if not STRUCTURE_PREVIEW_TEXTURES.has(archetype):
 		return
 	var texture: Texture2D = STRUCTURE_PREVIEW_TEXTURES[archetype]
 	var footprint := _footprint_extents(cells)
@@ -730,6 +736,23 @@ func _draw_structure_preview(archetype: StringName, cells: Array[Vector2i], vali
 	var tint := Color(1, 1, 1, 0.62) if valid else Color("#E85A5A", 0.52)
 	var base_bottom := _footprint_bottom_y(cells)
 	draw_texture_rect(texture, Rect2(Vector2(center.x - size.x * 0.5, base_bottom - size.y + 6.0), size), false, tint)
+
+func _draw_placeholder_structure_preview(archetype: StringName, cells: Array[Vector2i], valid: bool) -> void:
+	var color := _structure_color(archetype)
+	if not valid:
+		color = Color("#C13030")
+	var top_offset := Vector2(0, -24.0)
+	for cell in cells:
+		var base := _cell_polygon(cell)
+		var top := PackedVector2Array()
+		for point in base:
+			top.append(point + top_offset)
+		draw_colored_polygon(base, Color(color.darkened(0.45), 0.58))
+		draw_colored_polygon(top, Color(color, 0.72))
+		for i in base.size():
+			var next := (i + 1) % base.size()
+			draw_line(base[i], top[i], Color(color.darkened(0.35), 0.72), 1.5)
+			draw_line(top[i], top[next], Color(color.lightened(0.15), 0.86), 2.0)
 
 func _draw_footprint_outline(cells: Array[Vector2i], valid: bool) -> void:
 	if cells.is_empty():
@@ -792,6 +815,14 @@ func _footprint_center_world(origin: Vector2i, footprint: Vector2i) -> Vector2:
 func _cell_polygon(cell: Vector2i) -> PackedVector2Array:
 	var center: Vector2 = map_generator.cell_to_world(cell)
 	var size := _grid_cell_size()
+	if _uses_square_test_grid():
+		var half := size * 0.5
+		return PackedVector2Array([
+			center + Vector2(-half.x, -half.y),
+			center + Vector2(half.x, -half.y),
+			center + Vector2(half.x, half.y),
+			center + Vector2(-half.x, half.y),
+		])
 	var half_width := size.x * 0.5
 	var half_height := size.y * 0.5
 	return PackedVector2Array([
@@ -802,10 +833,15 @@ func _cell_polygon(cell: Vector2i) -> PackedVector2Array:
 	])
 
 func _grid_cell_size() -> Vector2:
+	if _uses_square_test_grid():
+		return Vector2(64, 64)
 	var layer = map_generator.get("layer_low")
 	if layer != null and is_instance_valid(layer) and layer.get("tile_set") != null:
 		return Vector2(layer.get("tile_set").tile_size)
 	return Vector2(111, 55)
+
+func _uses_square_test_grid() -> bool:
+	return map_generator != null and str(map_generator.get("map_type_id")) == "grid_test_canvas"
 
 func _footprint_extents(cells: Array[Vector2i]) -> Vector2i:
 	if cells.is_empty():

@@ -34,6 +34,8 @@ const LK_RX =  7
 const LK_RY =  5
 
 const MAP_TYPE_VAMPIRE_MUSHROOM_FOREST := "vampire_mushroom_forest"
+const MAP_TYPE_GRID_TEST_CANVAS := "grid_test_canvas"
+const GRID_TEST_CELL_SIZE := 64
 
 # ── STATE ──────────────────────────────────────────────────────────────────────
 var layer_low:  TileMapLayer
@@ -122,9 +124,20 @@ func get_map_type_name() -> String:
 	match map_type_id:
 		MAP_TYPE_VAMPIRE_MUSHROOM_FOREST:
 			return "Vampiric Mushroom Forest"
+		MAP_TYPE_GRID_TEST_CANVAS:
+			return "Grid Test Canvas"
 	return map_type_id
 
 func get_map_type_data() -> Dictionary:
+	if map_type_id == MAP_TYPE_GRID_TEST_CANVAS:
+		return {
+			"id": MAP_TYPE_GRID_TEST_CANVAS,
+			"name": "Grid Test Canvas",
+			"art_style": "Flat green debug canvas with a visible isometric grid.",
+			"story_theme": "A systems proving ground for RTS footprints, pathing, blockers, and economy plots.",
+			"terrain_design": "Single-height flat terrain with no decorative clutter, made to test building placement and unit movement.",
+			"plot_rule": "Simple rectangular base plots with economy spaces are stamped directly onto the grid.",
+		}
 	return {
 		"id": MAP_TYPE_VAMPIRE_MUSHROOM_FOREST,
 		"name": "Vampiric Mushroom Forest",
@@ -152,11 +165,26 @@ func _hash_seed_text(text: String) -> int:
 	return hash
 
 func _configure_map_type() -> void:
+	if map_type_id == MAP_TYPE_GRID_TEST_CANVAS:
+		return
 	if map_type_id != MAP_TYPE_VAMPIRE_MUSHROOM_FOREST:
 		push_warning("[MapGenerator] Unknown map type '%s', using Vampiric Mushroom Forest rules" % map_type_id)
 		map_type_id = MAP_TYPE_VAMPIRE_MUSHROOM_FOREST
 
 func _configure_seeded_layout() -> void:
+	if map_type_id == MAP_TYPE_GRID_TEST_CANVAS:
+		ramps.clear()
+		lakes.clear()
+		landmarks.clear()
+		hg_x1 = 0
+		hg_x2 = 0
+		hg_y1 = 0
+		hg_y2 = 0
+		mg_x1 = 0
+		mg_x2 = 0
+		mg_y1 = 0
+		mg_y2 = 0
+		return
 	var high_shift := _rng.range_int(-10, 10)
 	var mid_shift := _rng.range_int(-8, 8)
 
@@ -228,8 +256,12 @@ func _build_grid() -> void:
 		feature_grid.append([])
 		for y in MAP_H:
 			var cell := Vector2i(x, y)
-			grid[x].append(_generate_cell_elevation(cell))
-			feature_grid[x].append("")
+			if map_type_id == MAP_TYPE_GRID_TEST_CANVAS:
+				grid[x].append(E_LOW)
+				feature_grid[x].append("test_canvas")
+			else:
+				grid[x].append(_generate_cell_elevation(cell))
+				feature_grid[x].append("")
 
 func _generate_cell_elevation(cell: Vector2i) -> int:
 	if cell.x <= 1 or cell.x >= MAP_W - 2 or cell.y <= 1 or cell.y >= MAP_H - 2:
@@ -398,9 +430,13 @@ func remove_dynamic_blockers(cells: Array[Vector2i]) -> void:
 		_invalidate_path_cache()
 
 func world_to_cell(world_position: Vector2) -> Vector2i:
+	if map_type_id == MAP_TYPE_GRID_TEST_CANVAS:
+		return Vector2i(floori(world_position.x / float(GRID_TEST_CELL_SIZE)), floori(world_position.y / float(GRID_TEST_CELL_SIZE)))
 	return layer_low.local_to_map(layer_low.to_local(world_position))
 
 func cell_to_world(cell: Vector2i) -> Vector2:
+	if map_type_id == MAP_TYPE_GRID_TEST_CANVAS:
+		return Vector2(float(cell.x) * float(GRID_TEST_CELL_SIZE) + float(GRID_TEST_CELL_SIZE) * 0.5, float(cell.y) * float(GRID_TEST_CELL_SIZE) + float(GRID_TEST_CELL_SIZE) * 0.5)
 	return layer_low.to_global(layer_low.map_to_local(cell))
 
 func nearest_walkable_cell(origin: Vector2i, max_radius: int = 8) -> Vector2i:
@@ -606,6 +642,9 @@ func _hash_cell(cell: Vector2i, salt: int) -> int:
 func _build_plots() -> void:
 	plots.clear()
 	base_plots.clear()
+	if map_type_id == MAP_TYPE_GRID_TEST_CANVAS:
+		_build_grid_test_plots()
+		return
 	var reserved_rects: Array[Rect2i] = []
 
 	var base_1_rect := _find_plot_rect(Vector2i(10, 8), [E_HIGH, E_MID], reserved_rects, 360, Vector2(0.18, 0.20))
@@ -712,6 +751,28 @@ func _build_plots() -> void:
 		"difficulty": 1.0,
 		"defensibility": 0.78,
 		"story": "A high-ground objective wrapped in vampire roots and huge bloodcap mushrooms.",
+	})
+
+func _build_grid_test_plots() -> void:
+	var base_1_rect := Rect2i(10, 10, 12, 10)
+	var base_2_rect := Rect2i(38, 28, 16, 12)
+	var base_3_rect := Rect2i(66, 58, 18, 12)
+	for plot in [
+		_make_base_plot("base_plot_1", "Base plot 1", base_1_rect, _make_economy_spaces(base_1_rect, 1), 0.2, 0.9, "One-economy test base."),
+		_make_base_plot("base_plot_2", "Base plot 2", base_2_rect, _make_economy_spaces(base_2_rect, 2), 0.55, 0.55, "Two-economy test base."),
+		_make_base_plot("base_plot_3", "Base plot 3", base_3_rect, _make_economy_spaces(base_3_rect, 3), 0.9, 0.2, "Three-economy test base."),
+	]:
+		_register_plot(plot)
+	_register_plot({
+		"id": "test_enemy_outpost",
+		"name": "Test enemy outpost",
+		"kind": "enemy_outpost",
+		"rect": Rect2i(64, 18, 10, 10),
+		"anchor": Vector2i(69, 23),
+		"economy_spaces": [],
+		"difficulty": 0.5,
+		"defensibility": 0.5,
+		"story": "Flat-grid outpost for blocker and pathing tests.",
 	})
 
 func _make_economy_spaces(rect: Rect2i, count: int) -> Array[Vector2i]:
@@ -955,6 +1016,15 @@ func _paint() -> void:
 	layer_low.clear()
 	layer_mid.clear()
 	layer_high.clear()
+	if map_type_id == MAP_TYPE_GRID_TEST_CANVAS:
+		layer_low.modulate = Color("#2D6A3F")
+		layer_mid.modulate = Color.WHITE
+		layer_high.modulate = Color.WHITE
+		var ground_id := pick("low_ground")
+		for x in MAP_W:
+			for y in MAP_H:
+				layer_low.set_cell(Vector2i(x, y), ground_id, Vector2i(0,0))
+		return
 
 	for x in MAP_W:
 		for y in MAP_H:
@@ -1102,6 +1172,30 @@ func _register_zones() -> void:
 	enemy_spawns.clear()
 	chokepoints.clear()
 	economy_zones.clear()
+	if map_type_id == MAP_TYPE_GRID_TEST_CANVAS:
+		for plot in base_plots:
+			var rect: Rect2i = plot["rect"]
+			for x in range(rect.position.x, rect.end.x):
+				for y in range(rect.position.y, rect.end.y):
+					spawn_positions.append(Vector2i(x, y))
+			economy_zones.append({
+				"plot_id": plot["id"],
+				"rect": plot["rect"],
+				"economy_spaces": plot["economy_spaces"],
+				"economy_count": plot["economy_count"],
+				"difficulty": plot["difficulty"],
+				"defensibility": plot["defensibility"],
+				"label": plot["name"],
+			})
+		for x in range(6, MAP_W - 6):
+			enemy_spawns.append(Vector2i(x, 4))
+			if x % 4 == 0:
+				enemy_spawns.append(Vector2i(x, MAP_H - 5))
+		for y in range(8, MAP_H - 8, 4):
+			enemy_spawns.append(Vector2i(4, y))
+			enemy_spawns.append(Vector2i(MAP_W - 5, y))
+		chokepoints.append_array([Vector2i(32, 32), Vector2i(48, 48), Vector2i(64, 64)])
+		return
 
 	if not base_plots.is_empty():
 		var starter: Dictionary = base_plots[min(1, base_plots.size() - 1)]
