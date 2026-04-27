@@ -35,6 +35,7 @@ const LK_RY =  5
 
 const MAP_TYPE_VAMPIRE_MUSHROOM_FOREST := "vampire_mushroom_forest"
 const MAP_TYPE_GRID_TEST_CANVAS := "grid_test_canvas"
+const MAP_TYPE_AI_TESTING_GROUND := "ai_testing_ground"
 const GRID_TEST_CELL_SIZE := 64
 
 # ── STATE ──────────────────────────────────────────────────────────────────────
@@ -77,6 +78,8 @@ var dynamic_blocked_cells: Dictionary = {}
 var _path_cache: Dictionary = {}
 var _path_cache_version: int = 0
 const PATH_CACHE_LIMIT := 768
+var path_requests_total := 0
+var path_cache_hits_total := 0
 
 var spawn_positions: Array = []
 var enemy_spawns:    Array = []
@@ -126,9 +129,20 @@ func get_map_type_name() -> String:
 			return "Vampiric Mushroom Forest"
 		MAP_TYPE_GRID_TEST_CANVAS:
 			return "Grid Test Canvas"
+		MAP_TYPE_AI_TESTING_GROUND:
+			return "Kon's Observation Arena"
 	return map_type_id
 
 func get_map_type_data() -> Dictionary:
+	if map_type_id == MAP_TYPE_AI_TESTING_GROUND:
+		return {
+			"id": MAP_TYPE_AI_TESTING_GROUND,
+			"name": "Kon's Observation Arena",
+			"art_style": "Flat green RTS arena with always-visible square grid and clean blocker lanes.",
+			"story_theme": "A sterile combat proving ground for faction AI, pathing, waves, and stress testing.",
+			"terrain_design": "Small arena with two opposing staging areas, open center lanes, and square-grid blockers.",
+			"plot_rule": "Two faction bases and a central arena are stamped directly onto the grid.",
+		}
 	if map_type_id == MAP_TYPE_GRID_TEST_CANVAS:
 		return {
 			"id": MAP_TYPE_GRID_TEST_CANVAS,
@@ -165,14 +179,14 @@ func _hash_seed_text(text: String) -> int:
 	return hash
 
 func _configure_map_type() -> void:
-	if map_type_id == MAP_TYPE_GRID_TEST_CANVAS:
+	if _uses_square_grid_map():
 		return
 	if map_type_id != MAP_TYPE_VAMPIRE_MUSHROOM_FOREST:
 		push_warning("[MapGenerator] Unknown map type '%s', using Vampiric Mushroom Forest rules" % map_type_id)
 		map_type_id = MAP_TYPE_VAMPIRE_MUSHROOM_FOREST
 
 func _configure_seeded_layout() -> void:
-	if map_type_id == MAP_TYPE_GRID_TEST_CANVAS:
+	if _uses_square_grid_map():
 		ramps.clear()
 		lakes.clear()
 		landmarks.clear()
@@ -256,12 +270,25 @@ func _build_grid() -> void:
 		feature_grid.append([])
 		for y in MAP_H:
 			var cell := Vector2i(x, y)
-			if map_type_id == MAP_TYPE_GRID_TEST_CANVAS:
+			if map_type_id == MAP_TYPE_AI_TESTING_GROUND:
+				var arena_bounds := Rect2i(6, 18, 84, 42)
+				var divider_gap := cell.y >= 31 and cell.y <= 45
+				var divider_cell := cell.x == 48 and not divider_gap
+				if not arena_bounds.has_point(cell) or divider_cell:
+					grid[x].append(E_BLOCKED)
+					feature_grid[x].append("ai_wall")
+				else:
+					grid[x].append(E_LOW)
+					feature_grid[x].append("ai_arena")
+			elif _uses_square_grid_map():
 				grid[x].append(E_LOW)
 				feature_grid[x].append("test_canvas")
 			else:
 				grid[x].append(_generate_cell_elevation(cell))
 				feature_grid[x].append("")
+
+func _uses_square_grid_map() -> bool:
+	return map_type_id == MAP_TYPE_GRID_TEST_CANVAS or map_type_id == MAP_TYPE_AI_TESTING_GROUND
 
 func _generate_cell_elevation(cell: Vector2i) -> int:
 	if cell.x <= 1 or cell.x >= MAP_W - 2 or cell.y <= 1 or cell.y >= MAP_H - 2:
@@ -430,12 +457,12 @@ func remove_dynamic_blockers(cells: Array[Vector2i]) -> void:
 		_invalidate_path_cache()
 
 func world_to_cell(world_position: Vector2) -> Vector2i:
-	if map_type_id == MAP_TYPE_GRID_TEST_CANVAS:
+	if _uses_square_grid_map():
 		return Vector2i(floori(world_position.x / float(GRID_TEST_CELL_SIZE)), floori(world_position.y / float(GRID_TEST_CELL_SIZE)))
 	return layer_low.local_to_map(layer_low.to_local(world_position))
 
 func cell_to_world(cell: Vector2i) -> Vector2:
-	if map_type_id == MAP_TYPE_GRID_TEST_CANVAS:
+	if _uses_square_grid_map():
 		return Vector2(float(cell.x) * float(GRID_TEST_CELL_SIZE) + float(GRID_TEST_CELL_SIZE) * 0.5, float(cell.y) * float(GRID_TEST_CELL_SIZE) + float(GRID_TEST_CELL_SIZE) * 0.5)
 	return layer_low.to_global(layer_low.map_to_local(cell))
 
@@ -453,6 +480,7 @@ func nearest_walkable_cell(origin: Vector2i, max_radius: int = 8) -> Vector2i:
 	return Vector2i(-1, -1)
 
 func find_path_cells(start: Vector2i, target: Vector2i) -> Array[Vector2i]:
+	path_requests_total += 1
 	var original_start := start
 	var original_target := target
 	var path: Array[Vector2i] = []
@@ -464,6 +492,7 @@ func find_path_cells(start: Vector2i, target: Vector2i) -> Array[Vector2i]:
 		return path
 	var cache_key := "%s:%s:%s:%s:%s" % [_path_cache_version, original_start.x, original_start.y, original_target.x, original_target.y]
 	if _path_cache.has(cache_key):
+		path_cache_hits_total += 1
 		var cached: Array[Vector2i] = []
 		for cell in _path_cache[cache_key]:
 			cached.append(cell)
@@ -642,6 +671,9 @@ func _hash_cell(cell: Vector2i, salt: int) -> int:
 func _build_plots() -> void:
 	plots.clear()
 	base_plots.clear()
+	if map_type_id == MAP_TYPE_AI_TESTING_GROUND:
+		_build_ai_testing_ground_plots()
+		return
 	if map_type_id == MAP_TYPE_GRID_TEST_CANVAS:
 		_build_grid_test_plots()
 		return
@@ -773,6 +805,27 @@ func _build_grid_test_plots() -> void:
 		"difficulty": 0.5,
 		"defensibility": 0.5,
 		"story": "Flat-grid outpost for blocker and pathing tests.",
+	})
+
+func _build_ai_testing_ground_plots() -> void:
+	var west_base_rect := Rect2i(10, 30, 12, 14)
+	var east_base_rect := Rect2i(74, 30, 12, 14)
+	var arena_rect := Rect2i(28, 20, 40, 34)
+	for plot in [
+		_make_base_plot("ai_west_base", "West faction staging ground", west_base_rect, _make_economy_spaces(west_base_rect, 1), 0.2, 0.6, "Left-side AI test staging base."),
+		_make_base_plot("ai_east_base", "East faction staging ground", east_base_rect, _make_economy_spaces(east_base_rect, 1), 0.2, 0.6, "Right-side AI test staging base."),
+	]:
+		_register_plot(plot)
+	_register_plot({
+		"id": "ai_arena",
+		"name": "Central AI arena",
+		"kind": "combat_arena",
+		"rect": arena_rect,
+		"anchor": arena_rect.position + Vector2i(arena_rect.size.x / 2, arena_rect.size.y / 2),
+		"economy_spaces": [],
+		"difficulty": 0.5,
+		"defensibility": 0.0,
+		"story": "Open center lane for two automated armies to find, hunt, path, and fight.",
 	})
 
 func _make_economy_spaces(rect: Rect2i, count: int) -> Array[Vector2i]:
@@ -1016,13 +1069,15 @@ func _paint() -> void:
 	layer_low.clear()
 	layer_mid.clear()
 	layer_high.clear()
-	if map_type_id == MAP_TYPE_GRID_TEST_CANVAS:
-		layer_low.modulate = Color("#2D6A3F")
+	if _uses_square_grid_map():
+		layer_low.modulate = Color("#244E34") if map_type_id == MAP_TYPE_AI_TESTING_GROUND else Color("#2D6A3F")
 		layer_mid.modulate = Color.WHITE
 		layer_high.modulate = Color.WHITE
 		var ground_id := pick("low_ground")
 		for x in MAP_W:
 			for y in MAP_H:
+				if map_type_id == MAP_TYPE_AI_TESTING_GROUND and grid[x][y] == E_BLOCKED:
+					continue
 				layer_low.set_cell(Vector2i(x, y), ground_id, Vector2i(0,0))
 		return
 
@@ -1172,6 +1227,26 @@ func _register_zones() -> void:
 	enemy_spawns.clear()
 	chokepoints.clear()
 	economy_zones.clear()
+	if map_type_id == MAP_TYPE_AI_TESTING_GROUND:
+		for plot in base_plots:
+			var rect: Rect2i = plot["rect"]
+			if str(plot["id"]) == "ai_west_base":
+				for x in range(rect.position.x, rect.end.x):
+					for y in range(rect.position.y, rect.end.y):
+						spawn_positions.append(Vector2i(x, y))
+			economy_zones.append({
+				"plot_id": plot["id"],
+				"rect": plot["rect"],
+				"economy_spaces": plot["economy_spaces"],
+				"economy_count": plot["economy_count"],
+				"difficulty": plot["difficulty"],
+				"defensibility": plot["defensibility"],
+				"label": plot["name"],
+			})
+		for y in range(26, 49, 2):
+			enemy_spawns.append(Vector2i(84, y))
+		chokepoints.append_array([Vector2i(32, 37), Vector2i(48, 37), Vector2i(64, 37)])
+		return
 	if map_type_id == MAP_TYPE_GRID_TEST_CANVAS:
 		for plot in base_plots:
 			var rect: Rect2i = plot["rect"]
@@ -1276,6 +1351,14 @@ func get_map_summary() -> Dictionary:
 			"landmarks": landmarks.duplicate(true),
 		},
 		"plot_layout": _get_plot_layout_summary(),
+	}
+
+func get_path_telemetry() -> Dictionary:
+	return {
+		"path_requests": path_requests_total,
+		"path_cache_hits": path_cache_hits_total,
+		"path_cache_size": _path_cache.size(),
+		"path_cache_version": _path_cache_version,
 	}
 
 func _get_plot_layout_summary() -> Array[Dictionary]:

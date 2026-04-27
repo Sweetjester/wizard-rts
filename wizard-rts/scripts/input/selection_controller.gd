@@ -61,27 +61,26 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		_order_selected_units(get_global_mouse_position())
 
 func _handle_key(event: InputEventKey) -> void:
-	match event.physical_keycode:
-		KEY_A:
-			_pending_target_command = &"attack_move"
-			queue_redraw()
-			get_viewport().set_input_as_handled()
-		KEY_P:
-			_pending_target_command = &"patrol"
-			queue_redraw()
-			get_viewport().set_input_as_handled()
-		KEY_H:
-			_pending_target_command = &""
-			queue_redraw()
-			if command_dispatcher != null:
-				command_dispatcher.submit_hold_position(selected_units)
-			get_viewport().set_input_as_handled()
-		KEY_S:
-			_pending_target_command = &""
-			queue_redraw()
-			if command_dispatcher != null:
-				command_dispatcher.submit_stop(selected_units)
-			get_viewport().set_input_as_handled()
+	if KeybindManager.is_action(event, KeybindManager.ACTION_ATTACK_MOVE):
+		_pending_target_command = &"attack_move"
+		queue_redraw()
+		get_viewport().set_input_as_handled()
+	elif KeybindManager.is_action(event, KeybindManager.ACTION_PATROL):
+		_pending_target_command = &"patrol"
+		queue_redraw()
+		get_viewport().set_input_as_handled()
+	elif KeybindManager.is_action(event, KeybindManager.ACTION_HOLD):
+		_pending_target_command = &""
+		queue_redraw()
+		if command_dispatcher != null:
+			command_dispatcher.submit_hold_position(selected_units)
+		get_viewport().set_input_as_handled()
+	elif KeybindManager.is_action(event, KeybindManager.ACTION_STOP):
+		_pending_target_command = &""
+		queue_redraw()
+		if command_dispatcher != null:
+			command_dispatcher.submit_stop(selected_units)
+		get_viewport().set_input_as_handled()
 
 func _issue_pending_target_command(target: Vector2) -> void:
 	if selected_units.is_empty():

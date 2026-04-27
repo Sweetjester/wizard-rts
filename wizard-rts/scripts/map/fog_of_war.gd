@@ -33,6 +33,8 @@ func _ready() -> void:
 	call_deferred("_rebuild")
 
 func _process(delta: float) -> void:
+	if not visible:
+		return
 	_elapsed += delta
 	if _elapsed < update_interval:
 		return
@@ -43,6 +45,11 @@ func _rebuild() -> void:
 	map = get_node_or_null(map_path)
 	if map == null or map.grid.is_empty():
 		call_deferred("_rebuild")
+		return
+	if str(map.get("map_type_id")) == "ai_testing_ground":
+		visible = false
+		set_process(false)
+		_show_all_entities()
 		return
 	explored.clear()
 	visible_cells.clear()
@@ -138,6 +145,15 @@ func _apply_entity_visibility() -> void:
 			continue
 		var cell: Vector2i = map.world_to_cell((node as Node2D).global_position)
 		node.visible = map.is_in_bounds(cell) and visible_cells[cell.x][cell.y]
+
+func _show_all_entities() -> void:
+	var entities := rts_world.all_units() if rts_world != null else _vision_revealers()
+	for node in entities:
+		if is_instance_valid(node):
+			node.visible = true
+	for structure in get_tree().get_nodes_in_group("structures"):
+		if is_instance_valid(structure):
+			structure.visible = true
 
 func _line_cells(from_cell: Vector2i, to_cell: Vector2i) -> Array[Vector2i]:
 	var cells: Array[Vector2i] = []

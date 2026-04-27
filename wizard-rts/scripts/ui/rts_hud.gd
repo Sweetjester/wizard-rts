@@ -11,11 +11,15 @@ const VICTORY_RETURN_SECONDS := 5.0
 @export var wave_director_path: NodePath = NodePath("../WaveDirector")
 @export var selection_controller_path: NodePath = NodePath("../SelectionController")
 @export var build_system_path: NodePath = NodePath("../BuildSystem")
+@export var map_generator_path: NodePath = NodePath("../MapGenerator")
+@export var rts_world_path: NodePath = NodePath("../RTSWorld")
 
 var economy_manager: EconomyManager
 var wave_director: WaveDirector
 var selection_controller: SelectionController
 var build_system: Node
+var map_generator: Node
+var rts_world: RTSWorld
 var resource_label: Label
 var phase_label: Label
 var selection_label: Label
@@ -25,11 +29,15 @@ var detail_body_label: Label
 var detail_meta_label: Label
 var alert_label: Label
 var command_container: HBoxContainer
+var ai_test_container: HBoxContainer
+var ai_telemetry_label: Label
+var ai_spawn_button: Button
 var _last_selection_signature := ""
 var _alert_until_msec: int = 0
 var _boss_warning_shown := false
 var _victory_return_remaining := -1.0
 var _last_victory_second := -1
+var _telemetry_elapsed := 0.0
 
 func _ready() -> void:
 	layer = 50
@@ -37,6 +45,8 @@ func _ready() -> void:
 	wave_director = get_node_or_null(wave_director_path)
 	selection_controller = get_node_or_null(selection_controller_path)
 	build_system = get_node_or_null(build_system_path)
+	map_generator = get_node_or_null(map_generator_path)
+	rts_world = get_node_or_null(rts_world_path)
 	_build_ui()
 	if economy_manager != null:
 		economy_manager.resources_changed.connect(_on_resources_changed)
@@ -53,6 +63,7 @@ func _ready() -> void:
 			status_label.text = "The Mycelium Matriarch has been defeated."
 			_start_victory_return_countdown()
 		)
+		_setup_ai_test_controls()
 	if build_system != null and build_system.has_signal("build_rejected"):
 		build_system.build_rejected.connect(_on_build_rejected)
 		build_system.structure_placed.connect(func(_player_id: int, archetype: StringName, _cell: Vector2i) -> void:
@@ -86,7 +97,10 @@ func _process(_delta: float) -> void:
 	if selection_controller != null:
 		selection_label.text = "Selected: %s" % selection_controller.selected_units.size()
 		_update_selection_panel(false)
-	if wave_director != null and not wave_director.boss_has_spawned:
+	if wave_director != null and wave_director.has_method("is_ai_testing_ground") and bool(wave_director.call("is_ai_testing_ground")):
+		phase_label.text = "AI Testing Ground"
+		_update_ai_telemetry(_delta)
+	elif wave_director != null and not wave_director.boss_has_spawned:
 		var boss_remaining := wave_director.get_boss_seconds_remaining()
 		phase_label.text = "Phase: %s | Boss in %s" % [str(wave_director.phase).capitalize(), _format_time(boss_remaining)]
 		if boss_remaining <= 30 and not _boss_warning_shown:
@@ -111,7 +125,12 @@ func _build_ui() -> void:
 	phase_label = _make_label()
 	selection_label = _make_label()
 	var commands := _make_label()
-	commands.text = "A attack-move | P patrol | H hold | S stop | Right-click move"
+	commands.text = "%s attack-move | %s patrol | %s hold | %s stop | Right-click move" % [
+		KeybindManager.get_key_label(KeybindManager.ACTION_ATTACK_MOVE),
+		KeybindManager.get_key_label(KeybindManager.ACTION_PATROL),
+		KeybindManager.get_key_label(KeybindManager.ACTION_HOLD),
+		KeybindManager.get_key_label(KeybindManager.ACTION_STOP),
+	]
 
 	row.add_child(resource_label)
 	row.add_child(phase_label)
@@ -164,6 +183,16 @@ func _build_ui() -> void:
 	status_label.text = "Kon: build with Bio. Bio Absorbers must go on pale economy spaces."
 	command_column.add_child(status_label)
 
+	ai_test_container = HBoxContainer.new()
+	ai_test_container.add_theme_constant_override("separation", 8)
+	ai_test_container.visible = false
+	command_column.add_child(ai_test_container)
+
+	ai_telemetry_label = _make_label()
+	ai_telemetry_label.visible = false
+	ai_telemetry_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	command_column.add_child(ai_telemetry_label)
+
 func _make_label() -> Label:
 	var label := Label.new()
 	label.add_theme_color_override("font_color", Color("#D6C7AE"))
@@ -172,12 +201,85 @@ func _make_label() -> Label:
 	label.add_theme_constant_override("shadow_offset_y", 1)
 	return label
 
-func _add_button(parent: Control, text: String, callback: Callable) -> void:
+func _add_button(parent: Control, text: String, callback: Callable) -> Button:
 	var button := Button.new()
 	button.text = text
 	button.custom_minimum_size = Vector2(92, 44)
 	button.pressed.connect(callback)
 	parent.add_child(button)
+	return button
+
+func _setup_ai_test_controls() -> void:
+	if ai_test_container == null or wave_director == null:
+		return
+	if not wave_director.has_method("is_ai_testing_ground") or not bool(wave_director.call("is_ai_testing_ground")):
+		return
+	ai_test_container.visible = true
+	ai_spawn_button = _add_button(ai_test_container, "Spawn AI Wave", _spawn_ai_test_wave)
+	if ai_telemetry_label != null:
+		ai_telemetry_label.visible = true
+	status_label.text = "Kon's Observation Arena: neutral observer mode. Spawn mirrored armies to test AI and performance."
+
+func _spawn_ai_test_wave() -> void:
+	if wave_director == null or not wave_director.has_method("spawn_ai_test_wave"):
+		return
+	var result: Dictionary = wave_director.call("spawn_ai_test_wave")
+	if bool(result.get("accepted", true)):
+		status_label.text = "AI test wave %s queued: west %s vs east %s | pending %s" % [result.get("wave", 0), result.get("west", 0), result.get("east", 0), result.get("queued", 0)]
+	else:
+		var reason := str(result.get("reason", "spawn queue full"))
+		status_label.text = "AI wave rejected: %s | pending %s" % [reason.capitalize(), result.get("queued", 0)]
+	_update_ai_telemetry(999.0)
+
+func _update_ai_telemetry(delta: float) -> void:
+	if ai_telemetry_label == null or not ai_telemetry_label.visible:
+		return
+	_telemetry_elapsed += delta
+	if _telemetry_elapsed < 0.25:
+		return
+	_telemetry_elapsed = 0.0
+	var world_stats: Dictionary = rts_world.get_observation_telemetry() if rts_world != null and rts_world.has_method("get_observation_telemetry") else {}
+	var path_stats: Dictionary = map_generator.get_path_telemetry() if map_generator != null and map_generator.has_method("get_path_telemetry") else {}
+	var spawn_stats: Dictionary = wave_director.get_ai_test_spawn_telemetry() if wave_director != null and wave_director.has_method("get_ai_test_spawn_telemetry") else {}
+	var owners: Dictionary = world_stats.get("owner_counts", {})
+	var damage_by_owner: Dictionary = world_stats.get("damage_by_owner", {})
+	var owner_2_units := int(owners.get(2, 0))
+	var owner_3_units := int(owners.get(3, 0))
+	var live_units := int(world_stats.get("units", 0))
+	var mass_sim := live_units >= 120
+	var owner_2_damage := int(damage_by_owner.get(2, 0))
+	var owner_3_damage := int(damage_by_owner.get(3, 0))
+	var fps := Performance.get_monitor(Performance.TIME_FPS)
+	var frame_ms := 1000.0 / maxf(1.0, fps)
+	var process_ms := Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+	var physics_ms := Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
+	var nodes := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
+	var pending_spawns := int(spawn_stats.get("spawn_queue", 0))
+	if ai_spawn_button != null:
+		ai_spawn_button.disabled = pending_spawns >= int(spawn_stats.get("spawn_queue_limit", 640))
+		ai_spawn_button.text = "Queueing..." if pending_spawns > 0 else "Spawn AI Wave"
+	ai_telemetry_label.text = "Live units %s  |  Pending %s @ %s/frame %s/s  |  MassSim %s  |  West %s / East %s  |  Peak %s  |  Damage W:%s E:%s Total:%s  |  Projectiles active %s total %s  |  Paths %s cache %s  |  FPS %.0f frame %.1fms process %.1fms physics %.1fms nodes %s" % [
+		live_units,
+		pending_spawns,
+		int(spawn_stats.get("spawn_budget_per_frame", 0)),
+		int(spawn_stats.get("spawned_per_second", 0)),
+		"ON" if mass_sim else "OFF",
+		owner_2_units,
+		owner_3_units,
+		int(world_stats.get("peak_units", 0)),
+		owner_2_damage,
+		owner_3_damage,
+		int(world_stats.get("damage_total", 0)),
+		int(world_stats.get("active_projectiles", 0)),
+		int(world_stats.get("projectiles_spawned", 0)),
+		int(path_stats.get("path_requests", 0)),
+		int(path_stats.get("path_cache_size", 0)),
+		fps,
+		frame_ms,
+		process_ms,
+		physics_ms,
+		nodes,
+	]
 
 func _clear_commands() -> void:
 	if command_container == null:
@@ -347,13 +449,18 @@ func _on_resources_changed(_player_id: int, resources: Dictionary) -> void:
 	]
 
 func _on_phase_changed(phase: StringName) -> void:
-	if wave_director != null and not wave_director.boss_has_spawned:
+	if wave_director != null and wave_director.has_method("is_ai_testing_ground") and bool(wave_director.call("is_ai_testing_ground")):
+		phase_label.text = "AI Testing Ground"
+	elif wave_director != null and not wave_director.boss_has_spawned:
 		phase_label.text = "Phase: %s | Boss in %s" % [str(phase).capitalize(), _format_time(wave_director.get_boss_seconds_remaining())]
 	else:
 		phase_label.text = "Phase: %s" % str(phase).capitalize()
 
 func _on_wave_spawned(wave_index: int, count: int) -> void:
-	status_label.text = "Wave %s: %s enemies" % [wave_index, count]
+	if wave_director != null and wave_director.has_method("is_ai_testing_ground") and bool(wave_director.call("is_ai_testing_ground")):
+		status_label.text = "AI test wave %s: %s total units spawned" % [wave_index, count]
+	else:
+		status_label.text = "Wave %s: %s enemies" % [wave_index, count]
 
 func _show_alert(text: String) -> void:
 	if alert_label == null:

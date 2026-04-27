@@ -841,7 +841,10 @@ func _grid_cell_size() -> Vector2:
 	return Vector2(111, 55)
 
 func _uses_square_test_grid() -> bool:
-	return map_generator != null and str(map_generator.get("map_type_id")) == "grid_test_canvas"
+	if map_generator == null:
+		return false
+	var map_type := str(map_generator.get("map_type_id"))
+	return map_type == "grid_test_canvas" or map_type == "ai_testing_ground"
 
 func _footprint_extents(cells: Array[Vector2i]) -> Vector2i:
 	if cells.is_empty():

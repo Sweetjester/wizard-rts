@@ -25,6 +25,10 @@ func _spawn_if_ready() -> void:
 	var map_generator = get_node_or_null(map_generator_path)
 	if map_generator == null or not map_generator.has_method("get_base_plots"):
 		return
+	if str(map_generator.get("map_type_id")) == "ai_testing_ground":
+		_spawned = true
+		print("[MapBootstrap] Observation arena: no player wizard or HQ spawned")
+		return
 	var base_plots: Array = map_generator.get_base_plots()
 	if base_plots.is_empty():
 		call_deferred("_spawn_if_ready")

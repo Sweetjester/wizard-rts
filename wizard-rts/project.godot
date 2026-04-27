@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 AudioManager="*res://scripts/audio/audio_manager.gd"
 GameSession="*res://scripts/core/game_session.gd"
 DisplayManager="*res://scripts/core/display_manager.gd"
+KeybindManager="*res://scripts/core/keybind_manager.gd"
 
 [display]
 

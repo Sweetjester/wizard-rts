@@ -1,4 +1,4 @@
-[gd_scene load_steps=29 format=4 uid="uid://cadog5s2ne74q"]
+[gd_scene load_steps=31 format=4 uid="uid://cadog5s2ne74q"]
 
 [ext_resource type="Script" uid="uid://c55e5b81k5mcw" path="res://scripts/map/map_manager.gd" id="1_yq3ld"]
 [ext_resource type="Script" uid="uid://co8oyntpicxw5" path="res://scripts/camera/camera_controller.gd" id="2_v4mqy"]
@@ -25,6 +25,8 @@
 [ext_resource type="Script" path="res://scripts/map/day_night_cycle.gd" id="26_daynight"]
 [ext_resource type="Script" path="res://scripts/core/rts_world.gd" id="27_world"]
 [ext_resource type="Script" path="res://scripts/map/grid_overlay.gd" id="28_grid"]
+[ext_resource type="Script" path="res://scripts/ui/pause_menu.gd" id="29_pause"]
+[ext_resource type="Script" path="res://scripts/core/telemetry_logger.gd" id="30_telemetry"]
 
 [node name="Node2D" type="Node2D" unique_id=2018844996]
 script = ExtResource("1_yq3ld")
@@ -60,6 +62,9 @@ script = ExtResource("23_wave")
 
 [node name="MapGenerator" type="Node" parent="." unique_id=2107341182]
 script = ExtResource("18_se0pv")
+
+[node name="TelemetryLogger" type="Node" parent="."]
+script = ExtResource("30_telemetry")
 
 [node name="TileMapLow" type="TileMapLayer" parent="." unique_id=1062693612]
 tile_map_data = PackedByteArray("AAAGAAEAAgAAAAAAAAAFAP//AgAAAAAAAAAGAP7/AgAAAAAAAAAHAP7/AgAAAAAAAAAHAP//AgAAAAAAAAAIAAAAAgAAAAAAAAAEAAMAAgAAAAAAAAAEAAIAAgAAAAAAAAADAAAAAgAAAAAAAAADAP//AgAAAAAAAAAHAAMAAgAAAAAAAAAHAAIAAgAAAAAAAAA=")
@@ -113,3 +118,6 @@ script = ExtResource("13_boot")
 
 [node name="RTSHud" type="CanvasLayer" parent="."]
 script = ExtResource("24_hud")
+
+[node name="PauseMenu" type="CanvasLayer" parent="."]
+script = ExtResource("29_pause")

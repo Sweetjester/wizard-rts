@@ -68,6 +68,10 @@ func _on_grid_test_map_pressed() -> void:
 	selected_map_type_id = "grid_test_canvas"
 	begin_button.disabled = false
 
+func _on_ai_testing_ground_pressed() -> void:
+	selected_map_type_id = "ai_testing_ground"
+	begin_button.disabled = false
+
 func _on_begin_pressed() -> void:
 	if selected_character_id.is_empty():
 		return

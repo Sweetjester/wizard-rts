@@ -9,6 +9,9 @@ signal boss_defeated()
 @export var map_generator_path: NodePath = NodePath("../MapGenerator")
 @export var rts_world_path: NodePath = NodePath("../RTSWorld")
 @export var enemy_scene: PackedScene = preload("res://scenes/units/vampire_mushroom_thrall.tscn")
+@export var terrible_thing_scene: PackedScene = preload("res://scenes/units/terrible_thing.tscn")
+@export var horror_scene: PackedScene = preload("res://scenes/units/horror.tscn")
+@export var apex_scene: PackedScene = preload("res://scenes/units/apex.tscn")
 @export var enabled: bool = true
 @export var scouting_seconds: float = 45.0
 @export var buildup_seconds: float = 135.0
@@ -20,6 +23,9 @@ signal boss_defeated()
 @export var max_active_enemies: int = 120
 @export var retarget_interval: float = 2.0
 @export var max_retargets_per_tick: int = 12
+@export var ai_test_spawn_budget_per_frame: int = 96
+@export var ai_test_spawn_queue_limit: int = 640
+@export var ai_test_live_unit_soft_cap: int = 1800
 
 var map_generator: Node
 var rts_world: RTSWorld
@@ -31,13 +37,24 @@ var boss_has_spawned := false
 var boss_has_been_defeated := false
 var boss_node: Node = null
 var _retarget_elapsed := 0.0
+var ai_test_wave_index := 0
+var _ai_test_spawn_queue: Array[Dictionary] = []
+var _ai_test_units_spawned_this_second := 0
+var _ai_test_spawn_meter_elapsed := 0.0
+var _ai_test_last_units_spawned_per_second := 0
 
 func _ready() -> void:
 	map_generator = get_node_or_null(map_generator_path)
 	rts_world = get_node_or_null(rts_world_path)
 	next_wave_at = first_wave_seconds
+	if is_ai_testing_ground():
+		enabled = false
+		phase = &"ai_test"
+		phase_changed.emit(phase)
 
 func _process(delta: float) -> void:
+	if is_ai_testing_ground():
+		_update_ai_test_spawn_queue(delta)
 	if not enabled:
 		return
 	elapsed += delta
@@ -95,6 +112,129 @@ func _spawn_boss() -> void:
 	var spawn_cell: Vector2i = _pathable_spawn_cell(spawns, target, wave_index * 19 + 5)
 	boss_node = _spawn_enemy(&"mycelium_boss", spawn_cell, get_parent(), target)
 	boss_spawned.emit()
+
+func is_ai_testing_ground() -> bool:
+	return map_generator != null and str(map_generator.get("map_type_id")) == "ai_testing_ground"
+
+func spawn_ai_test_wave() -> Dictionary:
+	if map_generator == null:
+		return {"wave": ai_test_wave_index, "west": 0, "east": 0, "queued": _ai_test_spawn_queue.size(), "accepted": false}
+	var live_units: int = rts_world.count_units_all() if rts_world != null and rts_world.has_method("count_units_all") else _count_ai_test_units_fallback()
+	if live_units + _ai_test_spawn_queue.size() >= ai_test_live_unit_soft_cap:
+		return {"wave": ai_test_wave_index, "west": 0, "east": 0, "queued": _ai_test_spawn_queue.size(), "accepted": false, "reason": "soft_cap"}
+	if _ai_test_spawn_queue.size() >= ai_test_spawn_queue_limit:
+		return {"wave": ai_test_wave_index, "west": 0, "east": 0, "queued": _ai_test_spawn_queue.size(), "accepted": false, "reason": "spawn_queue_full"}
+	ai_test_wave_index += 1
+	var count_per_side: int = mini(12 + ai_test_wave_index * 4, 80)
+	var parent := get_parent()
+	var west_queued := 0
+	var east_queued := 0
+	for i in count_per_side:
+		if _ai_test_spawn_queue.size() >= ai_test_spawn_queue_limit:
+			break
+		var west_cell := _ai_test_spawn_cell(Vector2i(18, 37), i, -1)
+		var east_cell := _ai_test_spawn_cell(Vector2i(78, 37), i, 1)
+		var west_target: Vector2 = _ai_test_lane_target(Vector2i(66, 37), i)
+		var east_target: Vector2 = _ai_test_lane_target(Vector2i(30, 37), i)
+		_ai_test_spawn_queue.append({"index": i, "side": 2, "cell": west_cell, "target": west_target, "parent": parent})
+		west_queued += 1
+		if _ai_test_spawn_queue.size() >= ai_test_spawn_queue_limit:
+			break
+		_ai_test_spawn_queue.append({"index": i, "side": 3, "cell": east_cell, "target": east_target, "parent": parent})
+		east_queued += 1
+	return {"wave": ai_test_wave_index, "west": west_queued, "east": east_queued, "queued": _ai_test_spawn_queue.size(), "accepted": west_queued + east_queued > 0}
+
+func get_ai_test_spawn_telemetry() -> Dictionary:
+	return {
+		"spawn_queue": _ai_test_spawn_queue.size(),
+		"spawn_queue_limit": ai_test_spawn_queue_limit,
+		"spawn_budget_per_frame": ai_test_spawn_budget_per_frame,
+		"spawned_per_second": _ai_test_last_units_spawned_per_second,
+		"live_soft_cap": ai_test_live_unit_soft_cap,
+	}
+
+func _update_ai_test_spawn_queue(delta: float) -> void:
+	_ai_test_spawn_meter_elapsed += delta
+	if _ai_test_spawn_meter_elapsed >= 1.0:
+		_ai_test_last_units_spawned_per_second = _ai_test_units_spawned_this_second
+		_ai_test_units_spawned_this_second = 0
+		_ai_test_spawn_meter_elapsed = 0.0
+	if _ai_test_spawn_queue.is_empty():
+		return
+	var budget := maxi(1, ai_test_spawn_budget_per_frame)
+	var spawned := 0
+	while spawned < budget and not _ai_test_spawn_queue.is_empty():
+		var request: Dictionary = _ai_test_spawn_queue.pop_front()
+		var unit := _spawn_queued_ai_test_unit(request)
+		if unit != null:
+			spawned += 1
+			_ai_test_units_spawned_this_second += 1
+	if spawned > 0:
+		wave_spawned.emit(ai_test_wave_index, spawned)
+
+func _spawn_queued_ai_test_unit(request: Dictionary) -> Node:
+	var index := int(request.get("index", 0))
+	var side := int(request.get("side", 2))
+	var spawn_cell: Vector2i = request.get("cell", Vector2i.ZERO)
+	var parent: Node = request.get("parent", get_parent())
+	var target: Vector2 = request.get("target", Vector2.ZERO)
+	if parent == null or not is_instance_valid(parent):
+		parent = get_parent()
+	if side == 2:
+		return _spawn_ai_test_west_unit(index, spawn_cell, parent, target)
+	return _spawn_ai_test_east_unit(index, spawn_cell, parent, target)
+
+func _ai_test_spawn_cell(anchor: Vector2i, index: int, side: int) -> Vector2i:
+	var row := index / 10
+	var col := index % 10
+	var offset := Vector2i(col * side, row - 5)
+	return map_generator.nearest_walkable_cell(anchor + offset, 12)
+
+func _ai_test_lane_target(anchor: Vector2i, index: int) -> Vector2:
+	var lane := (index % 14) - 7
+	var depth := (index / 14) % 4
+	var target_cell: Vector2i = map_generator.nearest_walkable_cell(anchor + Vector2i(depth, lane), 10)
+	return map_generator.cell_to_world(target_cell)
+
+func _spawn_ai_test_west_unit(index: int, spawn_cell: Vector2i, parent: Node, target: Vector2) -> Node:
+	var archetypes: Array[StringName] = [&"terrible_thing", &"horror", &"terrible_thing", &"apex"]
+	var scenes: Array[PackedScene] = [terrible_thing_scene, horror_scene, terrible_thing_scene, apex_scene]
+	var slot := index % archetypes.size()
+	return _spawn_ai_test_unit(scenes[slot], archetypes[slot], 2, spawn_cell, parent, target)
+
+func _spawn_ai_test_east_unit(index: int, spawn_cell: Vector2i, parent: Node, target: Vector2) -> Node:
+	var archetypes: Array[StringName] = [&"terrible_thing", &"horror", &"terrible_thing", &"apex"]
+	var scenes: Array[PackedScene] = [terrible_thing_scene, horror_scene, terrible_thing_scene, apex_scene]
+	var slot := index % archetypes.size()
+	return _spawn_ai_test_unit(scenes[slot], archetypes[slot], 3, spawn_cell, parent, target)
+
+func _spawn_ai_test_unit(scene: PackedScene, archetype: StringName, owner: int, spawn_cell: Vector2i, parent: Node, target: Vector2) -> Node:
+	if scene == null:
+		return null
+	var unit := scene.instantiate()
+	unit.set("owner_player_id", owner)
+	unit.set("unit_archetype", archetype)
+	if _has_property(unit, "enemy_archetype"):
+		unit.set("enemy_archetype", archetype)
+	if unit.has_method("configure_enemy"):
+		unit.call("configure_enemy", archetype)
+	parent.add_child(unit)
+	unit.set("owner_player_id", owner)
+	unit.global_position = map_generator.cell_to_world(map_generator.nearest_walkable_cell(spawn_cell, 10))
+	if unit.has_method("set_arena_leash"):
+		var min_world: Vector2 = map_generator.cell_to_world(Vector2i(8, 20))
+		var max_world: Vector2 = map_generator.cell_to_world(Vector2i(88, 58))
+		var arena_rect := Rect2(min_world, max_world - min_world)
+		unit.call("set_arena_leash", arena_rect, target)
+	if unit.has_method("issue_attack_move_order"):
+		unit.issue_attack_move_order(target)
+	return unit
+
+func _has_property(node: Node, property_name: String) -> bool:
+	for property in node.get_property_list():
+		if str(property.get("name", "")) == property_name:
+			return true
+	return false
 
 func _spawn_enemy(archetype: StringName, spawn_cell: Vector2i, parent: Node, preferred_target: Vector2 = Vector2.ZERO) -> Node:
 	var enemy := enemy_scene.instantiate()
@@ -254,6 +394,13 @@ func _count_enemy_units_fallback() -> int:
 	var active := 0
 	for unit in get_tree().get_nodes_in_group("units"):
 		if is_instance_valid(unit) and int(unit.get("owner_player_id")) == 2:
+			active += 1
+	return active
+
+func _count_ai_test_units_fallback() -> int:
+	var active := 0
+	for unit in get_tree().get_nodes_in_group("units"):
+		if is_instance_valid(unit) and int(unit.get("owner_player_id")) in [2, 3]:
 			active += 1
 	return active
 

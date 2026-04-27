@@ -11,3 +11,7 @@ assets/review/pixellab/
 tools/pixellab/jobs/
 tools/pixellab/terrain_jobs/
 tools/pixellab/openapi_cache.json
+
+# Local telemetry exports from playtests
+test_exports/session_data/*
+!test_exports/session_data/.gitkeep

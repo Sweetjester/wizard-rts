@@ -10,6 +10,12 @@ var _structures: Array[Node2D] = []
 var _by_owner: Dictionary = {}
 var _buckets: Dictionary = {}
 var _projectile_pool: Array[RtsProjectile] = []
+var _active_projectiles := 0
+var _total_projectiles_spawned := 0
+var _total_projectiles_recycled := 0
+var _damage_by_owner: Dictionary = {}
+var _total_damage := 0
+var _peak_units := 0
 
 func _ready() -> void:
 	for i in projectile_pool_preload:
@@ -23,6 +29,7 @@ func register_unit(unit: Node2D) -> void:
 	if not _by_owner.has(owner):
 		_by_owner[owner] = []
 	_by_owner[owner].append(unit)
+	_peak_units = maxi(_peak_units, _units.size())
 
 func unregister_unit(unit: Node2D) -> void:
 	_units.erase(unit)
@@ -59,6 +66,9 @@ func units_for_owner(owner_id: int) -> Array[Node2D]:
 func count_units_for_owner(owner_id: int) -> int:
 	return units_for_owner(owner_id).size()
 
+func count_units_all() -> int:
+	return _units.size()
+
 func rebuild_spatial() -> void:
 	_buckets.clear()
 	for unit in all_units():
@@ -67,7 +77,7 @@ func rebuild_spatial() -> void:
 			_buckets[key] = []
 		_buckets[key].append(unit)
 
-func query_units(position: Vector2, radius: float, owner_filter: int = -1) -> Array[Node2D]:
+func query_units(position: Vector2, radius: float, owner_filter: int = -1, max_results: int = -1) -> Array[Node2D]:
 	var results: Array[Node2D] = []
 	var min_bucket := _bucket_for(position - Vector2(radius, radius))
 	var max_bucket := _bucket_for(position + Vector2(radius, radius))
@@ -84,6 +94,8 @@ func query_units(position: Vector2, radius: float, owner_filter: int = -1) -> Ar
 					continue
 				if position.distance_squared_to(unit.global_position) <= radius_sq:
 					results.append(unit)
+					if max_results > 0 and results.size() >= max_results:
+						return results
 	return results
 
 func query_enemy_units(position: Vector2, radius: float, owner_id: int) -> Array[Node2D]:
@@ -102,11 +114,16 @@ func spawn_projectile(source: Node2D, target: Node2D, damage: int, color: Color,
 	projectile.global_position = origin
 	projectile.configure(source, target, damage, color, speed)
 	projectile.activate(self)
+	_active_projectiles += 1
+	_total_projectiles_spawned += 1
 	return projectile
 
 func recycle_projectile(projectile: RtsProjectile) -> void:
 	if projectile == null or not is_instance_valid(projectile):
 		return
+	if projectile.visible:
+		_active_projectiles = maxi(0, _active_projectiles - 1)
+		_total_projectiles_recycled += 1
 	projectile.visible = false
 	projectile.process_mode = Node.PROCESS_MODE_DISABLED
 	if _projectile_pool.size() < projectile_pool_cap:
@@ -133,3 +150,28 @@ func _prune_invalid(items: Array[Node2D]) -> void:
 	for i in range(items.size() - 1, -1, -1):
 		if not is_instance_valid(items[i]):
 			items.remove_at(i)
+
+func record_damage(source: Node, _target: Node, amount: int) -> void:
+	if amount <= 0:
+		return
+	var owner := _owner_for(source)
+	if not _damage_by_owner.has(owner):
+		_damage_by_owner[owner] = 0
+	_damage_by_owner[owner] = int(_damage_by_owner[owner]) + amount
+	_total_damage += amount
+
+func get_observation_telemetry() -> Dictionary:
+	var owner_counts := {}
+	for owner in _by_owner.keys():
+		owner_counts[owner] = count_units_for_owner(int(owner))
+	return {
+		"units": count_units_all(),
+		"structures": all_structures().size(),
+		"owner_counts": owner_counts,
+		"active_projectiles": _active_projectiles,
+		"projectiles_spawned": _total_projectiles_spawned,
+		"projectiles_recycled": _total_projectiles_recycled,
+		"damage_total": _total_damage,
+		"damage_by_owner": _damage_by_owner.duplicate(),
+		"peak_units": _peak_units,
+	}

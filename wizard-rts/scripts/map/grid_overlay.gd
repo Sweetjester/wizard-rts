@@ -94,4 +94,7 @@ func _grid_cell_size() -> Vector2:
 	return Vector2(111, 55)
 
 func _uses_square_test_grid() -> bool:
-	return map != null and str(map.get("map_type_id")) == "grid_test_canvas"
+	if map == null:
+		return false
+	var map_type := str(map.get("map_type_id"))
+	return map_type == "grid_test_canvas" or map_type == "ai_testing_ground"

@@ -3,7 +3,8 @@ extends RTSUnit
 @export var enemy_archetype: StringName = &"vampire_mushroom_thrall"
 
 func _ready() -> void:
-	owner_player_id = 2
+	if owner_player_id == 1:
+		owner_player_id = 2
 	unit_archetype = enemy_archetype
 	super()
 	_apply_enemy_tuning()

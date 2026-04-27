@@ -115,6 +115,9 @@ func has_rally_point() -> bool:
 	return rally_enabled
 
 func take_damage(amount: int, source: Node = null) -> void:
+	var actual_damage: int = mini(amount, health)
+	if rts_world != null and is_instance_valid(rts_world):
+		rts_world.record_damage(source, self, actual_damage)
 	health = maxi(0, health - amount)
 	if archetype == &"vinewall" and source != null and is_instance_valid(source) and source.has_method("take_damage"):
 		var retaliation := int(UnitCatalog.get_definition(&"vinewall").get("retaliation_damage", 8)) + level * 2
@@ -331,8 +334,10 @@ func _local_cell_center(local_cell: Vector2i) -> Vector2:
 
 func _grid_cell_size() -> Vector2:
 	var map := get_node_or_null("../MapGenerator")
-	if map != null and str(map.get("map_type_id")) == "grid_test_canvas":
-		return Vector2(64, 64)
+	if map != null:
+		var map_type := str(map.get("map_type_id"))
+		if map_type == "grid_test_canvas" or map_type == "ai_testing_ground":
+			return Vector2(64, 64)
 	return Vector2(111, 55)
 
 func _footprint_bottom_y() -> float:

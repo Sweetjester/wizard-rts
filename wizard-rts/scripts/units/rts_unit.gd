@@ -48,6 +48,12 @@ var _has_command_destination := false
 var _last_progress_position := Vector2.ZERO
 var _stuck_elapsed := 0.0
 var _last_repath_msec: int = -10000
+var _last_chase_repath_msec: int = -10000
+var _redraw_elapsed := 0.0
+var mass_lane_offset := Vector2.ZERO
+var arena_leash_enabled := false
+var arena_leash_rect := Rect2()
+var arena_home := Vector2.ZERO
 
 func _ready() -> void:
 	collision_layer = 2
@@ -71,8 +77,23 @@ func _exit_tree() -> void:
 
 func _process(delta: float) -> void:
 	_visual_elapsed += delta
-	if moving or unit_state in [&"attacking", &"attack_move", &"patrol", &"hold", &"stunned"] or selected or health < max_health:
+	_redraw_elapsed += delta
+	var mass_mode := _mass_performance_mode()
+	if selected:
 		queue_redraw()
+		_redraw_elapsed = 0.0
+		return
+	if health < max_health:
+		var damaged_redraw_interval := 0.35 if mass_mode else 0.0
+		if _redraw_elapsed >= damaged_redraw_interval:
+			queue_redraw()
+			_redraw_elapsed = 0.0
+		return
+	if moving or unit_state in [&"attacking", &"attack_move", &"patrol", &"hold", &"stunned"]:
+		var redraw_interval := 0.22 if mass_mode else 0.0
+		if _redraw_elapsed >= redraw_interval:
+			queue_redraw()
+			_redraw_elapsed = 0.0
 
 func set_selected(value: bool) -> void:
 	selected = value
@@ -116,9 +137,11 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 	_update_z_index()
+	if arena_leash_enabled and not arena_leash_rect.has_point(global_position):
+		_pull_back_to_arena()
 	if path.is_empty():
 		_reset_stuck_watch()
-		velocity = _separation_velocity()
+		velocity = Vector2.ZERO if _mass_performance_mode() else _separation_velocity()
 		moving = false
 		if command_mode == &"patrol" and attack_target == null:
 			_resume_patrol_leg()
@@ -128,7 +151,8 @@ func _physics_process(delta: float) -> void:
 			unit_state = &"attack_move"
 		elif attack_target == null:
 			unit_state = &"idle"
-		move_and_slide()
+		if not _mass_performance_mode():
+			move_and_slide()
 		return
 
 	target_pos = path[0]
@@ -157,8 +181,12 @@ func _physics_process(delta: float) -> void:
 		queue_redraw()
 		return
 
-	velocity = dir.normalized() * move_speed + _separation_velocity(dir.normalized())
-	move_and_slide()
+	var mass_mode := _mass_performance_mode()
+	velocity = dir.normalized() * move_speed + (Vector2.ZERO if mass_mode else _separation_velocity(dir.normalized()))
+	if mass_mode:
+		global_position += velocity * delta
+	else:
+		move_and_slide()
 	_update_stuck_recovery(delta)
 
 func issue_attack_target(target: Node2D) -> void:
@@ -242,7 +270,15 @@ func rts_combat_tick(delta: float, nearby_units: Array[Node2D]) -> void:
 func _chase_attack_target() -> void:
 	if attack_target == null:
 		return
-	_command_destination = _legal_destination(attack_target.global_position)
+	var now := Time.get_ticks_msec()
+	var repath_interval := 850 if _mass_performance_mode() else 300
+	if moving and now - _last_chase_repath_msec < repath_interval:
+		return
+	_last_chase_repath_msec = now
+	var chase_target := attack_target.global_position
+	if arena_leash_enabled:
+		chase_target = _clamp_to_arena(chase_target)
+	_command_destination = _legal_destination(chase_target)
 	_has_command_destination = true
 	if ignores_terrain or terrain == null:
 		path = [_command_destination]
@@ -424,7 +460,10 @@ func _projectile_color() -> Color:
 			return Color("#7DDDE8")
 	return Color("#D6C7AE")
 
-func take_damage(amount: int, _source: Node = null) -> void:
+func take_damage(amount: int, source: Node = null) -> void:
+	var actual_damage: int = mini(amount, health)
+	if rts_world != null and is_instance_valid(rts_world):
+		rts_world.record_damage(source, self, actual_damage)
 	health = maxi(0, health - amount)
 	_gain_evolution_xp(float(amount) * 0.35)
 	queue_redraw()
@@ -526,6 +565,8 @@ func _apply_catalog_definition() -> void:
 	ignores_terrain = bool(definition.get("ignores_terrain", false))
 
 func _separation_velocity(move_dir: Vector2 = Vector2.ZERO) -> Vector2:
+	if _mass_performance_mode():
+		return Vector2.ZERO
 	var push := Vector2.ZERO
 	for unit in _nearby_units():
 		if unit == self or not (unit is Node2D):
@@ -615,7 +656,10 @@ func _snap_to_walkable_terrain() -> void:
 func _draw_selection_and_path() -> void:
 	_draw_sprite_shadow()
 	_draw_melee_swing_fx()
-	_draw_health_bar()
+	var mass_mode := _mass_performance_mode()
+	var hide_mass_health := mass_mode and rts_world != null and is_instance_valid(rts_world) and rts_world.count_units_all() >= 600
+	if selected or not hide_mass_health and (health < max_health or not mass_mode):
+		_draw_health_bar()
 	if not selected:
 		return
 	draw_arc(Vector2(0, 10), selection_radius, 0, TAU, 40, Color(0.25, 0.95, 1.0), 2.5)
@@ -629,6 +673,8 @@ func _draw_selection_and_path() -> void:
 	draw_circle(to_local(path[path.size() - 1]), 5.0, Color(0.25, 0.95, 1.0, 0.8))
 
 func _draw_sprite_shadow() -> void:
+	if _mass_performance_mode() and not selected:
+		return
 	if not has_node("ArtSprite"):
 		return
 	var radius := maxf(12.0, selection_radius * 0.72)
@@ -672,6 +718,33 @@ func _draw_health_bar() -> void:
 	elif command_mode == &"attack_move":
 		draw_line(Vector2(-7, y - 7), Vector2(7, y - 3), Color("#E85A5A", 0.9), 1.5)
 		draw_line(Vector2(7, y - 7), Vector2(-7, y - 3), Color("#E85A5A", 0.9), 1.5)
+
+func _mass_performance_mode() -> bool:
+	if terrain != null and str(terrain.get("map_type_id")) == "ai_testing_ground":
+		return rts_world == null or not is_instance_valid(rts_world) or rts_world.count_units_all() >= 120
+	return rts_world != null and is_instance_valid(rts_world) and rts_world.count_units_all() >= 360
+
+func set_arena_leash(rect: Rect2, home: Vector2) -> void:
+	arena_leash_enabled = true
+	arena_leash_rect = rect
+	arena_home = home
+
+func _pull_back_to_arena() -> void:
+	var return_target := _clamp_to_arena(global_position)
+	if return_target.distance_squared_to(global_position) < 4.0:
+		return_target = arena_home
+	attack_target = null
+	command_mode = &"attack_move"
+	unit_state = &"attack_move"
+	_set_path_to_world(return_target, true)
+
+func _clamp_to_arena(point: Vector2) -> Vector2:
+	if not arena_leash_enabled:
+		return point
+	return Vector2(
+		clampf(point.x, arena_leash_rect.position.x, arena_leash_rect.end.x),
+		clampf(point.y, arena_leash_rect.position.y, arena_leash_rect.end.y)
+	)
 
 func _draw_melee_swing_fx() -> void:
 	if _uses_projectile():

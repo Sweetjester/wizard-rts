@@ -489,6 +489,44 @@ fit_content = true
 scroll_active = false
 text = "Same gameplay loop with a clean grid canvas, simple base plots, economy spaces, enemy spawns, and no decorative terrain noise."
 
+[node name="AiTestingGroundButton" type="Button" parent="RootMargin/Layout/MapPanel"]
+custom_minimum_size = Vector2(680, 150)
+layout_mode = 2
+focus_mode = 0
+text = ""
+
+[node name="AiTestingGroundLayout" type="VBoxContainer" parent="RootMargin/Layout/MapPanel/AiTestingGroundButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 18.0
+offset_top = 18.0
+offset_right = -18.0
+offset_bottom = -18.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 8
+
+[node name="MapName" type="Label" parent="RootMargin/Layout/MapPanel/AiTestingGroundButton/AiTestingGroundLayout"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+text = "Kon's Observation Arena"
+
+[node name="MapSubtitle" type="Label" parent="RootMargin/Layout/MapPanel/AiTestingGroundButton/AiTestingGroundLayout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.482353, 0.866667, 0.909804, 1)
+theme_override_font_sizes/font_size = 16
+text = "Neutral observer arena for automated factions, pathing, targeting, and unit-count stress tests."
+
+[node name="MapDescription" type="RichTextLabel" parent="RootMargin/Layout/MapPanel/AiTestingGroundButton/AiTestingGroundLayout"]
+custom_minimum_size = Vector2(620, 52)
+layout_mode = 2
+bbcode_enabled = true
+fit_content = true
+scroll_active = false
+text = "Loads a clean square-grid arena with no player army and no fog of war. Use Spawn AI Wave to create armies from both sides and watch live combat telemetry."
+
 [node name="MapButtons" type="HBoxContainer" parent="RootMargin/Layout/MapPanel"]
 layout_mode = 2
 theme_override_constants/separation = 12
@@ -587,6 +625,7 @@ text = "Back"
 [connection signal="pressed" from="RootMargin/Layout/CharacterPanel/CharacterButtons/CharacterContinueButton" to="." method="_on_character_continue_pressed"]
 [connection signal="pressed" from="RootMargin/Layout/MapPanel/MapCardButton" to="." method="_on_vampire_map_pressed"]
 [connection signal="pressed" from="RootMargin/Layout/MapPanel/GridTestMapButton" to="." method="_on_grid_test_map_pressed"]
+[connection signal="pressed" from="RootMargin/Layout/MapPanel/AiTestingGroundButton" to="." method="_on_ai_testing_ground_pressed"]
 [connection signal="pressed" from="RootMargin/Layout/MapPanel/MapButtons/MapBackButton" to="." method="_on_map_back_pressed"]
 [connection signal="pressed" from="RootMargin/Layout/MapPanel/MapButtons/BeginButton" to="." method="_on_begin_pressed"]
 [connection signal="value_changed" from="RootMargin/Layout/AudioPanel/VolumeSlider" to="." method="_on_volume_slider_value_changed"]
