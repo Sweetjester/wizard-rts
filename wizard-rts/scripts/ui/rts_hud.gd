@@ -34,6 +34,7 @@ var command_container: HBoxContainer
 var ai_test_container: HBoxContainer
 var ai_telemetry_label: Label
 var ai_spawn_button: Button
+var unit_stat_window: Window
 var _last_selection_signature := ""
 var _alert_until_msec: int = 0
 var _boss_warning_shown := false
@@ -222,6 +223,11 @@ func _setup_ai_test_controls() -> void:
 	_add_button(ai_test_container, "Target 500", func() -> void: _queue_ai_test_until(500))
 	_add_button(ai_test_container, "Target 1000", func() -> void: _queue_ai_test_until(1000))
 	_add_button(ai_test_container, "Target 1500", func() -> void: _queue_ai_test_until(1500))
+	_add_button(ai_test_container, "Test Thing", func() -> void: _spawn_ai_test_unit(&"terrible_thing"))
+	_add_button(ai_test_container, "Test Horror", func() -> void: _spawn_ai_test_unit(&"horror"))
+	_add_button(ai_test_container, "Test Apex", func() -> void: _spawn_ai_test_unit(&"apex"))
+	_add_button(ai_test_container, "Test Spawner", func() -> void: _spawn_ai_test_unit(&"spawner"))
+	_add_button(ai_test_container, "Unit Stats", _open_unit_stat_window)
 	if ai_telemetry_label != null:
 		ai_telemetry_label.visible = true
 	status_label.text = "Kon's Observation Arena: neutral observer mode. Spawn mirrored armies to test AI and performance."
@@ -248,6 +254,258 @@ func _queue_ai_test_until(target_live_units: int) -> void:
 		result.get("queued", 0),
 	]
 	_update_ai_telemetry(999.0)
+
+func _open_unit_stat_window() -> void:
+	if unit_stat_window == null or not is_instance_valid(unit_stat_window):
+		unit_stat_window = _build_unit_stat_window()
+		add_child(unit_stat_window)
+	unit_stat_window.popup_centered_ratio(0.82)
+
+func _build_unit_stat_window() -> Window:
+	var window := Window.new()
+	window.title = "Unit Stat Sheets"
+	window.size = Vector2i(1120, 720)
+	window.unresizable = false
+	window.close_requested.connect(func() -> void:
+		window.hide()
+	)
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 18)
+	margin.add_theme_constant_override("margin_right", 18)
+	margin.add_theme_constant_override("margin_top", 16)
+	margin.add_theme_constant_override("margin_bottom", 18)
+	window.add_child(margin)
+	var layout := HSplitContainer.new()
+	layout.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	layout.split_offset = 300
+	margin.add_child(layout)
+
+	var roster_scroll := ScrollContainer.new()
+	roster_scroll.custom_minimum_size = Vector2(280, 0)
+	roster_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	layout.add_child(roster_scroll)
+
+	var roster := VBoxContainer.new()
+	roster.name = "UnitStatRoster"
+	roster.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	roster.add_theme_constant_override("separation", 8)
+	roster_scroll.add_child(roster)
+
+	var details := ScrollContainer.new()
+	details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	details.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	layout.add_child(details)
+
+	var detail_body := VBoxContainer.new()
+	detail_body.name = "UnitStatDetails"
+	detail_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	detail_body.add_theme_constant_override("separation", 12)
+	details.add_child(detail_body)
+
+	var entries := _catalog_entries(false)
+	_add_stat_roster_section(roster, "Units", entries, detail_body)
+	_add_stat_roster_section(roster, "Buildings", _catalog_entries(true), detail_body)
+	if not entries.is_empty():
+		_show_unit_stat_card(entries[0], detail_body)
+	return window
+
+func _catalog_entries(structures: bool) -> Array[StringName]:
+	var entries: Array[StringName] = []
+	for key in UnitCatalog.DEFINITIONS.keys():
+		var archetype := StringName(key)
+		var definition := UnitCatalog.get_definition(archetype)
+		var is_structure := definition.has("footprint") or definition.has("build_time_seconds") or definition.has("income_per_tick") or definition.has("production")
+		if is_structure == structures:
+			entries.append(archetype)
+	entries.sort_custom(func(a: StringName, b: StringName) -> bool:
+		return str(UnitCatalog.get_definition(a).get("display_name", a)) < str(UnitCatalog.get_definition(b).get("display_name", b))
+	)
+	return entries
+
+func _add_stat_section(parent: VBoxContainer, title: String, entries: Array[StringName]) -> void:
+	var title_label := _make_label()
+	title_label.text = title
+	title_label.add_theme_font_size_override("font_size", 22)
+	title_label.add_theme_color_override("font_color", Color("#7DDDE8") if title == "Units" else Color("#D6C7AE"))
+	parent.add_child(title_label)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_theme_constant_override("h_separation", 12)
+	grid.add_theme_constant_override("v_separation", 12)
+	parent.add_child(grid)
+	for archetype in entries:
+		grid.add_child(_build_stat_card(archetype))
+
+func _add_stat_roster_section(parent: VBoxContainer, title: String, entries: Array[StringName], detail_body: VBoxContainer) -> void:
+	if entries.is_empty():
+		return
+	var title_label := _make_label()
+	title_label.text = title
+	title_label.add_theme_font_size_override("font_size", 18)
+	title_label.add_theme_color_override("font_color", Color("#7DDDE8") if title == "Units" else Color("#D6C7AE"))
+	parent.add_child(title_label)
+	for archetype in entries:
+		var definition := UnitCatalog.get_definition(archetype)
+		var button := Button.new()
+		button.name = "UnitStat_%s" % str(archetype)
+		button.text = str(definition.get("display_name", archetype))
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		button.custom_minimum_size = Vector2(240, 38)
+		button.tooltip_text = str(archetype)
+		button.pressed.connect(_show_unit_stat_card.bind(archetype, detail_body))
+		parent.add_child(button)
+
+func _show_unit_stat_card(archetype: StringName, detail_body: VBoxContainer) -> void:
+	for child in detail_body.get_children():
+		detail_body.remove_child(child)
+		child.queue_free()
+	detail_body.add_child(_build_stat_card(archetype))
+	var definition := UnitCatalog.get_definition(archetype)
+	var breakdown := _make_label()
+	breakdown.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	breakdown.text = _unit_stat_breakdown(archetype, definition)
+	detail_body.add_child(breakdown)
+
+func _build_stat_card(archetype: StringName) -> Control:
+	var definition := UnitCatalog.get_definition(archetype)
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(500, 156)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	card.add_child(box)
+	var header := _make_label()
+	header.text = str(definition.get("display_name", archetype))
+	header.add_theme_font_size_override("font_size", 18)
+	header.add_theme_color_override("font_color", _stat_accent(archetype))
+	box.add_child(header)
+	var meta := _make_label()
+	meta.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	meta.text = _stat_meta_text(archetype, definition)
+	box.add_child(meta)
+	var combat := _make_label()
+	combat.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	combat.text = _combat_text(archetype, definition)
+	box.add_child(combat)
+	var role := _make_label()
+	role.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	role.text = _role_text(archetype, definition)
+	box.add_child(role)
+	return card
+
+func _stat_meta_text(archetype: StringName, definition: Dictionary) -> String:
+	var parts: Array[String] = []
+	parts.append("Archetype %s" % str(archetype))
+	parts.append("HP %s" % int(definition.get("max_hp", 0)))
+	if definition.has("cost_bio"):
+		parts.append("Cost %s Bio" % int(definition.get("cost_bio", 0)))
+	if definition.has("train_time_seconds"):
+		parts.append("Train %.1fs" % float(definition.get("train_time_seconds", 0.0)))
+	if definition.has("build_time_seconds"):
+		parts.append("Build %.1fs" % float(definition.get("build_time_seconds", 0.0)))
+	if definition.has("footprint"):
+		var footprint: Vector2i = definition.get("footprint")
+		parts.append("Footprint %sx%s" % [footprint.x, footprint.y])
+	return " | ".join(parts)
+
+func _combat_text(archetype: StringName, definition: Dictionary) -> String:
+	var weapon := WeaponCatalog.get_weapon(archetype)
+	var range_cells := int(definition.get("attack_range_cells", 0))
+	var cooldown := float(definition.get("attack_cooldown_ticks", 0)) / 20.0
+	var parts: Array[String] = []
+	parts.append("Weapon %s" % str(weapon.get("kind", &"none")).capitalize())
+	parts.append("Damage %s" % int(definition.get("attack_damage", weapon.get("damage", 0))))
+	parts.append("Range %s" % range_cells)
+	if cooldown > 0.0:
+		parts.append("Cooldown %.2fs" % cooldown)
+	if int(weapon.get("casts", 1)) > 1:
+		parts.append("Casts %s" % int(weapon.get("casts", 1)))
+	if weapon.has("aoe_radius"):
+		parts.append("AoE %s px" % int(weapon.get("aoe_radius", 0)))
+	return " | ".join(parts)
+
+func _unit_stat_breakdown(archetype: StringName, definition: Dictionary) -> String:
+	var weapon := WeaponCatalog.get_weapon(archetype)
+	var lines: Array[String] = []
+	lines.append("Combat profile")
+	lines.append("Damage: %s | Range: %s cells | Cooldown: %.2fs | Weapon: %s" % [
+		int(definition.get("attack_damage", weapon.get("damage", 0))),
+		int(definition.get("attack_range_cells", 0)),
+		float(definition.get("attack_cooldown_ticks", 0)) / 20.0,
+		str(weapon.get("kind", &"none")).capitalize(),
+	])
+	if weapon.has("projectile_speed"):
+		lines.append("Projectile speed: %s" % int(weapon.get("projectile_speed", 0)))
+	if weapon.has("aoe_radius"):
+		lines.append("Area damage radius: %s px" % int(weapon.get("aoe_radius", 0)))
+	lines.append("")
+	lines.append("Economy and production")
+	lines.append("Bio cost: %s | Bio value: %s" % [
+		int(definition.get("cost_bio", 0)),
+		int(definition.get("bio_value", 0)),
+	])
+	if definition.has("train_time_seconds"):
+		lines.append("Train time: %.1fs" % float(definition.get("train_time_seconds", 0.0)))
+	if definition.has("build_time_seconds"):
+		lines.append("Build time: %.1fs" % float(definition.get("build_time_seconds", 0.0)))
+	if definition.has("income_per_tick"):
+		lines.append("Income per tick: %s Bio" % int(definition.get("income_per_tick", 0)))
+	lines.append("")
+	lines.append("Framework hooks")
+	lines.append(_role_text(archetype, definition))
+	return "\n".join(lines)
+
+func _role_text(_archetype: StringName, definition: Dictionary) -> String:
+	var notes: Array[String] = []
+	if definition.has("role"):
+		notes.append(str(definition.get("role", "")))
+	if definition.has("passives"):
+		var passives: Array[String] = []
+		for passive in definition.get("passives", []):
+			passives.append(str(passive))
+		if not passives.is_empty():
+			notes.append("Passives: %s" % ", ".join(passives))
+	if definition.has("actives"):
+		var actives: Array[String] = []
+		for active in definition.get("actives", []):
+			actives.append(str(active))
+		if not actives.is_empty():
+			notes.append("Actives: %s" % ", ".join(actives))
+	if definition.has("evolves_to"):
+		var evolves_to := StringName(definition.get("evolves_to", &""))
+		notes.append("Evolves to %s at %s XP" % [UnitCatalog.get_definition(evolves_to).get("display_name", evolves_to), int(definition.get("evolution_xp_required", 0))])
+	if definition.has("heal_per_attack"):
+		notes.append("Heals %s on attack" % int(definition.get("heal_per_attack", 0)))
+	if definition.has("production"):
+		var produced: Array[String] = []
+		for item in definition.get("production", []):
+			var produced_archetype := StringName(item)
+			produced.append(str(UnitCatalog.get_definition(produced_archetype).get("display_name", produced_archetype)))
+		notes.append("Produces %s" % ", ".join(produced))
+	if definition.has("upgrade_choices"):
+		var upgrade_names: Array[String] = []
+		for upgrade in definition.get("upgrade_choices", []):
+			upgrade_names.append(str(upgrade).capitalize())
+		notes.append("Upgrade choice %s" % ", ".join(upgrade_names))
+	if bool(definition.get("ignores_terrain", false)):
+		notes.append("Ignores terrain")
+	if notes.is_empty():
+		return "Role framework: baseline combat unit/building."
+	return " | ".join(notes)
+
+func _stat_accent(archetype: StringName) -> Color:
+	match archetype:
+		&"life_wizard", &"horror", &"evangalion_wizard":
+			return Color("#7DDDE8")
+		&"fire_wizard", &"bloodcap_runner", &"vampire_mushroom_thrall", &"spore_spitter", &"bloodcap_brute":
+			return Color("#E85A5A")
+		&"terrible_thing", &"awful_thing", &"apex", &"apex_predator", &"spawner", &"spawner_drone", &"bio_absorber", &"vinewall", &"bio_launcher":
+			return Color("#7BC47F")
+	return Color("#D6C7AE")
 
 func _update_ai_telemetry(delta: float) -> void:
 	if ai_telemetry_label == null or not ai_telemetry_label.visible:
@@ -417,6 +675,7 @@ func _rebuild_context_commands(selected: Array[Node]) -> void:
 		_add_button(command_container, "Thing", func() -> void: _produce_from_selected(&"terrible_thing"))
 		_add_button(command_container, "Horror", func() -> void: _produce_from_selected(&"horror"))
 		_add_button(command_container, "Apex", func() -> void: _produce_from_selected(&"apex"))
+		_add_button(command_container, "Spawner", func() -> void: _produce_from_selected(&"spawner"))
 	elif _selection_has_archetype(selected, &"bio_absorber"):
 		_add_button(command_container, "Heal Aura", func() -> void: _absorber_upgrade(&"heal_aura"))
 		_add_button(command_container, "Bio Turret", func() -> void: _absorber_upgrade(&"bio_launcher"))
@@ -426,6 +685,7 @@ func _rebuild_context_commands(selected: Array[Node]) -> void:
 		_add_button(command_container, "Harden Horrors", func() -> void: _research_upgrade(&"hardened_horrors"))
 		_add_button(command_container, "Launcher Bile", func() -> void: _research_upgrade(&"launcher_bile"))
 	else:
+		_add_unit_active_buttons(selected)
 		_add_button(command_container, "Bio Mend", _bio_mend)
 		_add_button(command_container, "Seal Away", _seal_away)
 
@@ -526,6 +786,44 @@ func _start_build(archetype: StringName) -> void:
 func _produce(archetype: StringName) -> void:
 	if build_system != null and build_system.has_method("produce_unit"):
 		build_system.call("produce_unit", 1, archetype)
+
+func _spawn_ai_test_unit(archetype: StringName) -> void:
+	if wave_director == null or not wave_director.has_method("spawn_ai_test_player_unit"):
+		return
+	var result: Dictionary = wave_director.call("spawn_ai_test_player_unit", archetype)
+	if bool(result.get("accepted", false)):
+		status_label.text = "Spawned test %s as third faction" % UnitCatalog.get_definition(archetype).get("display_name", archetype)
+	else:
+		status_label.text = "Could not spawn test unit: %s" % str(result.get("reason", "unknown")).capitalize()
+
+func _add_unit_active_buttons(selected: Array[Node]) -> void:
+	if selected.is_empty():
+		return
+	var archetype := _archetype_for(selected[0])
+	var definition := UnitCatalog.get_definition(archetype)
+	for active in definition.get("actives", []):
+		match str(active):
+			"Charge":
+				_add_button(command_container, "Charge", func() -> void: _activate_selected("activate_charge", "Charge"))
+			"Grapple":
+				_add_button(command_container, "Grapple", func() -> void: _activate_selected("activate_grapple", "Grapple"))
+			"Eat ally":
+				_add_button(command_container, "Eat Ally", func() -> void: _activate_selected("activate_eat_ally", "Eat Ally"))
+			"Summon drone":
+				_add_button(command_container, "Drone", func() -> void: _activate_selected("activate_summon_drone", "Summon Drone"))
+			"Root":
+				_add_button(command_container, "Root", func() -> void: _activate_selected("activate_root", "Root"))
+			"Uproot":
+				_add_button(command_container, "Uproot", func() -> void: _activate_selected("activate_uproot", "Uproot"))
+
+func _activate_selected(method_name: String, label: String) -> void:
+	if selection_controller == null:
+		return
+	var activated := 0
+	for unit in selection_controller.selected_units:
+		if is_instance_valid(unit) and unit.has_method(method_name) and bool(unit.call(method_name)):
+			activated += 1
+	status_label.text = "%s activated on %s unit%s" % [label, activated, "" if activated == 1 else "s"]
 
 func _produce_from_selected(archetype: StringName) -> void:
 	if build_system == null or selection_controller == null:

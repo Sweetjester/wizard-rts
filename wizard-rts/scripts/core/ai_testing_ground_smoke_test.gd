@@ -49,6 +49,13 @@ func _run() -> void:
 		push_error("AI testing ground should not spawn player-owned observer units")
 		quit(1)
 		return
+	var player_spawn: Dictionary = wave_director.call("spawn_ai_test_player_unit", &"spawner")
+	await process_frame
+	await physics_frame
+	if not bool(player_spawn.get("accepted", false)) or _count_units_for_owner(1) != 1:
+		push_error("AI testing ground did not spawn a selectable third-faction test unit")
+		quit(1)
+		return
 	if owner_two < int(result.get("west", 0)) or owner_three < int(result.get("east", 0)):
 		push_error("Spawned AI testing units were not registered in the scene")
 		quit(1)
@@ -62,6 +69,24 @@ func _run() -> void:
 	var telemetry: Dictionary = rts_world.call("get_observation_telemetry")
 	if int(telemetry.get("units", 0)) < int(result.get("west", 0)) + int(result.get("east", 0)):
 		push_error("Observation telemetry did not report the live arena units")
+		quit(1)
+		return
+	var hud: Node = scene.get_node("RTSHud")
+	hud.call("_open_unit_stat_window")
+	await process_frame
+	var stat_window: Window = hud.get("unit_stat_window")
+	if stat_window == null or not is_instance_valid(stat_window) or not stat_window.visible:
+		push_error("AI testing unit stat window did not open")
+		quit(1)
+		return
+	var roster_entries := stat_window.find_children("UnitStat_*", "Button", true, false)
+	if roster_entries.is_empty():
+		push_error("AI testing unit stat window opened without unit roster entries")
+		quit(1)
+		return
+	var detail_panel := stat_window.find_child("UnitStatDetails", true, false)
+	if detail_panel == null or detail_panel.get_child_count() < 2:
+		push_error("AI testing unit stat window opened without a populated unit card")
 		quit(1)
 		return
 	print("[AITestingGroundSmokeTest] wave=", result.get("wave", 0), " west=", result.get("west", 0), " east=", result.get("east", 0))

@@ -1,6 +1,9 @@
 class_name RTSUnit
 extends CharacterBody2D
 
+const UNIT_DEATH_FX_SCRIPT := preload("res://scripts/fx/unit_death_fx.gd")
+const SPAWNER_DRONE_SCENE_PATH := "res://scenes/units/spawner_drone.tscn"
+
 @export var move_speed: float = 180.0
 @export var selection_radius: float = 24.0
 @export var stop_distance: float = 3.0
@@ -52,10 +55,19 @@ var _last_chase_repath_msec: int = -10000
 var _redraw_elapsed := 0.0
 var _mass_physics_accum := 0.0
 var _last_leash_repath_msec: int = -10000
+var _grapple_elapsed := 99.0
+var _spawner_elapsed := 99.0
+var _life_elapsed := 0.0
+var _charge_until_msec := 0
+var _spawner_rooted := false
+var _root_cast_remaining := 0.0
+var _uproot_cast_remaining := 0.0
+var _economy_manager: EconomyManager
 var mass_lane_offset := Vector2.ZERO
 var arena_leash_enabled := false
 var arena_leash_rect := Rect2()
 var arena_home := Vector2.ZERO
+var _dying := false
 
 func _ready() -> void:
 	collision_layer = 2
@@ -65,6 +77,7 @@ func _ready() -> void:
 	health = max_health
 	terrain = get_node_or_null(terrain_path)
 	rts_world = get_node_or_null("../RTSWorld")
+	_economy_manager = get_node_or_null("../EconomyManager")
 	add_to_group("selectable_units")
 	add_to_group("units")
 	if rts_world != null:
@@ -105,6 +118,8 @@ func is_inside_selection_rect(rect: Rect2) -> bool:
 	return rect.has_point(global_position)
 
 func issue_move_order(world_pos: Vector2) -> void:
+	if _blocks_movement_for_rooting():
+		return
 	attack_target = null
 	command_mode = &"move"
 	unit_state = &"moving"
@@ -115,6 +130,8 @@ func issue_move_order_offset(world_pos: Vector2, offset: Vector2) -> void:
 	issue_move_order(world_pos + offset)
 
 func issue_shared_path_order(shared_path: Array[Vector2], offset: Vector2) -> void:
+	if _blocks_movement_for_rooting():
+		return
 	attack_target = null
 	command_mode = &"move"
 	unit_state = &"moving"
@@ -134,9 +151,16 @@ func issue_shared_path_order(shared_path: Array[Vector2], offset: Vector2) -> vo
 	queue_redraw()
 
 func _physics_process(delta: float) -> void:
+	_life_elapsed += delta
+	_update_limited_lifetime()
+	_update_spawner_root_casts(delta)
 	var mass_mode := _mass_performance_mode()
 	var sim_delta := _mass_simulation_delta(delta, mass_mode)
 	if sim_delta <= 0.0:
+		return
+	if _blocks_movement_for_rooting():
+		velocity = Vector2.ZERO
+		moving = false
 		return
 	if _is_stunned():
 		velocity = Vector2.ZERO
@@ -172,7 +196,8 @@ func _physics_process(delta: float) -> void:
 	var dir := target_pos - global_position
 	if absf(dir.x) > 0.5:
 		_facing_sign = signf(dir.x)
-	var step := move_speed * sim_delta
+	var current_speed := _current_move_speed()
+	var step := current_speed * sim_delta
 	if dir.length() <= max(stop_distance, step):
 		global_position = target_pos
 		velocity = Vector2.ZERO
@@ -188,7 +213,7 @@ func _physics_process(delta: float) -> void:
 		queue_redraw()
 		return
 
-	velocity = dir.normalized() * move_speed + (Vector2.ZERO if mass_mode else _separation_velocity(dir.normalized()))
+	velocity = dir.normalized() * current_speed + (Vector2.ZERO if mass_mode else _separation_velocity(dir.normalized()))
 	if mass_mode:
 		global_position += velocity * sim_delta
 	else:
@@ -206,11 +231,15 @@ func issue_attack_target(target: Node2D) -> void:
 	unit_state = &"attacking"
 
 func issue_attack_move_order(world_pos: Vector2) -> void:
+	if _blocks_movement_for_rooting():
+		return
 	issue_move_order(world_pos)
 	command_mode = &"attack_move"
 	unit_state = &"attack_move"
 
 func issue_patrol_order(world_pos: Vector2) -> void:
+	if _blocks_movement_for_rooting():
+		return
 	attack_target = null
 	command_mode = &"patrol"
 	patrol_a = global_position
@@ -243,14 +272,24 @@ func rts_combat_tick(delta: float, nearby_units: Array[Node2D]) -> void:
 	if health <= 0 or _is_stunned():
 		return
 	_attack_elapsed += delta
+	_grapple_elapsed += delta
+	_spawner_elapsed += delta
 	if attack_target != null and (not is_instance_valid(attack_target) or not _is_enemy_unit(attack_target)):
 		attack_target = null
 	if attack_target == null:
 		attack_target = _find_nearest_enemy(nearby_units)
 	if attack_target == null:
+		_update_spawner_drones(nearby_units)
+		return
+	_update_spawner_drones(nearby_units)
+	if _requires_root_to_fire() and not _spawner_rooted:
+		if owner_player_id != 1 and _root_cast_remaining <= 0.0:
+			activate_root()
 		return
 	var distance := global_position.distance_to(attack_target.global_position)
 	if distance > attack_range:
+		if _blocks_movement_for_rooting():
+			return
 		if command_mode == &"hold":
 			return
 		if unit_state == &"attacking" or command_mode in [&"attack_move", &"attack_target", &"patrol"]:
@@ -258,11 +297,17 @@ func rts_combat_tick(delta: float, nearby_units: Array[Node2D]) -> void:
 		return
 	path.clear()
 	moving = false
-	unit_state = &"attacking"
+	if _spawner_rooted:
+		unit_state = &"rooted"
+	else:
+		unit_state = &"attacking"
 	if _attack_elapsed < attack_cooldown:
 		return
 	_attack_elapsed = 0.0
 	if attack_target.has_method("take_damage"):
+		if not _spend_attack_bio():
+			return
+		_try_auto_grapple(attack_target)
 		var weapon := WeaponCatalog.get_weapon(unit_archetype)
 		var casts := int(weapon.get("casts", 2 if bool(UnitCatalog.get_definition(unit_archetype).get("dual_cast", false)) else 1))
 		for _i in casts:
@@ -450,6 +495,7 @@ func _spawn_projectile(target: Node2D) -> void:
 		return
 	var projectile := RtsProjectile.new()
 	projectile.configure(self, target, attack_damage, _projectile_color(), projectile_speed)
+	projectile.set_aoe_radius(float(WeaponCatalog.get_weapon(unit_archetype).get("aoe_radius", 0.0)))
 	get_parent().add_child(projectile)
 	projectile.global_position = origin
 
@@ -468,6 +514,8 @@ func _projectile_color() -> Color:
 	return Color("#D6C7AE")
 
 func take_damage(amount: int, source: Node = null) -> void:
+	if _dying:
+		return
 	var actual_damage: int = mini(amount, health)
 	if rts_world != null and is_instance_valid(rts_world):
 		rts_world.record_damage(source, self, actual_damage)
@@ -475,7 +523,46 @@ func take_damage(amount: int, source: Node = null) -> void:
 	_gain_evolution_xp(float(amount) * 0.35)
 	queue_redraw()
 	if health <= 0:
-		queue_free()
+		_die(source)
+
+func _die(source: Node = null) -> void:
+	if _dying:
+		return
+	_dying = true
+	_apply_death_passives(source)
+	_spawn_death_fx(source)
+	queue_free()
+
+func _apply_death_passives(source: Node = null) -> void:
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	if not bool(definition.get("friendly_fire_explodes", false)):
+		return
+	if source == null or not is_instance_valid(source) or not source is Node:
+		return
+	if _owner_id_for_node(source) != owner_player_id:
+		return
+	var radius := float(definition.get("death_explosion_radius", 0.0))
+	var damage := int(definition.get("death_explosion_damage", 0))
+	if radius <= 0.0 or damage <= 0:
+		return
+	var units := rts_world.query_units(global_position, radius) if rts_world != null and is_instance_valid(rts_world) else []
+	for unit in units:
+		if unit == self or not is_instance_valid(unit) or not unit.has_method("take_damage"):
+			continue
+		var distance := global_position.distance_to(unit.global_position)
+		var falloff := clampf(1.0 - distance / maxf(1.0, radius * 1.25), 0.35, 1.0)
+		unit.take_damage(maxi(1, int(float(damage) * falloff)), self)
+
+func _spawn_death_fx(source: Node = null) -> void:
+	var parent := get_parent()
+	if parent == null:
+		parent = get_tree().current_scene
+	if parent == null:
+		return
+	var fx: Node2D = UNIT_DEATH_FX_SCRIPT.new()
+	parent.add_child(fx)
+	if fx.has_method("configure_from_unit"):
+		fx.call("configure_from_unit", self, source)
 
 func is_alive() -> bool:
 	return health > 0
@@ -512,6 +599,9 @@ func _evolve(definition: Dictionary) -> void:
 	var evolves_to: StringName = definition.get("evolves_to", &"")
 	if not str(evolves_to).is_empty():
 		unit_archetype = evolves_to
+		_spawner_rooted = false
+		_root_cast_remaining = 0.0
+		_uproot_cast_remaining = 0.0
 	_apply_catalog_definition()
 	evolution_level += 1
 	max_health = int(float(max_health) * (1.18 + float(evolution_level) * 0.03))
@@ -519,6 +609,238 @@ func _evolve(definition: Dictionary) -> void:
 	move_speed += float(definition.get("evolution_speed_bonus", 0.0))
 	attack_damage = int(float(attack_damage) * 1.15)
 	queue_redraw()
+
+func _try_auto_grapple(target: Node2D) -> void:
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	var power := int(definition.get("grapple_power", 0))
+	if power <= 0 or _grapple_elapsed < float(definition.get("grapple_cooldown_seconds", 4.0)):
+		return
+	if target == null or not is_instance_valid(target):
+		return
+	if global_position.distance_squared_to(target.global_position) > pow(attack_range + 24.0, 2.0):
+		return
+	_grapple_elapsed = 0.0
+	var until_msec := Time.get_ticks_msec() + int(float(definition.get("grapple_seconds", 2.0)) * 1000.0)
+	var stacks: Array = target.get_meta("grapple_stacks", [])
+	stacks.append({"owner": get_instance_id(), "power": power, "until": until_msec})
+	for i in range(stacks.size() - 1, -1, -1):
+		if int(stacks[i].get("until", 0)) < Time.get_ticks_msec():
+			stacks.remove_at(i)
+	target.set_meta("grapple_stacks", stacks)
+	var total_power := 0
+	for stack in stacks:
+		total_power += int(stack.get("power", 0))
+	var target_archetype := StringName(target.get("unit_archetype")) if _node_has_property(target, "unit_archetype") else &""
+	var resistance := int(UnitCatalog.get_definition(target_archetype).get("grapple_resistance", 1))
+	if total_power >= resistance and target.has_method("stun_for_seconds"):
+		target.stun_for_seconds(float(definition.get("grapple_seconds", 2.0)))
+
+func activate_charge() -> bool:
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	if not definition.has("charge_speed_multiplier"):
+		return false
+	_charge_until_msec = Time.get_ticks_msec() + 3200
+	unit_state = &"attack_move" if attack_target == null else &"attacking"
+	queue_redraw()
+	return true
+
+func activate_grapple() -> bool:
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	if int(definition.get("grapple_power", 0)) <= 0:
+		return false
+	var target := _nearest_enemy(float(definition.get("grapple_active_radius", 150.0)))
+	if target == null:
+		return false
+	_grapple_elapsed = float(definition.get("grapple_cooldown_seconds", 4.0))
+	_try_auto_grapple(target)
+	issue_attack_target(target)
+	return true
+
+func activate_summon_drone() -> bool:
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	if not definition.has("drone_archetype"):
+		return false
+	if _owned_drones().size() >= int(definition.get("drone_cap", 2)):
+		return false
+	var cost := int(definition.get("drone_summon_cost_bio", 0))
+	if cost > 0 and not _spend_bio(cost):
+		return false
+	var target := _nearest_enemy(520.0)
+	_spawn_drone(StringName(definition.get("drone_archetype", &"spawner_drone")), target)
+	_spawner_elapsed = 0.0
+	return true
+
+func activate_root_cannon() -> bool:
+	return activate_root()
+
+func activate_root() -> bool:
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	if not bool(definition.get("requires_root_to_fire", false)):
+		return false
+	if _spawner_rooted or _root_cast_remaining > 0.0:
+		return false
+	moving = false
+	path.clear()
+	velocity = Vector2.ZERO
+	_root_cast_remaining = float(definition.get("root_cast_seconds", 2.0))
+	unit_state = &"rooting"
+	return true
+
+func activate_uproot() -> bool:
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	if not bool(definition.get("requires_root_to_fire", false)):
+		return false
+	if not _spawner_rooted or _uproot_cast_remaining > 0.0:
+		return false
+	_uproot_cast_remaining = float(definition.get("uproot_cast_seconds", 2.0))
+	unit_state = &"uprooting"
+	return true
+
+func activate_eat_ally() -> bool:
+	if not has_method("eat_ally"):
+		return false
+	var ally := _nearest_ally(120.0)
+	if ally == null:
+		return false
+	return bool(call("eat_ally", ally))
+
+func _update_spawner_drones(nearby_units: Array[Node2D]) -> void:
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	if not definition.has("drone_archetype"):
+		return
+	var drones := _owned_drones()
+	if drones.size() >= int(definition.get("drone_cap", 2)):
+		return
+	if _spawner_elapsed < float(definition.get("drone_summon_cooldown_seconds", 8.0)):
+		return
+	var target := attack_target if attack_target != null and is_instance_valid(attack_target) else _find_nearest_enemy(nearby_units)
+	if target == null:
+		return
+	var cost := int(definition.get("drone_summon_cost_bio", 0))
+	if cost > 0 and not _spend_bio(cost):
+		return
+	_spawner_elapsed = 0.0
+	_spawn_drone(StringName(definition.get("drone_archetype", &"spawner_drone")), target)
+
+func _owned_drones() -> Array[Node2D]:
+	var drones: Array[Node2D] = []
+	if rts_world == null or not is_instance_valid(rts_world):
+		return drones
+	for unit in rts_world.units_for_owner(owner_player_id):
+		if not is_instance_valid(unit):
+			continue
+		if unit.get_meta("spawner_parent_id", 0) == get_instance_id():
+			drones.append(unit)
+	return drones
+
+func _spawn_drone(archetype: StringName, target: Node2D) -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	var drone_scene: PackedScene = load(SPAWNER_DRONE_SCENE_PATH)
+	if drone_scene == null:
+		return
+	var drone := drone_scene.instantiate()
+	drone.set("owner_player_id", owner_player_id)
+	drone.set("unit_archetype", archetype)
+	drone.set_meta("spawner_parent_id", get_instance_id())
+	drone.global_position = global_position + Vector2(randf_range(-22.0, 22.0), randf_range(-18.0, 18.0))
+	parent.add_child(drone)
+	if target != null and is_instance_valid(target) and drone.has_method("issue_attack_target"):
+		drone.issue_attack_target(target)
+
+func _spend_attack_bio() -> bool:
+	var cost := int(UnitCatalog.get_definition(unit_archetype).get("shot_cost_bio", 0))
+	return cost <= 0 or _spend_bio(cost)
+
+func _spend_bio(amount: int) -> bool:
+	if amount <= 0:
+		return true
+	if owner_player_id != 1:
+		return true
+	if _economy_manager == null or not is_instance_valid(_economy_manager):
+		return true
+	return _economy_manager.spend(owner_player_id, {&"bio": amount})
+
+func _update_limited_lifetime() -> void:
+	var lifetime := float(UnitCatalog.get_definition(unit_archetype).get("lifetime_seconds", 0.0))
+	if lifetime > 0.0 and _life_elapsed >= lifetime:
+		_die(null)
+
+func _update_spawner_root_casts(delta: float) -> void:
+	if _root_cast_remaining > 0.0:
+		_root_cast_remaining = maxf(0.0, _root_cast_remaining - delta)
+		unit_state = &"rooting"
+		moving = false
+		path.clear()
+		if _root_cast_remaining <= 0.0:
+			_spawner_rooted = true
+			unit_state = &"rooted"
+		queue_redraw()
+		return
+	if _uproot_cast_remaining > 0.0:
+		_uproot_cast_remaining = maxf(0.0, _uproot_cast_remaining - delta)
+		unit_state = &"uprooting"
+		moving = false
+		path.clear()
+		if _uproot_cast_remaining <= 0.0:
+			_spawner_rooted = false
+			unit_state = &"idle"
+		queue_redraw()
+
+func _blocks_movement_for_rooting() -> bool:
+	return _spawner_rooted or _root_cast_remaining > 0.0 or _uproot_cast_remaining > 0.0
+
+func _requires_root_to_fire() -> bool:
+	return bool(UnitCatalog.get_definition(unit_archetype).get("requires_root_to_fire", false))
+
+func _current_move_speed() -> float:
+	var speed := move_speed
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	if definition.has("charge_speed_multiplier") and (Time.get_ticks_msec() < _charge_until_msec or attack_target != null and is_instance_valid(attack_target)):
+		var charge_range := maxf(attack_range * 4.0, 160.0)
+		if Time.get_ticks_msec() < _charge_until_msec or global_position.distance_squared_to(attack_target.global_position) <= charge_range * charge_range:
+			speed *= float(definition.get("charge_speed_multiplier", 1.0))
+	return speed
+
+func _nearest_enemy(radius: float) -> Node2D:
+	if rts_world == null or not is_instance_valid(rts_world):
+		return null
+	var best: Node2D = null
+	var best_distance := INF
+	for unit in rts_world.query_units(global_position, radius, -1, 48):
+		if not is_instance_valid(unit) or not _is_enemy_unit(unit):
+			continue
+		var distance := global_position.distance_squared_to(unit.global_position)
+		if distance < best_distance:
+			best = unit
+			best_distance = distance
+	return best
+
+func _nearest_ally(radius: float) -> Node2D:
+	if rts_world == null or not is_instance_valid(rts_world):
+		return null
+	var best: Node2D = null
+	var best_distance := INF
+	for unit in rts_world.query_units(global_position, radius, owner_player_id, 48):
+		if unit == self or not is_instance_valid(unit) or not unit.has_method("salvage_value"):
+			continue
+		var distance := global_position.distance_squared_to(unit.global_position)
+		if distance < best_distance:
+			best = unit
+			best_distance = distance
+	return best
+
+func _owner_id_for_node(node: Node) -> int:
+	if node == null or not is_instance_valid(node) or not _node_has_property(node, "owner_player_id"):
+		return -1
+	return int(node.get("owner_player_id"))
+
+func _node_has_property(node: Node, property_name: String) -> bool:
+	for property in node.get_property_list():
+		if str(property.get("name", "")) == property_name:
+			return true
+	return false
 
 func _is_stunned() -> bool:
 	if stunned_until_msec <= 0:

@@ -31,7 +31,7 @@ func _process(delta: float) -> void:
 		return
 	hframes = max(1, sheet_columns)
 	vframes = max(1, sheet_rows)
-	var is_moving := bool(parent.get("moving"))
+	var is_moving: bool = parent.get("moving")
 	var state: StringName = parent.get("unit_state")
 	var frame_time := frame_time_idle
 	if is_moving:
@@ -81,7 +81,7 @@ func _direction_row(parent: Node) -> int:
 		target = attack_target.global_position - parent.global_position
 	elif velocity.length_squared() > 4.0:
 		target = velocity
-	elif not bool(parent.get("path").is_empty()):
+	elif not parent.get("path").is_empty():
 		var path: Array = parent.get("path")
 		target = Vector2(path[0]) - parent.global_position
 	else:

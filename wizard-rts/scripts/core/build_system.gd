@@ -25,6 +25,7 @@ signal upgrade_researched(player_id: int, upgrade_id: StringName)
 @export var terrible_thing_scene: PackedScene = preload("res://scenes/units/terrible_thing.tscn")
 @export var horror_scene: PackedScene = preload("res://scenes/units/horror.tscn")
 @export var apex_scene: PackedScene = preload("res://scenes/units/apex.tscn")
+@export var spawner_scene: PackedScene = preload("res://scenes/units/spawner.tscn")
 
 var economy_manager: EconomyManager
 var map_generator: Node
@@ -693,6 +694,8 @@ func _scene_for_unit(archetype: StringName) -> PackedScene:
 			return horror_scene
 		&"apex", &"apex_predator":
 			return apex_scene
+		&"spawner":
+			return spawner_scene
 	return null
 
 func _draw() -> void:

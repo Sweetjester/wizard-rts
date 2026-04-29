@@ -12,6 +12,7 @@ signal boss_defeated()
 @export var terrible_thing_scene: PackedScene = preload("res://scenes/units/terrible_thing.tscn")
 @export var horror_scene: PackedScene = preload("res://scenes/units/horror.tscn")
 @export var apex_scene: PackedScene = preload("res://scenes/units/apex.tscn")
+@export var spawner_scene: PackedScene = preload("res://scenes/units/spawner.tscn")
 @export var enabled: bool = true
 @export var scouting_seconds: float = 45.0
 @export var buildup_seconds: float = 135.0
@@ -180,6 +181,22 @@ func get_ai_test_spawn_telemetry() -> Dictionary:
 		"live_soft_cap": ai_test_live_unit_soft_cap,
 	}
 
+func spawn_ai_test_player_unit(archetype: StringName) -> Dictionary:
+	if not is_ai_testing_ground() or map_generator == null:
+		return {"accepted": false, "reason": "not_ai_testing_ground"}
+	var scene := _scene_for_kon_unit(archetype)
+	if scene == null:
+		return {"accepted": false, "reason": "unknown_unit"}
+	var live_units: int = rts_world.count_units_all() if rts_world != null and rts_world.has_method("count_units_all") else _count_ai_test_units_fallback()
+	if live_units >= ai_test_live_unit_soft_cap:
+		return {"accepted": false, "reason": "soft_cap"}
+	var existing: int = rts_world.count_units_for_owner(1) if rts_world != null else 0
+	var spawn_cell: Vector2i = map_generator.nearest_walkable_cell(Vector2i(48 + existing % 6, 45 + existing / 6), 12)
+	var unit := _spawn_ai_test_unit(scene, archetype, 1, spawn_cell, get_parent(), map_generator.cell_to_world(Vector2i(48, 37)))
+	if unit == null:
+		return {"accepted": false, "reason": "spawn_failed"}
+	return {"accepted": true, "unit": str(archetype), "owner": 1}
+
 func _update_ai_test_spawn_queue(delta: float) -> void:
 	_ai_test_spawn_meter_elapsed += delta
 	if _ai_test_spawn_meter_elapsed >= 1.0:
@@ -252,14 +269,14 @@ func _ai_test_lane_target(anchor: Vector2i, index: int) -> Vector2:
 	return map_generator.cell_to_world(target_cell)
 
 func _spawn_ai_test_west_unit(index: int, spawn_cell: Vector2i, parent: Node, target: Vector2) -> Node:
-	var archetypes: Array[StringName] = [&"terrible_thing", &"horror", &"terrible_thing", &"apex"]
-	var scenes: Array[PackedScene] = [terrible_thing_scene, horror_scene, terrible_thing_scene, apex_scene]
+	var archetypes: Array[StringName] = [&"terrible_thing", &"horror", &"terrible_thing", &"apex", &"spawner"]
+	var scenes: Array[PackedScene] = [terrible_thing_scene, horror_scene, terrible_thing_scene, apex_scene, spawner_scene]
 	var slot := index % archetypes.size()
 	return _spawn_ai_test_unit(scenes[slot], archetypes[slot], 2, spawn_cell, parent, target)
 
 func _spawn_ai_test_east_unit(index: int, spawn_cell: Vector2i, parent: Node, target: Vector2) -> Node:
-	var archetypes: Array[StringName] = [&"terrible_thing", &"horror", &"terrible_thing", &"apex"]
-	var scenes: Array[PackedScene] = [terrible_thing_scene, horror_scene, terrible_thing_scene, apex_scene]
+	var archetypes: Array[StringName] = [&"terrible_thing", &"horror", &"terrible_thing", &"apex", &"spawner"]
+	var scenes: Array[PackedScene] = [terrible_thing_scene, horror_scene, terrible_thing_scene, apex_scene, spawner_scene]
 	var slot := index % archetypes.size()
 	return _spawn_ai_test_unit(scenes[slot], archetypes[slot], 3, spawn_cell, parent, target)
 
@@ -281,9 +298,21 @@ func _spawn_ai_test_unit(scene: PackedScene, archetype: StringName, owner: int, 
 		var max_world: Vector2 = map_generator.cell_to_world(Vector2i(88, 58))
 		var arena_rect := Rect2(min_world, max_world - min_world)
 		unit.call("set_arena_leash", arena_rect, target)
-	if unit.has_method("issue_attack_move_order"):
+	if owner != 1 and unit.has_method("issue_attack_move_order"):
 		unit.issue_attack_move_order(target)
 	return unit
+
+func _scene_for_kon_unit(archetype: StringName) -> PackedScene:
+	match archetype:
+		&"terrible_thing", &"awful_thing":
+			return terrible_thing_scene
+		&"horror":
+			return horror_scene
+		&"apex", &"apex_predator":
+			return apex_scene
+		&"spawner":
+			return spawner_scene
+	return null
 
 func _has_property(node: Node, property_name: String) -> bool:
 	for property in node.get_property_list():

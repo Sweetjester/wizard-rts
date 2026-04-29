@@ -3,6 +3,7 @@ extends Node2D
 
 const HORROR_PROJECTILE: Texture2D = preload("res://assets/fx/kon/horror_spore_projectile.png")
 const BIO_LAUNCHER_PROJECTILE: Texture2D = preload("res://assets/fx/kon/bio_launcher_projectile.png")
+const AOE_IMPACT_FX := preload("res://scripts/fx/aoe_impact_fx.gd")
 
 var source: Node2D
 var target: Node2D
@@ -70,6 +71,7 @@ func set_aoe_radius(radius: float) -> void:
 	aoe_radius = radius
 
 func _hit_area() -> void:
+	_spawn_aoe_indicator()
 	var damage_source: Node = null
 	if source != null and is_instance_valid(source):
 		damage_source = source
@@ -79,6 +81,16 @@ func _hit_area() -> void:
 		var distance := unit.global_position.distance_to(global_position)
 		var falloff := clampf(1.0 - distance / maxf(1.0, aoe_radius * 1.35), 0.25, 1.0)
 		unit.take_damage(maxi(1, int(float(damage) * falloff)), damage_source)
+
+func _spawn_aoe_indicator() -> void:
+	var parent: Node = _world if _world != null and is_instance_valid(_world) else get_parent()
+	if parent == null:
+		return
+	var fx: Node2D = AOE_IMPACT_FX.new()
+	parent.add_child(fx)
+	fx.global_position = global_position
+	if fx.has_method("configure"):
+		fx.call("configure", aoe_radius, projectile_color)
 
 func _recycle() -> void:
 	source = null
