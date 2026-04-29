@@ -36,6 +36,7 @@ const LK_RY =  5
 const MAP_TYPE_VAMPIRE_MUSHROOM_FOREST := "vampire_mushroom_forest"
 const MAP_TYPE_GRID_TEST_CANVAS := "grid_test_canvas"
 const MAP_TYPE_AI_TESTING_GROUND := "ai_testing_ground"
+const MAP_TYPE_FORTRESS_AI_ARENA := "fortress_ai_arena"
 const GRID_TEST_CELL_SIZE := 64
 
 # ── STATE ──────────────────────────────────────────────────────────────────────
@@ -146,9 +147,20 @@ func get_map_type_name() -> String:
 			return "Grid Test Canvas"
 		MAP_TYPE_AI_TESTING_GROUND:
 			return "Kon's Observation Arena"
+		MAP_TYPE_FORTRESS_AI_ARENA:
+			return "Kon's Siege Arena"
 	return map_type_id
 
 func get_map_type_data() -> Dictionary:
+	if map_type_id == MAP_TYPE_FORTRESS_AI_ARENA:
+		return {
+			"id": MAP_TYPE_FORTRESS_AI_ARENA,
+			"name": "Kon's Siege Arena",
+			"art_style": "Flat square-grid siege lane with mirrored forts, blockers, and clear base footprints.",
+			"story_theme": "Kon observes two controlled factions assaulting fortified bases until one keep falls.",
+			"terrain_design": "Small symmetrical pathing test map with west and east forts, wall gaps, internal buildings, and open lanes.",
+			"plot_rule": "Two fort plots are stamped onto a clean arena; runtime structures create the actual impassible walls and keeps.",
+		}
 	if map_type_id == MAP_TYPE_AI_TESTING_GROUND:
 		return {
 			"id": MAP_TYPE_AI_TESTING_GROUND,
@@ -295,6 +307,16 @@ func _build_grid() -> void:
 				else:
 					grid[x].append(E_LOW)
 					feature_grid[x].append("ai_arena")
+			elif map_type_id == MAP_TYPE_FORTRESS_AI_ARENA:
+				var siege_bounds := Rect2i(5, 20, 86, 40)
+				var center_rock := (cell.x >= 45 and cell.x <= 50 and (cell.y <= 31 or cell.y >= 49))
+				var lane_edge := cell.y == 20 or cell.y == 59
+				if not siege_bounds.has_point(cell) or center_rock:
+					grid[x].append(E_BLOCKED)
+					feature_grid[x].append("ai_wall")
+				else:
+					grid[x].append(E_LOW)
+					feature_grid[x].append("siege_lane" if lane_edge else "ai_arena")
 			elif _uses_square_grid_map():
 				grid[x].append(E_LOW)
 				feature_grid[x].append("test_canvas")
@@ -303,7 +325,7 @@ func _build_grid() -> void:
 				feature_grid[x].append("")
 
 func _uses_square_grid_map() -> bool:
-	return map_type_id == MAP_TYPE_GRID_TEST_CANVAS or map_type_id == MAP_TYPE_AI_TESTING_GROUND
+	return map_type_id == MAP_TYPE_GRID_TEST_CANVAS or map_type_id == MAP_TYPE_AI_TESTING_GROUND or map_type_id == MAP_TYPE_FORTRESS_AI_ARENA
 
 func _generate_cell_elevation(cell: Vector2i) -> int:
 	if cell.x <= 1 or cell.x >= MAP_W - 2 or cell.y <= 1 or cell.y >= MAP_H - 2:
@@ -703,6 +725,9 @@ func _hash_cell(cell: Vector2i, salt: int) -> int:
 func _build_plots() -> void:
 	plots.clear()
 	base_plots.clear()
+	if map_type_id == MAP_TYPE_FORTRESS_AI_ARENA:
+		_build_fortress_ai_arena_plots()
+		return
 	if map_type_id == MAP_TYPE_AI_TESTING_GROUND:
 		_build_ai_testing_ground_plots()
 		return
@@ -858,6 +883,27 @@ func _build_ai_testing_ground_plots() -> void:
 		"difficulty": 0.5,
 		"defensibility": 0.0,
 		"story": "Open center lane for two automated armies to find, hunt, path, and fight.",
+	})
+
+func _build_fortress_ai_arena_plots() -> void:
+	var west_fort_rect := Rect2i(9, 27, 20, 22)
+	var east_fort_rect := Rect2i(67, 27, 20, 22)
+	var center_lane_rect := Rect2i(30, 25, 36, 30)
+	for plot in [
+		_make_base_plot("fort_west_base", "West observation fort", west_fort_rect, [], 0.35, 0.82, "Mirrored west fort used by owner 2."),
+		_make_base_plot("fort_east_base", "East observation fort", east_fort_rect, [], 0.35, 0.82, "Mirrored east fort used by owner 3."),
+	]:
+		_register_plot(plot)
+	_register_plot({
+		"id": "siege_arena_center",
+		"name": "Siege arena center",
+		"kind": "combat_arena",
+		"rect": center_lane_rect,
+		"anchor": center_lane_rect.position + Vector2i(center_lane_rect.size.x / 2, center_lane_rect.size.y / 2),
+		"economy_spaces": [],
+		"difficulty": 0.5,
+		"defensibility": 0.0,
+		"story": "Central lane where mirrored armies should collide before pushing into forts.",
 	})
 
 func _make_economy_spaces(rect: Rect2i, count: int) -> Array[Vector2i]:
@@ -1026,6 +1072,8 @@ func _stamp_objective_plot(plot: Dictionary) -> void:
 
 func _build_roads() -> void:
 	road_cells.clear()
+	if map_type_id == MAP_TYPE_AI_TESTING_GROUND or map_type_id == MAP_TYPE_FORTRESS_AI_ARENA:
+		return
 	if plots.is_empty():
 		return
 	var hub := nearest_walkable_cell(Vector2i(MAP_W / 2, MAP_H / 2), 24)
@@ -1066,6 +1114,8 @@ func _carve_road_cell(center: Vector2i, width: int) -> void:
 
 func _build_landmarks() -> void:
 	landmarks.clear()
+	if _uses_square_grid_map():
+		return
 	var attempts := 0
 	while landmarks.size() < 18 and attempts < 280:
 		attempts += 1
@@ -1102,13 +1152,13 @@ func _paint() -> void:
 	layer_mid.clear()
 	layer_high.clear()
 	if _uses_square_grid_map():
-		layer_low.modulate = Color("#244E34") if map_type_id == MAP_TYPE_AI_TESTING_GROUND else Color("#2D6A3F")
+		layer_low.modulate = Color("#244E34") if map_type_id == MAP_TYPE_AI_TESTING_GROUND else Color("#1E4A34") if map_type_id == MAP_TYPE_FORTRESS_AI_ARENA else Color("#2D6A3F")
 		layer_mid.modulate = Color.WHITE
 		layer_high.modulate = Color.WHITE
 		var ground_id := pick("low_ground")
 		for x in MAP_W:
 			for y in MAP_H:
-				if map_type_id == MAP_TYPE_AI_TESTING_GROUND and grid[x][y] == E_BLOCKED:
+				if (map_type_id == MAP_TYPE_AI_TESTING_GROUND or map_type_id == MAP_TYPE_FORTRESS_AI_ARENA) and grid[x][y] == E_BLOCKED:
 					continue
 				layer_low.set_cell(Vector2i(x, y), ground_id, Vector2i(0,0))
 		return
@@ -1259,6 +1309,27 @@ func _register_zones() -> void:
 	enemy_spawns.clear()
 	chokepoints.clear()
 	economy_zones.clear()
+	if map_type_id == MAP_TYPE_FORTRESS_AI_ARENA:
+		for plot in base_plots:
+			var rect: Rect2i = plot["rect"]
+			if str(plot["id"]) == "fort_west_base":
+				for x in range(rect.position.x, rect.end.x):
+					for y in range(rect.position.y, rect.end.y):
+						if is_walkable_cell(Vector2i(x, y)):
+							spawn_positions.append(Vector2i(x, y))
+			economy_zones.append({
+				"plot_id": plot["id"],
+				"rect": plot["rect"],
+				"economy_spaces": plot["economy_spaces"],
+				"economy_count": plot["economy_count"],
+				"difficulty": plot["difficulty"],
+				"defensibility": plot["defensibility"],
+				"label": plot["name"],
+			})
+		for y in range(32, 46, 2):
+			enemy_spawns.append(Vector2i(82, y))
+		chokepoints.append_array([Vector2i(29, 38), Vector2i(48, 38), Vector2i(66, 38)])
+		return
 	if map_type_id == MAP_TYPE_AI_TESTING_GROUND:
 		for plot in base_plots:
 			var rect: Rect2i = plot["rect"]

@@ -26,6 +26,7 @@ func _ready() -> void:
 	volume_slider.value = AudioManager.music_volume
 	mute_check.button_pressed = AudioManager.music_muted
 	_setup_display_controls()
+	_add_fortress_map_button()
 	_show_main()
 
 func _on_start_pressed() -> void:
@@ -70,6 +71,10 @@ func _on_grid_test_map_pressed() -> void:
 
 func _on_ai_testing_ground_pressed() -> void:
 	selected_map_type_id = "ai_testing_ground"
+	begin_button.disabled = false
+
+func _on_fortress_ai_arena_pressed() -> void:
+	selected_map_type_id = "fortress_ai_arena"
 	begin_button.disabled = false
 
 func _on_begin_pressed() -> void:
@@ -179,3 +184,46 @@ func _sync_display_controls() -> void:
 	fullscreen_check.button_pressed = DisplayManager.fullscreen
 	performance_check.button_pressed = DisplayManager.performance_mode
 	resolution_option.disabled = DisplayManager.fullscreen
+
+func _add_fortress_map_button() -> void:
+	if map_panel == null or map_panel.has_node("FortressAiArenaButton"):
+		return
+	var button := Button.new()
+	button.name = "FortressAiArenaButton"
+	button.custom_minimum_size = Vector2(680, 150)
+	button.focus_mode = Control.FOCUS_NONE
+	button.text = ""
+	button.pressed.connect(_on_fortress_ai_arena_pressed)
+
+	var layout := VBoxContainer.new()
+	layout.name = "FortressAiArenaLayout"
+	layout.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layout.offset_left = 18.0
+	layout.offset_top = 12.0
+	layout.offset_right = -18.0
+	layout.offset_bottom = -12.0
+	layout.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(layout)
+
+	var name_label := Label.new()
+	name_label.text = "Kon's Siege Arena"
+	name_label.add_theme_font_size_override("font_size", 26)
+	layout.add_child(name_label)
+
+	var subtitle := Label.new()
+	subtitle.text = "Symmetrical fort assault arena for pathing, target priority, and base-destruction AI."
+	subtitle.add_theme_font_size_override("font_size", 16)
+	subtitle.add_theme_color_override("font_color", Color("#7DDDE8"))
+	layout.add_child(subtitle)
+
+	var description := RichTextLabel.new()
+	description.custom_minimum_size = Vector2(620, 52)
+	description.bbcode_enabled = true
+	description.fit_content = true
+	description.scroll_active = false
+	description.text = "Loads two mirrored forts with real wall blockers, keep buildings, and no fog of war. Spawn waves to test whether armies fight units first, then break the enemy base."
+	layout.add_child(description)
+
+	var insert_index := maxi(0, map_panel.get_child_count() - 1)
+	map_panel.add_child(button)
+	map_panel.move_child(button, insert_index)

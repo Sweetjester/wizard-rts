@@ -102,7 +102,7 @@ func _process(_delta: float) -> void:
 		selection_label.text = "Selected: %s" % selection_controller.selected_units.size()
 		_update_selection_panel(false)
 	if wave_director != null and wave_director.has_method("is_ai_testing_ground") and bool(wave_director.call("is_ai_testing_ground")):
-		phase_label.text = "AI Testing Ground"
+		phase_label.text = "Kon's Siege Arena" if wave_director.has_method("is_fortress_ai_arena") and bool(wave_director.call("is_fortress_ai_arena")) else "AI Testing Ground"
 		_update_ai_telemetry(_delta)
 	elif wave_director != null and not wave_director.boss_has_spawned:
 		var boss_remaining := wave_director.get_boss_seconds_remaining()
@@ -230,7 +230,7 @@ func _setup_ai_test_controls() -> void:
 	_add_button(ai_test_container, "Unit Stats", _open_unit_stat_window)
 	if ai_telemetry_label != null:
 		ai_telemetry_label.visible = true
-	status_label.text = "Kon's Observation Arena: neutral observer mode. Spawn mirrored armies to test AI and performance."
+	status_label.text = "Neutral observer mode. Spawn mirrored armies to test AI, pathing, targeting, and performance."
 
 func _spawn_ai_test_wave() -> void:
 	if wave_director == null or not wave_director.has_method("spawn_ai_test_wave"):
@@ -518,6 +518,7 @@ func _update_ai_telemetry(delta: float) -> void:
 	var path_stats: Dictionary = map_generator.get_path_telemetry() if map_generator != null and map_generator.has_method("get_path_telemetry") else {}
 	var spawn_stats: Dictionary = wave_director.get_ai_test_spawn_telemetry() if wave_director != null and wave_director.has_method("get_ai_test_spawn_telemetry") else {}
 	var combat_stats: Dictionary = combat_system.get_combat_telemetry() if combat_system != null and combat_system.has_method("get_combat_telemetry") else {}
+	var collision_stats: Dictionary = RTSUnit.get_mass_collision_telemetry()
 	var owners: Dictionary = world_stats.get("owner_counts", {})
 	var damage_by_owner: Dictionary = world_stats.get("damage_by_owner", {})
 	var owner_2_units := int(owners.get(2, 0))
@@ -535,7 +536,7 @@ func _update_ai_telemetry(delta: float) -> void:
 	if ai_spawn_button != null:
 		ai_spawn_button.disabled = pending_spawns >= int(spawn_stats.get("spawn_queue_limit", 640))
 		ai_spawn_button.text = "Queueing..." if pending_spawns > 0 else "Spawn AI Wave"
-	ai_telemetry_label.text = "Live %s M:%s A:%s  |  Pending %s @ %s/%s frame %s/s  |  MassSim %s  |  West %s / East %s  |  Peak %s  |  Damage W:%s E:%s Total:%s  |  Proj %s active %s/s total %s  |  Combat %sms avgCand %.1f  |  Paths %s/s total %s cache %s  |  FPS %.0f frame %.1fms process %.1fms physics %.1fms nodes %s" % [
+	ai_telemetry_label.text = "Live %s M:%s A:%s  |  Pending %s @ %s/%s frame %s/s  |  MassSim %s  |  West %s / East %s  |  Peak %s  |  Damage W:%s E:%s Total:%s  |  Proj %s active %s/s total %s  |  Combat %sms avgCand %.1f  |  Coll calls %s neigh %s  |  Paths %s/s total %s cache %s  |  FPS %.0f frame %.1fms process %.1fms physics %.1fms nodes %s" % [
 		live_units,
 		int(world_stats.get("moving_units", 0)),
 		int(world_stats.get("attacking_units", 0)),
@@ -555,6 +556,8 @@ func _update_ai_telemetry(delta: float) -> void:
 		int(world_stats.get("projectiles_spawned", 0)),
 		snapped(float(combat_stats.get("combat_tick_ms", 0.0)), 0.1),
 		float(combat_stats.get("combat_avg_candidates", 0.0)),
+		int(collision_stats.get("mass_collision_calls", 0)),
+		int(collision_stats.get("mass_collision_neighbors", 0)),
 		int(path_stats.get("path_requests_per_second", 0)),
 		int(path_stats.get("path_requests", 0)),
 		int(path_stats.get("path_cache_size", 0)),
@@ -736,7 +739,7 @@ func _on_resources_changed(_player_id: int, resources: Dictionary) -> void:
 
 func _on_phase_changed(phase: StringName) -> void:
 	if wave_director != null and wave_director.has_method("is_ai_testing_ground") and bool(wave_director.call("is_ai_testing_ground")):
-		phase_label.text = "AI Testing Ground"
+		phase_label.text = "Kon's Siege Arena" if wave_director.has_method("is_fortress_ai_arena") and bool(wave_director.call("is_fortress_ai_arena")) else "AI Testing Ground"
 	elif wave_director != null and not wave_director.boss_has_spawned:
 		phase_label.text = "Phase: %s | Boss in %s" % [str(phase).capitalize(), _format_time(wave_director.get_boss_seconds_remaining())]
 	else:

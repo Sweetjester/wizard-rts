@@ -26,8 +26,8 @@ signal boss_defeated()
 @export var max_retargets_per_tick: int = 12
 @export var ai_test_spawn_budget_per_frame: int = 48
 @export var ai_test_min_spawn_budget_per_frame: int = 8
-@export var ai_test_spawn_queue_limit: int = 640
-@export var ai_test_live_unit_soft_cap: int = 1800
+@export var ai_test_spawn_queue_limit: int = 3600
+@export var ai_test_live_unit_soft_cap: int = 3200
 @export var ai_test_spawn_pause_fps: float = 28.0
 @export var ai_test_spawn_slow_fps: float = 45.0
 
@@ -46,17 +46,16 @@ var _ai_test_spawn_queue: Array[Dictionary] = []
 var _ai_test_units_spawned_this_second := 0
 var _ai_test_spawn_meter_elapsed := 0.0
 var _ai_test_last_units_spawned_per_second := 0
+var _ai_test_spawn_second_budget_remaining := 0
 
 func _ready() -> void:
 	map_generator = get_node_or_null(map_generator_path)
 	rts_world = get_node_or_null(rts_world_path)
 	next_wave_at = first_wave_seconds
-	if is_ai_testing_ground():
-		enabled = false
-		phase = &"ai_test"
-		phase_changed.emit(phase)
+	_force_ai_test_mode_if_needed()
 
 func _process(delta: float) -> void:
+	_force_ai_test_mode_if_needed()
 	if is_ai_testing_ground():
 		_update_ai_test_spawn_queue(delta)
 	if not enabled:
@@ -118,7 +117,23 @@ func _spawn_boss() -> void:
 	boss_spawned.emit()
 
 func is_ai_testing_ground() -> bool:
-	return map_generator != null and str(map_generator.get("map_type_id")) == "ai_testing_ground"
+	return map_generator != null and str(map_generator.get("map_type_id")) in ["ai_testing_ground", "fortress_ai_arena"]
+
+func is_fortress_ai_arena() -> bool:
+	return map_generator != null and str(map_generator.get("map_type_id")) == "fortress_ai_arena"
+
+func _force_ai_test_mode_if_needed() -> void:
+	if not is_ai_testing_ground():
+		return
+	var changed := enabled or phase != &"ai_test" or boss_has_spawned
+	enabled = false
+	phase = &"ai_test"
+	boss_has_spawned = false
+	boss_has_been_defeated = false
+	boss_node = null
+	_ai_test_spawn_second_budget_remaining = maxi(_ai_test_spawn_second_budget_remaining, _ai_test_spawn_cap_per_second())
+	if changed:
+		phase_changed.emit(phase)
 
 func spawn_ai_test_wave() -> Dictionary:
 	if map_generator == null:
@@ -138,10 +153,10 @@ func spawn_ai_test_wave() -> Dictionary:
 	for i in count_per_side:
 		if west_queued + east_queued >= max_requests:
 			break
-		var west_cell := _ai_test_spawn_cell(Vector2i(18, 37), i, -1)
-		var east_cell := _ai_test_spawn_cell(Vector2i(78, 37), i, 1)
-		var west_target: Vector2 = _ai_test_lane_target(Vector2i(66, 37), i)
-		var east_target: Vector2 = _ai_test_lane_target(Vector2i(30, 37), i)
+		var west_cell := _ai_test_spawn_cell(_ai_test_west_spawn_anchor(), i, -1)
+		var east_cell := _ai_test_spawn_cell(_ai_test_east_spawn_anchor(), i, 1)
+		var west_target: Vector2 = _ai_test_lane_target(_ai_test_west_target_anchor(), i)
+		var east_target: Vector2 = _ai_test_lane_target(_ai_test_east_target_anchor(), i)
 		_ai_test_spawn_queue.append({"index": i, "side": 2, "cell": west_cell, "target": west_target, "parent": parent})
 		west_queued += 1
 		if west_queued + east_queued >= max_requests:
@@ -202,9 +217,12 @@ func _update_ai_test_spawn_queue(delta: float) -> void:
 	if _ai_test_spawn_meter_elapsed >= 1.0:
 		_ai_test_last_units_spawned_per_second = _ai_test_units_spawned_this_second
 		_ai_test_units_spawned_this_second = 0
+		_ai_test_spawn_second_budget_remaining = _ai_test_spawn_cap_per_second()
 		_ai_test_spawn_meter_elapsed = 0.0
 	if _ai_test_spawn_queue.is_empty():
 		return
+	if _ai_test_spawn_second_budget_remaining <= 0 and _ai_test_units_spawned_this_second == 0:
+		_ai_test_spawn_second_budget_remaining = _ai_test_spawn_cap_per_second()
 	var budget := _effective_ai_test_spawn_budget()
 	if budget <= 0:
 		return
@@ -219,6 +237,7 @@ func _update_ai_test_spawn_queue(delta: float) -> void:
 		if unit != null:
 			spawned += 1
 			_ai_test_units_spawned_this_second += 1
+			_ai_test_spawn_second_budget_remaining = maxi(0, _ai_test_spawn_second_budget_remaining - 1)
 	if spawned > 0:
 		wave_spawned.emit(ai_test_wave_index, spawned)
 
@@ -227,22 +246,44 @@ func _effective_ai_test_spawn_budget() -> int:
 	var process_ms := float(Performance.get_monitor(Performance.TIME_PROCESS)) * 1000.0
 	var physics_ms := float(Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)) * 1000.0
 	var live_units: int = rts_world.count_units_all() if rts_world != null and rts_world.has_method("count_units_all") else _count_ai_test_units_fallback()
-	if fps > 1.0 and fps < ai_test_spawn_pause_fps:
-		return 0
+	if live_units < 120:
+		return mini(_ai_test_spawn_second_budget_remaining, ai_test_spawn_budget_per_frame)
 	if process_ms > 75.0 or physics_ms > 45.0:
 		return 0
+	if _ai_test_spawn_second_budget_remaining <= 0:
+		return 0
 	var max_budget := ai_test_spawn_budget_per_frame
-	if live_units >= 1500:
-		max_budget = mini(max_budget, 12)
-	elif live_units >= 1000:
-		max_budget = mini(max_budget, 24)
+	if live_units >= 2200:
+		max_budget = mini(max_budget, 3)
+	elif live_units >= 1600:
+		max_budget = mini(max_budget, 5)
+	elif live_units >= 1200:
+		max_budget = mini(max_budget, 8)
+	elif live_units >= 900:
+		max_budget = mini(max_budget, 14)
 	elif live_units >= 600:
-		max_budget = mini(max_budget, 32)
+		max_budget = mini(max_budget, 24)
 	if fps > 1.0 and fps < ai_test_spawn_slow_fps:
 		return mini(max_budget, ai_test_min_spawn_budget_per_frame)
-	if process_ms > 40.0 or physics_ms > 24.0:
-		return maxi(ai_test_min_spawn_budget_per_frame, max_budget / 3)
-	return maxi(ai_test_min_spawn_budget_per_frame, max_budget)
+	if process_ms > 50.0 or physics_ms > 28.0:
+		return 0
+	if process_ms > 32.0 or physics_ms > 18.0:
+		return mini(_ai_test_spawn_second_budget_remaining, maxi(ai_test_min_spawn_budget_per_frame, max_budget / 4))
+	return mini(_ai_test_spawn_second_budget_remaining, maxi(ai_test_min_spawn_budget_per_frame, max_budget))
+
+func _ai_test_spawn_cap_per_second() -> int:
+	var live_units: int = rts_world.count_units_all() if rts_world != null and rts_world.has_method("count_units_all") else _count_ai_test_units_fallback()
+	if live_units >= 2200:
+		return 12
+	if live_units >= 1600:
+		return 18
+	if live_units >= 1200:
+		return 30
+	if live_units >= 900:
+		return 42
+	if live_units >= 600:
+		return 64
+	return 96
 
 func _spawn_queued_ai_test_unit(request: Dictionary) -> Node:
 	var index := int(request.get("index", 0))
@@ -268,17 +309,45 @@ func _ai_test_lane_target(anchor: Vector2i, index: int) -> Vector2:
 	var target_cell: Vector2i = map_generator.nearest_walkable_cell(anchor + Vector2i(depth, lane), 10)
 	return map_generator.cell_to_world(target_cell)
 
+func _ai_test_west_spawn_anchor() -> Vector2i:
+	return Vector2i(29, 38) if is_fortress_ai_arena() else Vector2i(18, 37)
+
+func _ai_test_east_spawn_anchor() -> Vector2i:
+	return Vector2i(66, 38) if is_fortress_ai_arena() else Vector2i(78, 37)
+
+func _ai_test_west_target_anchor() -> Vector2i:
+	return Vector2i(81, 38) if is_fortress_ai_arena() else Vector2i(66, 37)
+
+func _ai_test_east_target_anchor() -> Vector2i:
+	return Vector2i(14, 38) if is_fortress_ai_arena() else Vector2i(30, 37)
+
 func _spawn_ai_test_west_unit(index: int, spawn_cell: Vector2i, parent: Node, target: Vector2) -> Node:
-	var archetypes: Array[StringName] = [&"terrible_thing", &"horror", &"terrible_thing", &"apex", &"spawner"]
-	var scenes: Array[PackedScene] = [terrible_thing_scene, horror_scene, terrible_thing_scene, apex_scene, spawner_scene]
+	var archetypes := _ai_test_kon_mix()
+	var scenes := _ai_test_kon_mix_scenes()
 	var slot := index % archetypes.size()
 	return _spawn_ai_test_unit(scenes[slot], archetypes[slot], 2, spawn_cell, parent, target)
 
 func _spawn_ai_test_east_unit(index: int, spawn_cell: Vector2i, parent: Node, target: Vector2) -> Node:
-	var archetypes: Array[StringName] = [&"terrible_thing", &"horror", &"terrible_thing", &"apex", &"spawner"]
-	var scenes: Array[PackedScene] = [terrible_thing_scene, horror_scene, terrible_thing_scene, apex_scene, spawner_scene]
+	var archetypes := _ai_test_kon_mix()
+	var scenes := _ai_test_kon_mix_scenes()
 	var slot := index % archetypes.size()
 	return _spawn_ai_test_unit(scenes[slot], archetypes[slot], 3, spawn_cell, parent, target)
+
+func _ai_test_kon_mix() -> Array[StringName]:
+	return [
+		&"terrible_thing", &"horror", &"terrible_thing", &"apex",
+		&"terrible_thing", &"horror", &"terrible_thing", &"terrible_thing",
+		&"apex", &"horror", &"terrible_thing", &"terrible_thing",
+		&"horror", &"terrible_thing", &"apex", &"spawner",
+	]
+
+func _ai_test_kon_mix_scenes() -> Array[PackedScene]:
+	return [
+		terrible_thing_scene, horror_scene, terrible_thing_scene, apex_scene,
+		terrible_thing_scene, horror_scene, terrible_thing_scene, terrible_thing_scene,
+		apex_scene, horror_scene, terrible_thing_scene, terrible_thing_scene,
+		horror_scene, terrible_thing_scene, apex_scene, spawner_scene,
+	]
 
 func _spawn_ai_test_unit(scene: PackedScene, archetype: StringName, owner: int, spawn_cell: Vector2i, parent: Node, target: Vector2) -> Node:
 	if scene == null:
@@ -292,14 +361,19 @@ func _spawn_ai_test_unit(scene: PackedScene, archetype: StringName, owner: int, 
 		unit.call("configure_enemy", archetype)
 	parent.add_child(unit)
 	unit.set("owner_player_id", owner)
+	if owner != 1 and unit.has_method("prepare_lightweight_arena_unit"):
+		unit.call("prepare_lightweight_arena_unit")
 	unit.global_position = map_generator.cell_to_world(map_generator.nearest_walkable_cell(spawn_cell, 10))
 	if unit.has_method("set_arena_leash"):
-		var min_world: Vector2 = map_generator.cell_to_world(Vector2i(8, 20))
-		var max_world: Vector2 = map_generator.cell_to_world(Vector2i(88, 58))
+		var min_world: Vector2 = map_generator.cell_to_world(Vector2i(6, 21) if is_fortress_ai_arena() else Vector2i(8, 20))
+		var max_world: Vector2 = map_generator.cell_to_world(Vector2i(90, 59) if is_fortress_ai_arena() else Vector2i(88, 58))
 		var arena_rect := Rect2(min_world, max_world - min_world)
 		unit.call("set_arena_leash", arena_rect, target)
-	if owner != 1 and unit.has_method("issue_attack_move_order"):
-		unit.issue_attack_move_order(target)
+	if owner != 1:
+		if unit.has_method("issue_arena_attack_move_order"):
+			unit.issue_arena_attack_move_order(target)
+		elif unit.has_method("issue_attack_move_order"):
+			unit.issue_attack_move_order(target)
 	return unit
 
 func _scene_for_kon_unit(archetype: StringName) -> PackedScene:

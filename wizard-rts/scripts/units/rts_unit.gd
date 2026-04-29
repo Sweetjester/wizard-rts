@@ -23,6 +23,10 @@ static var _registered_units: Array[Node2D] = []
 static var _spatial_frame := -1
 static var _spatial_bucket_size := 96.0
 static var _spatial_buckets: Dictionary = {}
+static var _mass_collision_frame := -1
+static var _mass_collision_calls := 0
+static var _mass_collision_neighbors := 0
+static var _mass_collision_overlap_checks := 0
 
 var selected := false
 var target_pos := Vector2.ZERO
@@ -52,6 +56,7 @@ var _last_progress_position := Vector2.ZERO
 var _stuck_elapsed := 0.0
 var _last_repath_msec: int = -10000
 var _last_chase_repath_msec: int = -10000
+var _last_arena_objective_msec: int = -10000
 var _redraw_elapsed := 0.0
 var _mass_physics_accum := 0.0
 var _last_leash_repath_msec: int = -10000
@@ -68,12 +73,16 @@ var arena_leash_enabled := false
 var arena_leash_rect := Rect2()
 var arena_home := Vector2.ZERO
 var _dying := false
+var _drone_children: Array[Node2D] = []
+var _mass_art_hidden := false
+var _force_lightweight_arena_unit := false
 
 func _ready() -> void:
 	collision_layer = 2
 	collision_mask = 2
 	target_pos = global_position
 	_apply_catalog_definition()
+	_apply_owner_art_tint()
 	health = max_health
 	terrain = get_node_or_null(terrain_path)
 	rts_world = get_node_or_null("../RTSWorld")
@@ -94,6 +103,7 @@ func _process(delta: float) -> void:
 	_visual_elapsed += delta
 	_redraw_elapsed += delta
 	var mass_mode := _mass_performance_mode()
+	_update_mass_art_lod()
 	if selected:
 		queue_redraw()
 		_redraw_elapsed = 0.0
@@ -105,13 +115,32 @@ func _process(delta: float) -> void:
 			_redraw_elapsed = 0.0
 		return
 	if moving or unit_state in [&"attacking", &"attack_move", &"patrol", &"hold", &"stunned"]:
-		var redraw_interval := 0.22 if mass_mode else 0.0
+		var redraw_interval := _mass_redraw_interval() if mass_mode else 0.0
 		if _redraw_elapsed >= redraw_interval:
 			queue_redraw()
 			_redraw_elapsed = 0.0
 
 func set_selected(value: bool) -> void:
 	selected = value
+	if selected:
+		set_process(true)
+	elif use_mass_vector_lod():
+		set_process(false)
+	queue_redraw()
+
+func prepare_lightweight_arena_unit() -> void:
+	_force_lightweight_arena_unit = true
+	set_process(false)
+	set_physics_process(false)
+	collision_layer = 0
+	collision_mask = 0
+	var shape := get_node_or_null("CollisionShape2D")
+	if shape != null:
+		shape.queue_free()
+	var art := get_node_or_null("ArtSprite")
+	if art != null:
+		art.queue_free()
+	_mass_art_hidden = true
 	queue_redraw()
 
 func is_inside_selection_rect(rect: Rect2) -> bool:
@@ -124,7 +153,7 @@ func issue_move_order(world_pos: Vector2) -> void:
 	command_mode = &"move"
 	unit_state = &"moving"
 	_set_path_to_world(world_pos, true)
-	queue_redraw()
+	_queue_unit_redraw()
 
 func issue_move_order_offset(world_pos: Vector2, offset: Vector2) -> void:
 	issue_move_order(world_pos + offset)
@@ -148,9 +177,14 @@ func issue_shared_path_order(shared_path: Array[Vector2], offset: Vector2) -> vo
 	if moving:
 		target_pos = path[0]
 		_reset_stuck_watch()
-	queue_redraw()
+	_queue_unit_redraw()
 
 func _physics_process(delta: float) -> void:
+	if _force_lightweight_arena_unit:
+		return
+	rts_movement_tick(delta)
+
+func rts_movement_tick(delta: float) -> void:
 	_life_elapsed += delta
 	_update_limited_lifetime()
 	_update_spawner_root_casts(delta)
@@ -172,7 +206,7 @@ func _physics_process(delta: float) -> void:
 		_pull_back_to_arena()
 	if path.is_empty():
 		_reset_stuck_watch()
-		velocity = Vector2.ZERO if mass_mode else _separation_velocity()
+		velocity = _mass_idle_separation_velocity() if mass_mode else _separation_velocity()
 		moving = false
 		if command_mode == &"patrol" and attack_target == null:
 			_resume_patrol_leg()
@@ -180,9 +214,13 @@ func _physics_process(delta: float) -> void:
 			unit_state = &"hold"
 		elif attack_target == null and command_mode == &"attack_move":
 			unit_state = &"attack_move"
+			_maintain_arena_attack_objective()
 		elif attack_target == null:
 			unit_state = &"idle"
-		if not mass_mode:
+		if mass_mode:
+			if velocity.length_squared() > 1.0:
+				global_position += velocity * sim_delta
+		else:
 			move_and_slide()
 		return
 
@@ -210,11 +248,24 @@ func _physics_process(delta: float) -> void:
 				unit_state = &"attack_move"
 			else:
 				unit_state = &"idle"
-		queue_redraw()
+		_queue_unit_redraw()
 		return
 
-	velocity = dir.normalized() * current_speed + (Vector2.ZERO if mass_mode else _separation_velocity(dir.normalized()))
+	var move_dir := dir.normalized()
+	var separation := _mass_separation_velocity(move_dir) if mass_mode else _separation_velocity(move_dir)
+	velocity = move_dir * current_speed + separation
 	if mass_mode:
+		var proposed := global_position + velocity * sim_delta
+		if _would_overlap_at(proposed, move_dir):
+			var side_step := Vector2(-move_dir.y, move_dir.x) * current_speed * 0.35
+			var side_a := global_position + (side_step + separation) * sim_delta
+			var side_b := global_position + (-side_step + separation) * sim_delta
+			if not _would_overlap_at(side_a, move_dir):
+				velocity = side_step + separation
+			elif not _would_overlap_at(side_b, move_dir):
+				velocity = -side_step + separation
+			else:
+				velocity = separation + move_dir * current_speed * 0.12
 		global_position += velocity * sim_delta
 	else:
 		move_and_slide()
@@ -237,6 +288,21 @@ func issue_attack_move_order(world_pos: Vector2) -> void:
 	command_mode = &"attack_move"
 	unit_state = &"attack_move"
 
+func issue_arena_attack_move_order(world_pos: Vector2) -> void:
+	if _blocks_movement_for_rooting():
+		return
+	attack_target = null
+	command_mode = &"attack_move"
+	unit_state = &"attack_move"
+	var legal_target := _legal_destination(_clamp_to_arena(world_pos))
+	_command_destination = legal_target
+	_has_command_destination = true
+	path = [legal_target]
+	moving = true
+	target_pos = legal_target
+	_reset_stuck_watch()
+	_queue_unit_redraw()
+
 func issue_patrol_order(world_pos: Vector2) -> void:
 	if _blocks_movement_for_rooting():
 		return
@@ -256,7 +322,7 @@ func issue_hold_position_order() -> void:
 	moving = false
 	velocity = Vector2.ZERO
 	unit_state = &"hold"
-	queue_redraw()
+	_queue_unit_redraw()
 
 func issue_stop_order() -> void:
 	attack_target = null
@@ -266,7 +332,7 @@ func issue_stop_order() -> void:
 	moving = false
 	velocity = Vector2.ZERO
 	unit_state = &"idle"
-	queue_redraw()
+	_queue_unit_redraw()
 
 func rts_combat_tick(delta: float, nearby_units: Array[Node2D]) -> void:
 	if health <= 0 or _is_stunned():
@@ -276,6 +342,8 @@ func rts_combat_tick(delta: float, nearby_units: Array[Node2D]) -> void:
 	_spawner_elapsed += delta
 	if attack_target != null and (not is_instance_valid(attack_target) or not _is_enemy_unit(attack_target)):
 		attack_target = null
+		if command_mode == &"attack_move":
+			_resume_attack_move_objective()
 	if attack_target == null:
 		attack_target = _find_nearest_enemy(nearby_units)
 	if attack_target == null:
@@ -287,7 +355,8 @@ func rts_combat_tick(delta: float, nearby_units: Array[Node2D]) -> void:
 			activate_root()
 		return
 	var distance := global_position.distance_to(attack_target.global_position)
-	if distance > attack_range:
+	var effective_attack_range := _effective_attack_range_to(attack_target)
+	if distance > effective_attack_range:
 		if _blocks_movement_for_rooting():
 			return
 		if command_mode == &"hold":
@@ -318,6 +387,13 @@ func rts_combat_tick(delta: float, nearby_units: Array[Node2D]) -> void:
 		if heal > 0:
 			heal_damage(heal)
 
+func needs_combat_query() -> bool:
+	if health <= 0 or _is_stunned():
+		return false
+	if attack_target != null and is_instance_valid(attack_target) and _is_enemy_unit(attack_target):
+		return false
+	return true
+
 func _chase_attack_target() -> void:
 	if attack_target == null:
 		return
@@ -341,6 +417,124 @@ func _chase_attack_target() -> void:
 		target_pos = path[0]
 		_reset_stuck_watch()
 	unit_state = &"attacking"
+
+func _resume_attack_move_objective() -> void:
+	if command_mode != &"attack_move" or _blocks_movement_for_rooting():
+		return
+	if arena_leash_enabled:
+		var now := Time.get_ticks_msec()
+		if now - _last_arena_objective_msec < _arena_objective_interval_msec():
+			return
+		_last_arena_objective_msec = now
+		var objective := _arena_pressure_objective()
+		if objective != Vector2.ZERO:
+			_command_destination = objective
+			_has_command_destination = true
+			path = _single_point_path(objective) if _uses_direct_mass_arena_chase() or ignores_terrain else _world_path_to(objective)
+			moving = not path.is_empty()
+			if moving:
+				target_pos = path[0]
+				unit_state = &"attack_move"
+				_reset_stuck_watch()
+		return
+	if _has_command_destination:
+		path = _world_path_to(_command_destination)
+		moving = not path.is_empty()
+		if moving:
+			target_pos = path[0]
+			unit_state = &"attack_move"
+			_reset_stuck_watch()
+
+func _maintain_arena_attack_objective() -> void:
+	if not arena_leash_enabled or command_mode != &"attack_move" or attack_target != null or _blocks_movement_for_rooting():
+		return
+	var now := Time.get_ticks_msec()
+	if now - _last_arena_objective_msec < _arena_objective_interval_msec():
+		return
+	_last_arena_objective_msec = now
+	var count := rts_world.count_units_all() if rts_world != null and is_instance_valid(rts_world) else 0
+	if count < 300:
+		var nearby_target := _arena_nearest_enemy_objective()
+		if nearby_target != null and is_instance_valid(nearby_target):
+			attack_target = nearby_target
+			unit_state = &"attacking"
+			return
+	var objective := _arena_pressure_objective()
+	if objective == Vector2.ZERO:
+		return
+	if global_position.distance_squared_to(objective) < 48.0 * 48.0:
+		objective += _arena_lane_jitter()
+	_command_destination = objective
+	_has_command_destination = true
+	path = _single_point_path(objective) if _uses_direct_mass_arena_chase() or ignores_terrain else _world_path_to(objective)
+	moving = not path.is_empty()
+	if moving:
+		target_pos = path[0]
+		_reset_stuck_watch()
+
+func _arena_pressure_objective() -> Vector2:
+	if rts_world != null and is_instance_valid(rts_world) and rts_world.count_units_all() >= 300:
+		return _clamp_to_arena(arena_home + _arena_lane_jitter())
+	var target := _arena_nearest_enemy_position(1800.0)
+	if target != Vector2.ZERO:
+		return _clamp_to_arena(target + _arena_lane_jitter())
+	return _clamp_to_arena(arena_home + _arena_lane_jitter())
+
+func _arena_nearest_enemy_objective() -> Node2D:
+	if rts_world == null or not is_instance_valid(rts_world):
+		return null
+	var radius := 520.0
+	var candidates := rts_world.query_enemy_attackables(global_position, radius, owner_player_id, 4) if rts_world.has_method("query_enemy_attackables") else []
+	var best: Node2D = null
+	var best_distance := INF
+	for candidate in candidates:
+		if not is_instance_valid(candidate) or not _is_enemy_unit(candidate):
+			continue
+		var distance := global_position.distance_squared_to(candidate.global_position)
+		if distance < best_distance:
+			best = candidate
+			best_distance = distance
+	return best
+
+func _arena_nearest_enemy_position(radius: float) -> Vector2:
+	if rts_world == null or not is_instance_valid(rts_world):
+		return Vector2.ZERO
+	var candidates := rts_world.query_enemy_attackables(global_position, radius, owner_player_id, 8) if rts_world.has_method("query_enemy_attackables") else []
+	var best := Vector2.ZERO
+	var best_distance := INF
+	for candidate in candidates:
+		if not is_instance_valid(candidate) or not _is_enemy_unit(candidate):
+			continue
+		var distance := global_position.distance_squared_to(candidate.global_position)
+		if distance < best_distance:
+			best = candidate.global_position
+			best_distance = distance
+	return best
+
+func _arena_lane_jitter() -> Vector2:
+	var seed := float(posmod(get_instance_id(), 23)) - 11.0
+	return Vector2(0.0, seed * 10.0) + mass_lane_offset * 0.35
+
+func _arena_objective_interval_msec() -> int:
+	if rts_world == null or not is_instance_valid(rts_world):
+		return 1100
+	var count := rts_world.count_units_all()
+	if count >= 2000:
+		return 9000
+	if count >= 1600:
+		return 7000
+	if count >= 900:
+		return 5200
+	if count >= 500:
+		return 3600
+	if count >= 300:
+		return 2200
+	return 850
+
+func _single_point_path(point: Vector2) -> Array[Vector2]:
+	var result: Array[Vector2] = []
+	result.append(point)
+	return result
 
 func _set_path_to_world(world_pos: Vector2, track_destination: bool = false) -> void:
 	var legal_target := _legal_destination(world_pos)
@@ -477,14 +671,75 @@ func _resume_patrol_leg() -> void:
 
 func _fire_attack(target: Node2D) -> void:
 	if _uses_projectile():
+		if _uses_mass_direct_aoe_attack():
+			_fire_mass_direct_aoe_attack(target)
+			return
+		if _uses_mass_hitscan_attack():
+			var weapon := WeaponCatalog.get_weapon(unit_archetype)
+			target.take_damage(int(weapon.get("damage", attack_damage)), self)
+			return
 		_spawn_projectile(target)
 	else:
 		_last_melee_attack_msec = Time.get_ticks_msec()
-		queue_redraw()
+		if not _mass_performance_mode() or selected:
+			queue_redraw()
 		target.take_damage(attack_damage, self)
 
 func _uses_projectile() -> bool:
 	return WeaponCatalog.uses_projectile(unit_archetype)
+
+func _uses_mass_hitscan_attack() -> bool:
+	if selected or rts_world == null or not is_instance_valid(rts_world):
+		return false
+	var threshold := 900
+	if terrain != null and str(terrain.get("map_type_id")) in ["ai_testing_ground", "fortress_ai_arena"]:
+		threshold = 260
+	if rts_world.count_units_all() < threshold:
+		return false
+	var weapon := WeaponCatalog.get_weapon(unit_archetype)
+	if weapon.get("kind", &"melee") == &"artillery":
+		return false
+	if float(weapon.get("aoe_radius", 0.0)) > 0.0:
+		return false
+	return unit_archetype in [&"horror", &"apex", &"spawner_drone", &"spore_spitter"]
+
+func _uses_mass_direct_aoe_attack() -> bool:
+	if selected or rts_world == null or not is_instance_valid(rts_world):
+		return false
+	if terrain == null or str(terrain.get("map_type_id")) not in ["ai_testing_ground", "fortress_ai_arena"]:
+		return false
+	if rts_world.count_units_all() < 180:
+		return false
+	var weapon := WeaponCatalog.get_weapon(unit_archetype)
+	return weapon.get("kind", &"melee") == &"artillery" and float(weapon.get("aoe_radius", 0.0)) > 0.0
+
+func _fire_mass_direct_aoe_attack(target: Node2D) -> void:
+	if target == null or not is_instance_valid(target) or rts_world == null or not is_instance_valid(rts_world):
+		return
+	var weapon := WeaponCatalog.get_weapon(unit_archetype)
+	var radius := float(weapon.get("aoe_radius", 0.0))
+	var damage := int(weapon.get("damage", attack_damage))
+	var center := target.global_position
+	var max_hits := 10
+	var count := rts_world.count_units_all()
+	if count >= 1800:
+		max_hits = 5
+	elif count >= 1000:
+		max_hits = 7
+	var victims := rts_world.query_enemy_units(center, radius, owner_player_id, max_hits) if rts_world.has_method("query_enemy_units") else []
+	if victims.is_empty() and target.has_method("take_damage"):
+		target.take_damage(damage, self)
+		return
+	for victim in victims:
+		if not is_instance_valid(victim) or not victim.has_method("take_damage"):
+			continue
+		var falloff := clampf(1.0 - center.distance_to(victim.global_position) / maxf(radius * 1.35, 1.0), 0.35, 1.0)
+		victim.take_damage(maxi(1, int(float(damage) * falloff)), self)
+
+func _effective_attack_range_to(target: Node2D) -> float:
+	if target != null and is_instance_valid(target) and target.has_method("get_selection_kind") and target.get_selection_kind() == &"structure":
+		return attack_range + maxf(32.0, float(target.get("selection_radius")) * 0.75)
+	return attack_range
 
 func _spawn_projectile(target: Node2D) -> void:
 	var origin := global_position + Vector2(0, -12)
@@ -500,11 +755,12 @@ func _spawn_projectile(target: Node2D) -> void:
 	projectile.global_position = origin
 
 func _projectile_color() -> Color:
+	var team := team_accent_color()
 	match unit_archetype:
 		&"horror":
-			return Color("#7DDDE8")
+			return team.lightened(0.1)
 		&"apex":
-			return Color("#7BC47F")
+			return team
 		&"life_wizard":
 			return Color("#7DDDE8")
 		&"fire_wizard":
@@ -512,6 +768,68 @@ func _projectile_color() -> Color:
 		&"evangalion_wizard":
 			return Color("#7DDDE8")
 	return Color("#D6C7AE")
+
+func team_primary_color() -> Color:
+	match owner_player_id:
+		1:
+			return Color("#7BC47F")
+		2:
+			return Color("#C13030")
+		3:
+			return Color("#3FA8B5")
+		4:
+			return Color("#D6A84F")
+	return Color("#D6C7AE")
+
+func team_secondary_color() -> Color:
+	match owner_player_id:
+		1:
+			return Color("#2D5A3E")
+		2:
+			return Color("#5C0F14")
+		3:
+			return Color("#1A4F5C")
+		4:
+			return Color("#8A7560")
+	return Color("#5C4838")
+
+func team_accent_color() -> Color:
+	match owner_player_id:
+		1:
+			return Color("#7DDDE8")
+		2:
+			return Color("#E85A5A")
+		3:
+			return Color("#7DDDE8")
+		4:
+			return Color("#F0D487")
+	return Color("#D6C7AE")
+
+func team_health_color() -> Color:
+	match owner_player_id:
+		1:
+			return Color("#7BC47F")
+		2:
+			return Color("#E85A5A")
+		3:
+			return Color("#7DDDE8")
+		4:
+			return Color("#F0D487")
+	return Color("#D6C7AE")
+
+func _apply_owner_art_tint() -> void:
+	var art := get_node_or_null("ArtSprite")
+	if art == null:
+		return
+	var tint := Color.WHITE
+	match owner_player_id:
+		2:
+			tint = Color(1.14, 0.78, 0.78, 1.0)
+		3:
+			tint = Color(0.74, 1.05, 1.18, 1.0)
+		4:
+			tint = Color(1.16, 1.02, 0.72, 1.0)
+	art.modulate = tint
 
 func take_damage(amount: int, source: Node = null) -> void:
 	if _dying:
@@ -521,7 +839,8 @@ func take_damage(amount: int, source: Node = null) -> void:
 		rts_world.record_damage(source, self, actual_damage)
 	health = maxi(0, health - amount)
 	_gain_evolution_xp(float(amount) * 0.35)
-	queue_redraw()
+	if not _mass_performance_mode() or selected or health <= 0:
+		_queue_unit_redraw(health <= 0)
 	if health <= 0:
 		_die(source)
 
@@ -554,6 +873,8 @@ func _apply_death_passives(source: Node = null) -> void:
 		unit.take_damage(maxi(1, int(float(damage) * falloff)), self)
 
 func _spawn_death_fx(source: Node = null) -> void:
+	if _is_ai_stress_arena() and rts_world != null and is_instance_valid(rts_world) and rts_world.count_units_all() >= 250:
+		return
 	var parent := get_parent()
 	if parent == null:
 		parent = get_tree().current_scene
@@ -569,14 +890,15 @@ func is_alive() -> bool:
 
 func heal_damage(amount: int) -> void:
 	health = mini(max_health, health + amount)
-	queue_redraw()
+	if not _mass_performance_mode() or selected:
+		_queue_unit_redraw()
 
 func stun_for_seconds(seconds: float) -> void:
 	stunned_until_msec = Time.get_ticks_msec() + int(seconds * 1000.0)
 	path.clear()
 	moving = false
 	unit_state = &"stunned"
-	queue_redraw()
+	_queue_unit_redraw()
 
 func salvage_value() -> int:
 	return int(float(UnitCatalog.cost_bio(unit_archetype)) * 0.6) + int(float(max_health) * 0.12)
@@ -608,7 +930,7 @@ func _evolve(definition: Dictionary) -> void:
 	health = max_health
 	move_speed += float(definition.get("evolution_speed_bonus", 0.0))
 	attack_damage = int(float(attack_damage) * 1.15)
-	queue_redraw()
+	_queue_unit_redraw()
 
 func _try_auto_grapple(target: Node2D) -> void:
 	var definition := UnitCatalog.get_definition(unit_archetype)
@@ -641,7 +963,7 @@ func activate_charge() -> bool:
 		return false
 	_charge_until_msec = Time.get_ticks_msec() + 3200
 	unit_state = &"attack_move" if attack_target == null else &"attacking"
-	queue_redraw()
+	_queue_unit_redraw()
 	return true
 
 func activate_grapple() -> bool:
@@ -708,6 +1030,8 @@ func _update_spawner_drones(nearby_units: Array[Node2D]) -> void:
 	var definition := UnitCatalog.get_definition(unit_archetype)
 	if not definition.has("drone_archetype"):
 		return
+	if _should_throttle_spawner_drones():
+		return
 	var drones := _owned_drones()
 	if drones.size() >= int(definition.get("drone_cap", 2)):
 		return
@@ -723,15 +1047,10 @@ func _update_spawner_drones(nearby_units: Array[Node2D]) -> void:
 	_spawn_drone(StringName(definition.get("drone_archetype", &"spawner_drone")), target)
 
 func _owned_drones() -> Array[Node2D]:
-	var drones: Array[Node2D] = []
-	if rts_world == null or not is_instance_valid(rts_world):
-		return drones
-	for unit in rts_world.units_for_owner(owner_player_id):
-		if not is_instance_valid(unit):
-			continue
-		if unit.get_meta("spawner_parent_id", 0) == get_instance_id():
-			drones.append(unit)
-	return drones
+	for i in range(_drone_children.size() - 1, -1, -1):
+		if not is_instance_valid(_drone_children[i]):
+			_drone_children.remove_at(i)
+	return _drone_children
 
 func _spawn_drone(archetype: StringName, target: Node2D) -> void:
 	var parent := get_parent()
@@ -746,6 +1065,8 @@ func _spawn_drone(archetype: StringName, target: Node2D) -> void:
 	drone.set_meta("spawner_parent_id", get_instance_id())
 	drone.global_position = global_position + Vector2(randf_range(-22.0, 22.0), randf_range(-18.0, 18.0))
 	parent.add_child(drone)
+	if drone is Node2D:
+		_drone_children.append(drone)
 	if target != null and is_instance_valid(target) and drone.has_method("issue_attack_target"):
 		drone.issue_attack_target(target)
 
@@ -776,7 +1097,7 @@ func _update_spawner_root_casts(delta: float) -> void:
 		if _root_cast_remaining <= 0.0:
 			_spawner_rooted = true
 			unit_state = &"rooted"
-		queue_redraw()
+		_queue_unit_redraw()
 		return
 	if _uproot_cast_remaining > 0.0:
 		_uproot_cast_remaining = maxf(0.0, _uproot_cast_remaining - delta)
@@ -786,7 +1107,7 @@ func _update_spawner_root_casts(delta: float) -> void:
 		if _uproot_cast_remaining <= 0.0:
 			_spawner_rooted = false
 			unit_state = &"idle"
-		queue_redraw()
+		_queue_unit_redraw()
 
 func _blocks_movement_for_rooting() -> bool:
 	return _spawner_rooted or _root_cast_remaining > 0.0 or _uproot_cast_remaining > 0.0
@@ -869,18 +1190,16 @@ func _find_nearest_enemy(units: Array[Node2D]) -> Node2D:
 	return best
 
 func _target_priority(unit: Node) -> float:
-	if owner_player_id != 2:
-		return 1.0
 	if unit.has_method("get_selection_kind") and unit.get_selection_kind() == &"structure":
 		var archetype := str(unit.get("archetype"))
 		if archetype == "wizard_tower":
-			return 8.0
+			return 1.45
 		if archetype == "bio_launcher":
-			return 5.5
+			return 1.2
 		if archetype == "bio_absorber":
-			return 4.0
-		return 3.0
-	return 1.25
+			return 1.05
+		return 0.9
+	return 4.0 if owner_player_id != 1 else 1.0
 
 func _apply_catalog_definition() -> void:
 	var definition := UnitCatalog.get_definition(unit_archetype)
@@ -894,21 +1213,108 @@ func _apply_catalog_definition() -> void:
 	ignores_terrain = bool(definition.get("ignores_terrain", false))
 
 func _separation_velocity(move_dir: Vector2 = Vector2.ZERO) -> Vector2:
-	if _mass_performance_mode():
-		return Vector2.ZERO
 	var push := Vector2.ZERO
-	for unit in _nearby_units():
+	var nearby := _nearby_units_limited(_spacing_neighbor_budget())
+	for unit in nearby:
 		if unit == self or not (unit is Node2D):
 			continue
 		var delta: Vector2 = global_position - unit.global_position
 		var distance: float = delta.length()
-		if distance <= 0.01 or distance >= collision_separation:
+		if distance <= 0.01:
+			var hash_angle := float(posmod(get_instance_id() - unit.get_instance_id(), 997)) / 997.0 * TAU
+			delta = Vector2(cos(hash_angle), sin(hash_angle))
+			distance = 0.01
+		var desired := _desired_unit_spacing(unit)
+		if distance >= desired:
 			continue
-		var weight := 8.0
+		var weight := 8.5
 		if move_dir != Vector2.ZERO and delta.normalized().dot(move_dir) < -0.35:
-			weight = 3.0
-		push += delta.normalized() * (collision_separation - distance) * weight
-	return push.limit_length(move_speed * 0.42)
+			weight = 4.0
+		push += delta.normalized() * (desired - distance) * weight
+	var cap := move_speed * (0.72 if _mass_performance_mode() else 0.46)
+	return push.limit_length(cap)
+
+func _mass_separation_velocity(move_dir: Vector2 = Vector2.ZERO) -> Vector2:
+	if rts_world == null or not is_instance_valid(rts_world):
+		return Vector2.ZERO
+	var push := Vector2.ZERO
+	var checked := 0
+	var nearby := _nearby_units_limited(_spacing_neighbor_budget())
+	for unit in nearby:
+		if unit == self or not (unit is Node2D) or not is_instance_valid(unit):
+			continue
+		checked += 1
+		var delta: Vector2 = global_position - unit.global_position
+		var distance_sq := delta.length_squared()
+		if distance_sq <= 0.001:
+			var hash_angle := float(posmod(get_instance_id() - unit.get_instance_id(), 997)) / 997.0 * TAU
+			delta = Vector2(cos(hash_angle), sin(hash_angle))
+			distance_sq = 0.01
+		var desired := _desired_unit_spacing(unit)
+		if distance_sq >= desired * desired:
+			continue
+		var distance := sqrt(distance_sq)
+		var away := delta / maxf(distance, 0.01)
+		var pressure := (desired - distance) / desired
+		var weight := 1.0
+		if move_dir != Vector2.ZERO and away.dot(move_dir) < -0.25:
+			weight = 0.45
+		push += away * pressure * move_speed * 1.85 * weight
+	_track_mass_collision_query(checked, 0)
+	return push.limit_length(move_speed * 0.95)
+
+func _would_overlap_at(position: Vector2, move_dir: Vector2 = Vector2.ZERO) -> bool:
+	var checked := 0
+	for unit in _nearby_units_limited(_overlap_neighbor_budget()):
+		if unit == self or not (unit is Node2D) or not is_instance_valid(unit):
+			continue
+		checked += 1
+		var desired := _desired_unit_spacing(unit) * 0.78
+		var delta: Vector2 = position - unit.global_position
+		if delta.length_squared() < desired * desired:
+			if move_dir == Vector2.ZERO or delta.normalized().dot(move_dir) < 0.75:
+				_track_mass_collision_query(0, checked)
+				return true
+	_track_mass_collision_query(0, checked)
+	return false
+
+func get_collision_separation() -> float:
+	return collision_separation
+
+func _desired_unit_spacing(unit: Node) -> float:
+	var other_separation := collision_separation
+	if unit != null and is_instance_valid(unit) and unit.has_method("get_collision_separation"):
+		other_separation = float(unit.call("get_collision_separation"))
+	var spacing := maxf(collision_separation, other_separation) * 1.12
+	if _mass_performance_mode():
+		spacing *= 1.18
+	return spacing
+
+func _spacing_neighbor_budget() -> int:
+	if rts_world == null or not is_instance_valid(rts_world):
+		return 12
+	var count := rts_world.count_units_all()
+	if count >= 2600:
+		return 3
+	if count >= 1800:
+		return 4
+	if count >= 900:
+		return 5
+	if count >= 500:
+		return 6
+	return 12
+
+func _overlap_neighbor_budget() -> int:
+	if rts_world == null or not is_instance_valid(rts_world):
+		return 8
+	var count := rts_world.count_units_all()
+	if count >= 1800:
+		return 0
+	if count >= 2600:
+		return 0
+	if count >= 900:
+		return 2
+	return 8
 
 func _advance_path_lookahead() -> void:
 	if _skip_path_lookahead_for_mass_mode():
@@ -943,6 +1349,79 @@ func _nearby_units() -> Array[Node2D]:
 			if _spatial_buckets.has(key):
 				nearby.append_array(_spatial_buckets[key])
 	return nearby
+
+func _nearby_units_limited(max_results: int) -> Array[Node2D]:
+	_rebuild_spatial_buckets_if_needed()
+	var nearby: Array[Node2D] = []
+	if max_results == 0:
+		return nearby
+	var bucket := _bucket_for_position(global_position)
+	for x in range(bucket.x - 1, bucket.x + 2):
+		for y in range(bucket.y - 1, bucket.y + 2):
+			var key := Vector2i(x, y)
+			if not _spatial_buckets.has(key):
+				continue
+			for unit in _spatial_buckets[key]:
+				nearby.append(unit)
+				if max_results > 0 and nearby.size() >= max_results:
+					return nearby
+	return nearby
+
+func _mass_idle_separation_velocity() -> Vector2:
+	if rts_world == null or not is_instance_valid(rts_world):
+		return Vector2.ZERO
+	var count := rts_world.count_units_all()
+	if count >= 2200 and unit_state in [&"attacking", &"rooted"]:
+		return Vector2.ZERO
+	if count >= 2800:
+		return Vector2.ZERO
+	return _mass_separation_velocity()
+
+func _should_throttle_spawner_drones() -> bool:
+	if rts_world == null or not is_instance_valid(rts_world):
+		return false
+	if terrain == null or str(terrain.get("map_type_id")) not in ["ai_testing_ground", "fortress_ai_arena"]:
+		return false
+	var count := rts_world.count_units_all()
+	if owner_player_id != 1 and count >= 180:
+		return true
+	if count < 700:
+		return false
+	if unit_archetype == &"winged_spawner":
+		return count >= 1200
+	return true
+
+func _is_ai_stress_arena() -> bool:
+	return terrain != null and str(terrain.get("map_type_id")) in ["ai_testing_ground", "fortress_ai_arena"]
+
+static func _track_mass_collision_query(neighbors: int, overlap_checks: int) -> void:
+	var frame := Engine.get_physics_frames()
+	if _mass_collision_frame != frame:
+		_mass_collision_frame = frame
+		_mass_collision_calls = 0
+		_mass_collision_neighbors = 0
+		_mass_collision_overlap_checks = 0
+	_mass_collision_calls += 1
+	_mass_collision_neighbors += neighbors
+	_mass_collision_overlap_checks += overlap_checks
+
+static func get_mass_collision_telemetry() -> Dictionary:
+	return {
+		"mass_collision_calls": _mass_collision_calls,
+		"mass_collision_neighbors": _mass_collision_neighbors,
+		"mass_collision_overlap_checks": _mass_collision_overlap_checks,
+	}
+
+static func get_registered_units_snapshot() -> Array[Node2D]:
+	var result: Array[Node2D] = []
+	for unit in _registered_units:
+		if is_instance_valid(unit):
+			result.append(unit)
+	return result
+
+func _queue_unit_redraw(force: bool = false) -> void:
+	if force or selected or not _mass_performance_mode():
+		queue_redraw()
 
 static func _register_unit(unit: Node2D) -> void:
 	if not _registered_units.has(unit):
@@ -988,7 +1467,7 @@ func _draw_selection_and_path() -> void:
 	_draw_sprite_shadow()
 	_draw_melee_swing_fx()
 	var mass_mode := _mass_performance_mode()
-	var hide_mass_health := mass_mode and rts_world != null and is_instance_valid(rts_world) and rts_world.count_units_all() >= 600
+	var hide_mass_health := mass_mode and rts_world != null and is_instance_valid(rts_world) and rts_world.count_units_all() >= 250
 	if selected or not hide_mass_health and (health < max_health or not mass_mode):
 		_draw_health_bar()
 	if not selected:
@@ -1037,7 +1516,7 @@ func _draw_health_bar() -> void:
 		ratio = clampf(float(health) / float(max_health), 0.0, 1.0)
 	var width := 38.0
 	var y := -42.0
-	var fill := Color("#7BC47F") if owner_player_id == 1 else Color("#C13030")
+	var fill := team_health_color()
 	if ratio < 0.35:
 		fill = Color("#E85A5A")
 	draw_rect(Rect2(Vector2(-width * 0.5 - 1.0, y - 1.0), Vector2(width + 2.0, 5.0)), Color("#0A1612", 0.85), true)
@@ -1051,11 +1530,27 @@ func _draw_health_bar() -> void:
 		draw_line(Vector2(7, y - 7), Vector2(-7, y - 3), Color("#E85A5A", 0.9), 1.5)
 
 func _mass_performance_mode() -> bool:
-	if terrain != null and str(terrain.get("map_type_id")) == "ai_testing_ground":
+	if terrain != null and str(terrain.get("map_type_id")) in ["ai_testing_ground", "fortress_ai_arena"]:
 		return rts_world == null or not is_instance_valid(rts_world) or rts_world.count_units_all() >= 120
 	return rts_world != null and is_instance_valid(rts_world) and rts_world.count_units_all() >= 360
 
+func _mass_redraw_interval() -> float:
+	if rts_world == null or not is_instance_valid(rts_world):
+		return 0.5
+	var count := rts_world.count_units_all()
+	if count >= 2400:
+		return 4.0
+	if count >= 1600:
+		return 3.0
+	if count >= 900:
+		return 1.5
+	if count >= 500:
+		return 0.75
+	return 0.3
+
 func _mass_simulation_delta(delta: float, mass_mode: bool) -> float:
+	if _force_lightweight_arena_unit:
+		return delta
 	if not mass_mode or selected:
 		_mass_physics_accum = 0.0
 		return delta
@@ -1075,15 +1570,68 @@ func _mass_physics_stride() -> int:
 	if rts_world == null or not is_instance_valid(rts_world):
 		return 1
 	var count := rts_world.count_units_all()
-	if terrain != null and str(terrain.get("map_type_id")) == "ai_testing_ground":
-		if count >= 1500:
-			return 3
+	if terrain != null and str(terrain.get("map_type_id")) in ["ai_testing_ground", "fortress_ai_arena"]:
+		if count >= 2400:
+			return 8
+		if count >= 1600:
+			return 6
 		if count >= 900:
+			return 4
+		if count >= 400:
 			return 2
 		return 1
 	if count >= 1200:
 		return 2
 	return 1
+
+func mass_art_update_interval() -> float:
+	if selected or rts_world == null or not is_instance_valid(rts_world):
+		return 0.0
+	var count := rts_world.count_units_all()
+	if _is_ai_stress_arena() and count >= 250:
+		return 0.5
+	if count < 700:
+		return 0.0
+	if count >= 2400:
+		return 0.25
+	if count >= 1600:
+		return 0.18
+	if count >= 900:
+		return 0.12
+	return 0.08
+
+func use_mass_vector_lod() -> bool:
+	if _force_lightweight_arena_unit:
+		return true
+	if selected or rts_world == null or not is_instance_valid(rts_world):
+		return false
+	if terrain == null or str(terrain.get("map_type_id")) not in ["ai_testing_ground", "fortress_ai_arena"]:
+		return false
+	return rts_world.count_units_all() >= 900
+
+func _update_mass_art_lod() -> void:
+	var should_hide := use_mass_vector_lod()
+	if should_hide == _mass_art_hidden:
+		return
+	_mass_art_hidden = should_hide
+	_update_mass_collision_lod(should_hide)
+	visible = true
+	var art := get_node_or_null("ArtSprite")
+	if art != null:
+		art.visible = not should_hide
+		art.process_mode = Node.PROCESS_MODE_DISABLED if should_hide else Node.PROCESS_MODE_INHERIT
+	queue_redraw()
+
+func _update_mass_collision_lod(should_hide: bool) -> void:
+	if should_hide:
+		collision_layer = 0
+		collision_mask = 0
+	else:
+		collision_layer = 2
+		collision_mask = 2
+	var shape := get_node_or_null("CollisionShape2D")
+	if shape != null:
+		shape.disabled = should_hide
 
 func _mass_repath_interval() -> int:
 	if rts_world == null or not is_instance_valid(rts_world):
@@ -1098,12 +1646,12 @@ func _mass_repath_interval() -> int:
 func _skip_path_lookahead_for_mass_mode() -> bool:
 	if not _mass_performance_mode():
 		return false
-	if terrain != null and str(terrain.get("map_type_id")) == "ai_testing_ground":
+	if terrain != null and str(terrain.get("map_type_id")) in ["ai_testing_ground", "fortress_ai_arena"]:
 		return true
 	return rts_world != null and is_instance_valid(rts_world) and rts_world.count_units_all() >= 900
 
 func _uses_direct_mass_arena_chase() -> bool:
-	return _mass_performance_mode() and terrain != null and str(terrain.get("map_type_id")) == "ai_testing_ground"
+	return _mass_performance_mode() and terrain != null and str(terrain.get("map_type_id")) in ["ai_testing_ground", "fortress_ai_arena"]
 
 func set_arena_leash(rect: Rect2, home: Vector2) -> void:
 	arena_leash_enabled = true

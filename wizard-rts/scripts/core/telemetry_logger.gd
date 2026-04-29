@@ -138,9 +138,11 @@ func _make_sample() -> Dictionary:
 	var path_stats: Dictionary = map_generator.get_path_telemetry() if map_generator != null and map_generator.has_method("get_path_telemetry") else {}
 	var spawn_stats: Dictionary = wave_director.get_ai_test_spawn_telemetry() if wave_director != null and wave_director.has_method("get_ai_test_spawn_telemetry") else {}
 	var combat_stats: Dictionary = combat_system.get_combat_telemetry() if combat_system != null and combat_system.has_method("get_combat_telemetry") else {}
+	var collision_stats: Dictionary = RTSUnit.get_mass_collision_telemetry()
 	var fps := float(Performance.get_monitor(Performance.TIME_FPS))
 	var process_ms := float(Performance.get_monitor(Performance.TIME_PROCESS)) * 1000.0
 	var physics_ms := float(Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)) * 1000.0
+	var frame_ms := 1000.0 / maxf(1.0, fps)
 	return {
 		"type": "sample",
 		"t": snapped(_session_elapsed, 0.001),
@@ -148,9 +150,10 @@ func _make_sample() -> Dictionary:
 		"wave": int(wave_director.get("ai_test_wave_index")) if wave_director != null and _has_property(wave_director, "ai_test_wave_index") else int(wave_director.get("wave_index")) if wave_director != null and _has_property(wave_director, "wave_index") else 0,
 		"phase": str(wave_director.get("phase")) if wave_director != null and _has_property(wave_director, "phase") else "",
 		"fps": fps,
-		"frame_ms": 1000.0 / maxf(1.0, fps),
+		"frame_ms": frame_ms,
 		"process_ms": process_ms,
 		"physics_ms": physics_ms,
+		"unaccounted_frame_ms": snapped(maxf(0.0, frame_ms - process_ms - physics_ms), 0.001),
 		"node_count": int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
 		"orphan_node_count": int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)),
 		"static_memory_mb": snapped(float(Performance.get_monitor(Performance.MEMORY_STATIC)) / 1048576.0, 0.001),
@@ -158,6 +161,7 @@ func _make_sample() -> Dictionary:
 		"structures": int(world_stats.get("structures", 0)),
 		"peak_units": int(world_stats.get("peak_units", 0)),
 		"owner_counts": _stringify_keys(world_stats.get("owner_counts", {})),
+		"archetype_counts": _stringify_keys(world_stats.get("archetype_counts", {})),
 		"state_counts": _stringify_keys(world_stats.get("state_counts", {})),
 		"moving_units": int(world_stats.get("moving_units", 0)),
 		"attacking_units": int(world_stats.get("attacking_units", 0)),
@@ -180,6 +184,9 @@ func _make_sample() -> Dictionary:
 		"combat_candidate_total": int(combat_stats.get("combat_candidate_total", 0)),
 		"combat_avg_candidates": snapped(float(combat_stats.get("combat_avg_candidates", 0.0)), 0.001),
 		"combat_tick_ms": snapped(float(combat_stats.get("combat_tick_ms", 0.0)), 0.001),
+		"mass_collision_calls": int(collision_stats.get("mass_collision_calls", 0)),
+		"mass_collision_neighbors": int(collision_stats.get("mass_collision_neighbors", 0)),
+		"mass_collision_overlap_checks": int(collision_stats.get("mass_collision_overlap_checks", 0)),
 		"path_requests": int(path_stats.get("path_requests", 0)),
 		"path_cache_hits": int(path_stats.get("path_cache_hits", 0)),
 		"path_requests_per_second": int(path_stats.get("path_requests_per_second", 0)),

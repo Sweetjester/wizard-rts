@@ -19,16 +19,19 @@ func eat_ally(target: Node) -> bool:
 	return true
 
 func _draw() -> void:
-	if has_node("ArtSprite"):
+	if has_node("ArtSprite") and not use_mass_vector_lod():
 		_draw_selection_and_path()
 		return
 	_draw_unit_transform_begin()
+	var body := team_secondary_color().darkened(0.12)
+	var plate := team_primary_color().darkened(0.1)
+	var accent := team_accent_color()
 	draw_circle(Vector2(0, 12), 17, Color(0, 0, 0, 0.34))
-	draw_circle(Vector2(0, -2), 18, Color("#332820"))
-	draw_circle(Vector2(-8, -6), 9, Color("#2D5A3E"))
-	draw_circle(Vector2(9, -5), 10, Color("#5C0F14"))
-	draw_circle(Vector2(0, -12), 4, Color("#7BC47F"))
-	draw_line(Vector2(-12, 10), Vector2(-28, 20), Color("#332820"), 4.0)
-	draw_line(Vector2(12, 10), Vector2(28, 20), Color("#332820"), 4.0)
+	draw_circle(Vector2(0, -2), 18, body)
+	draw_circle(Vector2(-8, -6), 9, plate)
+	draw_circle(Vector2(9, -5), 10, team_primary_color())
+	draw_circle(Vector2(0, -12), 4, accent)
+	draw_line(Vector2(-12, 10), Vector2(-28, 20), body, 4.0)
+	draw_line(Vector2(12, 10), Vector2(28, 20), body, 4.0)
 	_draw_unit_transform_end()
 	_draw_selection_and_path()

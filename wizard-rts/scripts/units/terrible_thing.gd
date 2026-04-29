@@ -8,11 +8,11 @@ func _ready() -> void:
 	collision_separation = 20.0
 
 func _draw() -> void:
-	if has_node("ArtSprite"):
+	if has_node("ArtSprite") and not use_mass_vector_lod():
 		_draw_selection_and_path()
 		return
 	_draw_unit_transform_begin()
-	_draw_body(Color("#5C0F14"), Color("#E85A5A"))
+	_draw_body(team_secondary_color(), team_accent_color())
 	_draw_unit_transform_end()
 	_draw_selection_and_path()
 

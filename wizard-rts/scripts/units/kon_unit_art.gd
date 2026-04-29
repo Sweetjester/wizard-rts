@@ -12,6 +12,7 @@ extends Sprite2D
 @export var attack_squash: float = 0.08
 
 var _elapsed := 0.0
+var _lod_elapsed := 0.0
 var _frame := 0
 var _base_position := Vector2.ZERO
 
@@ -29,6 +30,14 @@ func _process(delta: float) -> void:
 	var parent := get_parent()
 	if parent == null or texture == null:
 		return
+	_lod_elapsed += delta
+	if parent.has_method("mass_art_update_interval"):
+		var lod_interval := float(parent.call("mass_art_update_interval"))
+		if lod_interval > 0.0 and _lod_elapsed < lod_interval:
+			return
+		if lod_interval > 0.0:
+			delta = _lod_elapsed
+			_lod_elapsed = 0.0
 	hframes = max(1, sheet_columns)
 	vframes = max(1, sheet_rows)
 	var is_moving: bool = parent.get("moving")

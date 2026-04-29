@@ -336,7 +336,7 @@ func _grid_cell_size() -> Vector2:
 	var map := get_node_or_null("../MapGenerator")
 	if map != null:
 		var map_type := str(map.get("map_type_id"))
-		if map_type == "grid_test_canvas" or map_type == "ai_testing_ground":
+		if map_type == "grid_test_canvas" or map_type == "ai_testing_ground" or map_type == "fortress_ai_arena":
 			return Vector2(64, 64)
 	return Vector2(111, 55)
 

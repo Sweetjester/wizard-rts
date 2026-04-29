@@ -41,34 +41,37 @@ func _apply_enemy_tuning() -> void:
 			collision_separation = 20.0
 
 func _draw() -> void:
-	if has_node("ArtSprite"):
+	if has_node("ArtSprite") and not use_mass_vector_lod():
 		_draw_selection_and_path()
 		return
 	_draw_unit_transform_begin()
 	var is_boss := unit_archetype == &"mycelium_boss"
+	var body := team_secondary_color()
+	var cap := team_primary_color()
+	var accent := team_accent_color()
 	draw_circle(Vector2(0, 22 if is_boss else 9), 86 if is_boss else 13, Color(0, 0, 0, 0.34 if is_boss else 0.3))
 	match unit_archetype:
 		&"bloodcap_runner":
-			draw_line(Vector2(0, 8), Vector2(0, -14), Color("#5C0F14"), 5.0)
-			draw_circle(Vector2(0, -16), 12, Color("#C13030"))
-			draw_circle(Vector2(-4, -18), 3, Color("#E85A5A"))
+			draw_line(Vector2(0, 8), Vector2(0, -14), body, 5.0)
+			draw_circle(Vector2(0, -16), 12, cap)
+			draw_circle(Vector2(-4, -18), 3, accent)
 		&"spore_spitter":
-			draw_line(Vector2(0, 8), Vector2(0, -12), Color("#332820"), 7.0)
-			draw_circle(Vector2(0, -18), 16, Color("#5C0F14"))
-			draw_circle(Vector2(4, -18), 5, Color("#7DDDE8"))
-			draw_arc(Vector2(0, -18), 20.0, 0.2, PI - 0.2, 16, Color("#3FA8B5", 0.75), 2.0)
+			draw_line(Vector2(0, 8), Vector2(0, -12), body.darkened(0.2), 7.0)
+			draw_circle(Vector2(0, -18), 16, cap.darkened(0.1))
+			draw_circle(Vector2(4, -18), 5, accent)
+			draw_arc(Vector2(0, -18), 20.0, 0.2, PI - 0.2, 16, Color(accent.r, accent.g, accent.b, 0.75), 2.0)
 		&"bloodcap_brute":
-			draw_line(Vector2(0, 10), Vector2(0, -18), Color("#332820"), 12.0)
-			draw_circle(Vector2(0, -22), 24, Color("#8B1A1F"))
-			draw_circle(Vector2(-7, -25), 5, Color("#E85A5A"))
-			draw_circle(Vector2(7, -21), 4, Color("#2B0608"))
+			draw_line(Vector2(0, 10), Vector2(0, -18), body.darkened(0.2), 12.0)
+			draw_circle(Vector2(0, -22), 24, cap.darkened(0.1))
+			draw_circle(Vector2(-7, -25), 5, accent)
+			draw_circle(Vector2(7, -21), 4, body.darkened(0.45))
 		&"mycelium_boss":
 			_draw_mycelium_boss()
 		_:
-			draw_line(Vector2(0, 8), Vector2(0, -15), Color("#D6C7AE"), 7.0)
-			draw_circle(Vector2(0, -18), 18, Color("#8B1A1F"))
-			draw_circle(Vector2(-5, -20), 4, Color("#E85A5A"))
-			draw_circle(Vector2(4, -9), 2, Color("#7DDDE8"))
+			draw_line(Vector2(0, 8), Vector2(0, -15), body.lightened(0.2), 7.0)
+			draw_circle(Vector2(0, -18), 18, cap.darkened(0.1))
+			draw_circle(Vector2(-5, -20), 4, accent)
+			draw_circle(Vector2(4, -9), 2, accent)
 	_draw_unit_transform_end()
 	_draw_selection_and_path()
 

@@ -58,9 +58,14 @@ func _tick_combat(delta: float) -> void:
 			continue
 		var range_px: float = max(float(unit.get("attack_range")) * 1.5, 256.0)
 		var candidate_limit := _candidate_limit_for_count(units.size())
-		var nearby := rts_world.query_units(unit.global_position, range_px, -1, candidate_limit) if rts_world != null else _spatial.query_radius(unit.global_position, range_px)
-		candidate_queries += 1
-		candidate_total += nearby.size()
+		var nearby: Array[Node2D] = []
+		var needs_query := true
+		if unit.has_method("needs_combat_query"):
+			needs_query = bool(unit.call("needs_combat_query"))
+		if needs_query:
+			nearby = rts_world.query_enemy_attackables(unit.global_position, range_px, int(unit.get("owner_player_id")), candidate_limit) if rts_world != null and rts_world.has_method("query_enemy_attackables") else _spatial.query_radius(unit.global_position, range_px)
+			candidate_queries += 1
+			candidate_total += nearby.size()
 		unit.rts_combat_tick(scaled_delta, nearby)
 	_unit_cursor = posmod(_unit_cursor + budget, units.size())
 	_last_tick_units = units.size()
@@ -70,26 +75,36 @@ func _tick_combat(delta: float) -> void:
 	_last_tick_ms = float(Time.get_ticks_usec() - started) / 1000.0
 
 func _candidate_limit_for_count(unit_count: int) -> int:
+	if unit_count >= 2400:
+		return 6
+	if unit_count >= 1600:
+		return 6
 	if unit_count >= 900:
-		return 36
+		return 8
 	if unit_count >= 600:
-		return 48
+		return 6
 	if unit_count >= 300:
-		return 72
+		return 6
 	if unit_count >= 120:
-		return 48
-	return 32
+		return 8
+	return 16
 
 func _budget_for_count(unit_count: int) -> int:
 	var base_budget := max_units_per_tick
-	if unit_count >= 900:
-		base_budget = mini(base_budget, 96)
+	if unit_count >= 2400:
+		base_budget = mini(base_budget, 10)
+	elif unit_count >= 1600:
+		base_budget = mini(base_budget, 14)
+	elif unit_count >= 1200:
+		base_budget = mini(base_budget, 18)
+	elif unit_count >= 900:
+		base_budget = mini(base_budget, 24)
 	elif unit_count >= 600:
-		base_budget = mini(base_budget, 120)
+		base_budget = mini(base_budget, 28)
 	elif unit_count >= 300:
-		base_budget = mini(base_budget, 150)
+		base_budget = mini(base_budget, 32)
 	elif unit_count >= 120:
-		base_budget = mini(base_budget, 96)
+		base_budget = mini(base_budget, 48)
 	return maxi(1, base_budget)
 
 func get_combat_telemetry() -> Dictionary:
