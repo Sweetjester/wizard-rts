@@ -1337,7 +1337,7 @@ func _update_z_index() -> void:
 	if cell_y == _last_z_cell_y:
 		return
 	_last_z_cell_y = cell_y
-	z_index = int(global_position.y)
+	z_index = clampi(int(global_position.y), -4096, 4096)
 
 func _nearby_units() -> Array[Node2D]:
 	_rebuild_spatial_buckets_if_needed()

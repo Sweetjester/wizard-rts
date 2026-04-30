@@ -1,6 +1,6 @@
 extends Node
 
-const DEFAULT_MAP_TYPE := "vampire_mushroom_forest"
+const DEFAULT_MAP_TYPE := "seeded_grid_frontier"
 
 var map_type_id: String = DEFAULT_MAP_TYPE
 var map_seed_text: String = ""

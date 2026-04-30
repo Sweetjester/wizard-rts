@@ -1,4 +1,4 @@
-[gd_scene load_steps=31 format=4 uid="uid://cadog5s2ne74q"]
+[gd_scene load_steps=30 format=4 uid="uid://cadog5s2ne74q"]
 
 [ext_resource type="Script" uid="uid://c55e5b81k5mcw" path="res://scripts/map/map_manager.gd" id="1_yq3ld"]
 [ext_resource type="Script" uid="uid://co8oyntpicxw5" path="res://scripts/camera/camera_controller.gd" id="2_v4mqy"]
@@ -6,7 +6,6 @@
 [ext_resource type="PackedScene" uid="uid://yvd6jodnc1yg" path="res://wizard.tscn" id="7_ygs3f"]
 [ext_resource type="Script" uid="uid://bkf26i06ga6j6" path="res://scripts/core/simulation_runner.gd" id="8_iuo1j"]
 [ext_resource type="Script" uid="uid://cmvww5vpu1idw" path="res://scripts/net/multiplayer_session.gd" id="9_pmc20"]
-[ext_resource type="Script" uid="uid://but4t450e3odn" path="res://scripts/map/vampiric_mushroom_forest.gd" id="10_kc6b1"]
 [ext_resource type="Script" uid="uid://c88o7nix46wad" path="res://scripts/input/selection_controller.gd" id="11_select"]
 [ext_resource type="Script" uid="uid://dtfmodnxh8mts" path="res://scripts/map/water_lighting_effects.gd" id="12_waterfx"]
 [ext_resource type="Script" path="res://scripts/map/map_bootstrap.gd" id="13_boot"]
@@ -85,9 +84,6 @@ y_sort_origin = 32
 
 [node name="TerrainReliefLayer" type="Node2D" parent="."]
 script = ExtResource("25_relief")
-
-[node name="VampiricMushroomForest" type="Node2D" parent="." unique_id=2044243937]
-script = ExtResource("10_kc6b1")
 
 [node name="WaterLightingEffects" type="Node2D" parent="." unique_id=1665628975]
 script = ExtResource("12_waterfx")

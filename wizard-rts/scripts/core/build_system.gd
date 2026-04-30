@@ -360,7 +360,7 @@ func _create_structure_node(structure: Dictionary) -> KonStructure:
 	node.configure(structure["archetype"], cell, footprint)
 	node.set_runtime_stats(int(structure["player_id"]), int(structure.get("hp", 1)), int(structure.get("max_hp", 1)), int(structure.get("level", 1)))
 	node.global_position = _footprint_center_world(cell, footprint)
-	node.z_index = int(node.global_position.y) + 160
+	node.z_index = clampi(int(node.global_position.y) + 160, -4096, 4096)
 	node.set_construction_state(float(structure.get("build_progress", 0.0)), float(structure.get("build_time", 0.0)), bool(structure.get("complete", true)))
 	get_parent().add_child(node)
 	return node
@@ -847,7 +847,7 @@ func _uses_square_test_grid() -> bool:
 	if map_generator == null:
 		return false
 	var map_type := str(map_generator.get("map_type_id"))
-	return map_type == "grid_test_canvas" or map_type == "ai_testing_ground" or map_type == "fortress_ai_arena"
+	return map_type == "seeded_grid_frontier" or map_type == "grid_test_canvas" or map_type == "ai_testing_ground" or map_type == "fortress_ai_arena"
 
 func _footprint_extents(cells: Array[Vector2i]) -> Vector2i:
 	if cells.is_empty():

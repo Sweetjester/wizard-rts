@@ -32,6 +32,7 @@ var detail_meta_label: Label
 var alert_label: Label
 var command_container: HBoxContainer
 var ai_test_container: HBoxContainer
+var map_tool_container: HBoxContainer
 var ai_telemetry_label: Label
 var ai_spawn_button: Button
 var unit_stat_window: Window
@@ -68,6 +69,7 @@ func _ready() -> void:
 			_start_victory_return_countdown()
 		)
 		_setup_ai_test_controls()
+	_setup_map_generator_controls()
 	if build_system != null and build_system.has_signal("build_rejected"):
 		build_system.build_rejected.connect(_on_build_rejected)
 		build_system.structure_placed.connect(func(_player_id: int, archetype: StringName, _cell: Vector2i) -> void:
@@ -192,6 +194,11 @@ func _build_ui() -> void:
 	ai_test_container.visible = false
 	command_column.add_child(ai_test_container)
 
+	map_tool_container = HBoxContainer.new()
+	map_tool_container.add_theme_constant_override("separation", 8)
+	map_tool_container.visible = false
+	command_column.add_child(map_tool_container)
+
 	ai_telemetry_label = _make_label()
 	ai_telemetry_label.visible = false
 	ai_telemetry_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -231,6 +238,29 @@ func _setup_ai_test_controls() -> void:
 	if ai_telemetry_label != null:
 		ai_telemetry_label.visible = true
 	status_label.text = "Neutral observer mode. Spawn mirrored armies to test AI, pathing, targeting, and performance."
+
+func _setup_map_generator_controls() -> void:
+	if map_tool_container == null or map_generator == null:
+		return
+	if str(map_generator.get("map_type_id")) != "seeded_grid_frontier":
+		return
+	map_tool_container.visible = true
+	_add_button(map_tool_container, "Generate Map", _regenerate_seeded_grid_map)
+	_add_button(map_tool_container, "Keep Seed", _copy_seed_to_status)
+	_copy_seed_to_status()
+
+func _regenerate_seeded_grid_map() -> void:
+	var session := get_node_or_null("/root/GameSession")
+	if session != null and session.has_method("start_new_game"):
+		session.call("start_new_game", "", str(session.get("wizard_class_id")), "seeded_grid_frontier")
+	get_tree().reload_current_scene()
+
+func _copy_seed_to_status() -> void:
+	if map_generator == null:
+		return
+	var seed_text := str(map_generator.get("map_seed_text"))
+	var seed_label := seed_text if not seed_text.strip_edges().is_empty() else str(map_generator.get("seed_value"))
+	status_label.text = "Map seed: %s | Press Generate Map to roll and preview a replacement." % seed_label
 
 func _spawn_ai_test_wave() -> void:
 	if wave_director == null or not wave_director.has_method("spawn_ai_test_wave"):

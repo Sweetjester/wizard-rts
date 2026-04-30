@@ -46,7 +46,7 @@ func _rebuild() -> void:
 	if map == null or map.grid.is_empty():
 		call_deferred("_rebuild")
 		return
-	if str(map.get("map_type_id")) in ["ai_testing_ground", "fortress_ai_arena"]:
+	if str(map.get("map_type_id")) in ["seeded_grid_frontier", "ai_testing_ground", "fortress_ai_arena"]:
 		visible = false
 		set_process(false)
 		_show_all_entities()
