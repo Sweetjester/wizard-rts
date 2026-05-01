@@ -27,6 +27,7 @@ var lip_lines: Array = []
 var ridge_marks: Array = []
 var ramp_marks: Array = []
 var plateau_marks: Array = []
+var road_debug_rects: Array = []
 
 func _ready() -> void:
 	z_index = 3
@@ -46,6 +47,10 @@ func _build_relief() -> void:
 	ridge_marks.clear()
 	ramp_marks.clear()
 	plateau_marks.clear()
+	road_debug_rects.clear()
+
+	if _uses_seeded_frontier_debug_colours():
+		_build_seeded_frontier_road_colours()
 
 	for x in map.MAP_W:
 		for y in map.MAP_H:
@@ -144,6 +149,8 @@ func _add_plateau_mark(cell: Vector2i, elevation: int) -> void:
 	})
 
 func _draw() -> void:
+	for item in road_debug_rects:
+		draw_rect(item["rect"], item["color"], true)
 	for mark in plateau_marks:
 		draw_colored_polygon(mark["points"], mark["color"])
 	for face in cliff_faces:
@@ -204,6 +211,23 @@ func _blocked_feature_draws_top(cell: Vector2i) -> bool:
 		return false
 	var feature := str(map.feature_grid[cell.x][cell.y])
 	return feature.ends_with("_wall") or feature == "giant_mushroom"
+
+func _uses_seeded_frontier_debug_colours() -> bool:
+	return map != null and str(map.get("map_type_id")) == "seeded_grid_frontier"
+
+func _build_seeded_frontier_road_colours() -> void:
+	var cell_size := Vector2(64, 64)
+	var half := cell_size * 0.5
+	for x in map.MAP_W:
+		for y in map.MAP_H:
+			var feature := str(map.feature_grid[x][y])
+			if feature != "path" and feature != "ramp":
+				continue
+			var center: Vector2 = map.cell_to_world(Vector2i(x, y))
+			road_debug_rects.append({
+				"rect": Rect2(center - half, cell_size),
+				"color": Color("#C13030", 0.82) if feature == "path" else Color("#FF8A1C", 0.86),
+			})
 
 func _dominant_neighbor_height(cell: Vector2i) -> int:
 	var best := 0

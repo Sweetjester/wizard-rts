@@ -46,6 +46,10 @@ func _run() -> void:
 			push_error("Plot %s does not have a 3-wide road mouth near %s" % [str(plot.get("id", "")), road_anchor])
 			quit(1)
 			return
+		if str(plot.get("kind", "")) != "base" and not _content_entrance_has_road_approach(map, plot):
+			push_error("Content plot %s does not have a 3-wide road approach outside its gate" % str(plot.get("id", "")))
+			quit(1)
+			return
 
 	var road_cells: Dictionary = map.get("road_cells")
 	for road_cell in road_cells.keys():
@@ -69,11 +73,23 @@ func _run() -> void:
 
 func _has_path_cell_near(map: Node, center: Vector2i, radius: int) -> bool:
 	var feature_grid: Array = map.get("feature_grid")
+	var path_cells := 0
 	for x in range(center.x - radius, center.x + radius + 1):
 		for y in range(center.y - radius, center.y + radius + 1):
 			var cell := Vector2i(x, y)
 			if not map.is_in_bounds(cell):
 				continue
 			if str(feature_grid[x][y]) == "path" or str(feature_grid[x][y]) == "ramp":
-				return true
-	return false
+				path_cells += 1
+	return path_cells >= 3
+
+func _content_entrance_has_road_approach(map: Node, plot: Dictionary) -> bool:
+	var feature_grid: Array = map.get("feature_grid")
+	var rect: Rect2i = plot.get("rect", Rect2i())
+	var entrance := Vector2i(rect.position.x + rect.size.x / 2, rect.end.y)
+	for x in range(entrance.x - 1, entrance.x + 2):
+		if not map.is_in_bounds(Vector2i(x, entrance.y)):
+			continue
+		if str(feature_grid[x][entrance.y]) != "path":
+			return false
+	return true

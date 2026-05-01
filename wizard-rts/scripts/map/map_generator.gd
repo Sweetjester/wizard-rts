@@ -614,7 +614,24 @@ func _has_clear_path_segment(from_cell: Vector2i, to_cell: Vector2i) -> bool:
 			return false
 		if not _can_step_between(previous, cell):
 			return false
+		if map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER and not _frontier_step_has_clearance(previous, cell):
+			return false
 		previous = cell
+	return true
+
+func _frontier_step_has_clearance(from_cell: Vector2i, to_cell: Vector2i) -> bool:
+	var delta := to_cell - from_cell
+	if delta.x != 0 and delta.y != 0:
+		var side_a := Vector2i(from_cell.x + clampi(delta.x, -1, 1), from_cell.y)
+		var side_b := Vector2i(from_cell.x, from_cell.y + clampi(delta.y, -1, 1))
+		if not _is_path_traversable_cell(side_a) or not _is_path_traversable_cell(side_b):
+			return false
+	for offset: Vector2i in [Vector2i.ZERO, Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		var check: Vector2i = to_cell + offset
+		if not is_in_bounds(check):
+			return false
+		if grid[check.x][check.y] == E_BLOCKED or grid[check.x][check.y] == E_WATER:
+			return false
 	return true
 
 func _is_path_traversable_cell(cell: Vector2i) -> bool:
@@ -898,16 +915,16 @@ func _build_seeded_grid_frontier_plots() -> void:
 	var base_count := 4
 	for i in range(base_count):
 		var target := base_targets[(i + _rng.range_int(0, base_targets.size() - 1)) % base_targets.size()]
-		var rect := _find_open_frontier_rect(Vector2i(10, 10), reserved_rects, target, 220)
+		var rect := _find_open_frontier_rect(Vector2i(15, 15), reserved_rects, target, 220)
 		reserved_rects.append(_expanded_rect(rect, 8))
 		var plot := _make_base_plot(
 			"base_plot_%s" % (i + 1),
 			"High-ground base plot %s" % (i + 1),
 			rect,
-			[rect.position + Vector2i(5, 5)],
+			[rect.position + Vector2i(rect.size.x / 2, rect.size.y / 2)],
 			0.22 + float(i) * 0.14,
 			0.86,
-			"SC2-style high-ground base with a single 2x2 ramp, central economy slot, and one main road approach."
+			"SC2-style 15x15 high-ground base with a single 2x2 ramp, central economy slot, and one main road approach."
 		)
 		plot["ramp_rect"] = _frontier_ramp_for_base(rect)
 		_register_plot(plot)
@@ -1222,8 +1239,10 @@ func _build_frontier_road_network() -> void:
 	var hub := nearest_walkable_cell(Vector2i(MAP_W / 2, MAP_H / 2), 24)
 	if not is_in_bounds(hub):
 		hub = Vector2i(MAP_W / 2, MAP_H / 2)
+	_carve_road_cell(hub, 2)
 	var anchors: Array[Vector2i] = []
 	for plot in plots:
+		_carve_frontier_plot_approach(plot)
 		var anchor: Vector2i = plot.get("road_anchor", plot.get("anchor", hub))
 		anchor = nearest_walkable_cell(anchor, 8)
 		if is_in_bounds(anchor):
@@ -1236,20 +1255,113 @@ func _build_frontier_road_network() -> void:
 		_carve_frontier_road(anchors[i], anchors[i + 1])
 
 func _carve_frontier_road(from_cell: Vector2i, to_cell: Vector2i) -> void:
-	var bend_first_x := ((_hash_cell(from_cell + to_cell, 1201) % 2) == 0)
-	var bend := Vector2i(to_cell.x, from_cell.y) if bend_first_x else Vector2i(from_cell.x, to_cell.y)
+	var bend_x_first := Vector2i(to_cell.x, from_cell.y)
+	var bend_y_first := Vector2i(from_cell.x, to_cell.y)
+	var score_x := _frontier_road_route_conflict_score(from_cell, bend_x_first) + _frontier_road_route_conflict_score(bend_x_first, to_cell)
+	var score_y := _frontier_road_route_conflict_score(from_cell, bend_y_first) + _frontier_road_route_conflict_score(bend_y_first, to_cell)
+	var bend := bend_x_first if score_x <= score_y else bend_y_first
 	_carve_frontier_road_segment(from_cell, bend)
 	_carve_frontier_road_segment(bend, to_cell)
 
-func _carve_frontier_road_segment(from_cell: Vector2i, to_cell: Vector2i) -> void:
+func _frontier_road_route_conflict_score(from_cell: Vector2i, to_cell: Vector2i) -> int:
 	var current := from_cell
-	_carve_road_cell(current, 1)
+	var score := 0
 	while current != to_cell:
 		if current.x != to_cell.x:
 			current.x += clampi(to_cell.x - current.x, -1, 1)
 		elif current.y != to_cell.y:
 			current.y += clampi(to_cell.y - current.y, -1, 1)
-		_carve_road_cell(current, 1)
+		if _is_frontier_plot_reserved_for_roads(current):
+			score += 1000
+		elif not is_in_bounds(current):
+			score += 500
+		elif grid[current.x][current.y] == E_BLOCKED or grid[current.x][current.y] == E_WATER:
+			score += 8
+	return score
+
+func _carve_frontier_plot_approach(plot: Dictionary) -> void:
+	var rect: Rect2i = plot.get("rect", Rect2i())
+	if str(plot.get("kind", "")) != "base" and not plot.has("road_anchor"):
+		plot["road_anchor"] = Vector2i(rect.position.x + rect.size.x / 2, rect.end.y)
+	var road_anchor: Vector2i = plot.get("road_anchor", plot.get("anchor", rect.position))
+	_carve_frontier_road_cell(road_anchor, Vector2i.ZERO)
+	if str(plot.get("kind", "")) == "base":
+		if not plot.has("ramp_rect"):
+			return
+		var ramp_rect: Rect2i = plot["ramp_rect"]
+		for x in range(ramp_rect.position.x - 1, ramp_rect.end.x + 1):
+			for y in range(ramp_rect.position.y - 1, ramp_rect.end.y + 1):
+				var cell := Vector2i(x, y)
+				if not is_in_bounds(cell):
+					continue
+				if ramp_rect.has_point(cell):
+					grid[x][y] = E_RAMP
+					feature_grid[x][y] = "ramp"
+				else:
+					_carve_frontier_road_cell(cell, Vector2i.ZERO)
+		return
+	var entrance := Vector2i(rect.position.x + rect.size.x / 2, rect.end.y - 1)
+	for y in range(entrance.y + 1, entrance.y + 5):
+		for x in range(entrance.x - 1, entrance.x + 2):
+			var cell := Vector2i(x, y)
+			if not is_in_bounds(cell):
+				continue
+			if not rect.has_point(cell):
+				_carve_frontier_road_cell(cell, Vector2i.ZERO)
+
+func _carve_frontier_road_segment(from_cell: Vector2i, to_cell: Vector2i) -> void:
+	var current := from_cell
+	var axis := _frontier_road_axis(current, to_cell)
+	_carve_frontier_road_cell(current, axis)
+	while current != to_cell:
+		if current.x != to_cell.x:
+			current.x += clampi(to_cell.x - current.x, -1, 1)
+		elif current.y != to_cell.y:
+			current.y += clampi(to_cell.y - current.y, -1, 1)
+		_carve_frontier_road_cell(current, axis)
+
+func _frontier_road_axis(from_cell: Vector2i, to_cell: Vector2i) -> Vector2i:
+	if abs(to_cell.x - from_cell.x) >= abs(to_cell.y - from_cell.y):
+		return Vector2i(1, 0)
+	return Vector2i(0, 1)
+
+func _carve_frontier_road_cell(center: Vector2i, axis: Vector2i) -> void:
+	var offsets: Array[Vector2i] = []
+	if axis == Vector2i(1, 0):
+		offsets = [Vector2i(0, -1), Vector2i.ZERO, Vector2i(0, 1)]
+	elif axis == Vector2i(0, 1):
+		offsets = [Vector2i(-1, 0), Vector2i.ZERO, Vector2i(1, 0)]
+	else:
+		offsets = [Vector2i(0, -1), Vector2i.ZERO, Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
+	for offset in offsets:
+		_carve_frontier_single_road_cell(center + offset)
+
+func _carve_frontier_single_road_cell(cell: Vector2i) -> void:
+	if not is_in_bounds(cell):
+		return
+	if _is_frontier_plot_reserved_for_roads(cell):
+		return
+	var existing_feature: String = feature_grid[cell.x][cell.y]
+	if existing_feature.ends_with("_wall") or existing_feature == "giant_mushroom":
+		return
+	if grid[cell.x][cell.y] == E_BLOCKED or grid[cell.x][cell.y] == E_WATER:
+		grid[cell.x][cell.y] = _dominant_elevation_near(cell)
+	feature_grid[cell.x][cell.y] = "path"
+	road_cells[cell] = true
+
+func _is_frontier_plot_reserved_for_roads(cell: Vector2i) -> bool:
+	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+		return false
+	for plot in plots:
+		var rect: Rect2i = plot.get("rect", Rect2i())
+		if not rect.has_point(cell):
+			continue
+		if plot.has("ramp_rect"):
+			var ramp_rect: Rect2i = plot["ramp_rect"]
+			if ramp_rect.has_point(cell):
+				return false
+		return true
+	return false
 
 func _carve_road_between(from_cell: Vector2i, to_cell: Vector2i, width: int) -> void:
 	var current := Vector2(from_cell.x, from_cell.y)
