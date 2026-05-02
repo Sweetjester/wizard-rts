@@ -14,27 +14,37 @@ func _draw() -> void:
 	_draw_unit_transform_begin()
 	var flying := unit_archetype == &"winged_spawner"
 	var rooted := unit_state in [&"rooted", &"rooting", &"uprooting"]
+	var flight_cast := unit_state in [&"takeoff", &"landing"]
 	var body := team_secondary_color()
 	var plate := team_primary_color()
 	var accent := team_accent_color()
+	var lift := -10.0 if flying and not flight_cast else 0.0
+	if flight_cast:
+		lift = -6.0 if unit_state == &"takeoff" else -3.0
+	var lift_offset := Vector2(0, lift)
 	draw_circle(Vector2(0, 16), 26, Color(0, 0, 0, 0.34))
 	draw_colored_polygon(PackedVector2Array([
-		Vector2(-24, 12), Vector2(-10, -18), Vector2(16, -16), Vector2(28, 12), Vector2(12, 28), Vector2(-18, 26)
+		Vector2(-24, 12) + lift_offset, Vector2(-10, -18) + lift_offset, Vector2(16, -16) + lift_offset, Vector2(28, 12) + lift_offset, Vector2(12, 28) + lift_offset, Vector2(-18, 26) + lift_offset
 	]), body if not flying else plate)
-	draw_circle(Vector2(-8, -2), 10, team_primary_color())
-	draw_circle(Vector2(10, -4), 8, plate.darkened(0.1))
+	draw_circle(Vector2(-8, -2) + lift_offset, 10, team_primary_color())
+	draw_circle(Vector2(10, -4) + lift_offset, 8, plate.darkened(0.1))
 	if flying:
-		draw_arc(Vector2(-18, -2), 18.0, 3.5, 5.8, 18, Color(accent.r, accent.g, accent.b, 0.9), 4.0)
-		draw_arc(Vector2(18, -2), 18.0, -2.7, -0.5, 18, Color(accent.r, accent.g, accent.b, 0.9), 4.0)
+		draw_arc(Vector2(-18, -2) + lift_offset, 18.0, 3.5, 5.8, 18, Color(accent.r, accent.g, accent.b, 0.9), 4.0)
+		draw_arc(Vector2(18, -2) + lift_offset, 18.0, -2.7, -0.5, 18, Color(accent.r, accent.g, accent.b, 0.9), 4.0)
 	else:
-		draw_line(Vector2(-18, 18), Vector2(-34, 28), plate, 5.0)
-		draw_line(Vector2(18, 17), Vector2(34, 25), plate, 5.0)
+		draw_line(Vector2(-18, 18) + lift_offset, Vector2(-34, 28) + lift_offset, plate, 5.0)
+		draw_line(Vector2(18, 17) + lift_offset, Vector2(34, 25) + lift_offset, plate, 5.0)
 	if rooted:
 		var cast_color := Color("#D6C7AE") if unit_state in [&"rooting", &"uprooting"] else team_primary_color()
-		draw_arc(Vector2(0, 1), 28.0, 0.0, TAU, 32, Color(cast_color.r, cast_color.g, cast_color.b, 0.9), 3.0)
-		draw_line(Vector2(0, -18), Vector2(0, -42), team_primary_color(), 6.0)
-		draw_circle(Vector2(0, -45), 8.0, accent)
+		draw_arc(Vector2(0, 1) + lift_offset, 28.0, 0.0, TAU, 32, Color(cast_color.r, cast_color.g, cast_color.b, 0.9), 3.0)
+		draw_line(Vector2(0, -18) + lift_offset, Vector2(0, -42) + lift_offset, team_primary_color(), 6.0)
+		draw_circle(Vector2(0, -45) + lift_offset, 8.0, accent)
+	elif flight_cast:
+		var cast_color := Color("#7DDDE8") if unit_state == &"takeoff" else Color("#D6C7AE")
+		draw_arc(Vector2(0, 5) + lift_offset, 31.0, 0.0, TAU, 36, Color(cast_color.r, cast_color.g, cast_color.b, 0.82), 3.0)
+		draw_line(Vector2(-18, 24), Vector2(-30, 36), cast_color, 3.0)
+		draw_line(Vector2(18, 24), Vector2(30, 36), cast_color, 3.0)
 	else:
-		draw_circle(Vector2(0, -20), 6.0, accent)
+		draw_circle(Vector2(0, -20) + lift_offset, 6.0, accent)
 	_draw_unit_transform_end()
 	_draw_selection_and_path()

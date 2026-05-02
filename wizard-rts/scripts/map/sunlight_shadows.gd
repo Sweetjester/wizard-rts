@@ -26,6 +26,8 @@ func _ready() -> void:
 	call_deferred("_rebuild")
 
 func _process(delta: float) -> void:
+	if _uses_square_grid_map():
+		return
 	_elapsed += delta
 	if _elapsed < redraw_interval:
 		return
@@ -36,6 +38,11 @@ func _rebuild() -> void:
 	map = get_node_or_null(map_path)
 	if map == null or map.grid.is_empty():
 		call_deferred("_rebuild")
+		return
+	if _uses_square_grid_map():
+		terrain_shadows.clear()
+		sun_patches.clear()
+		queue_redraw()
 		return
 	day_night = get_node_or_null("../DayNightCycle")
 	terrain_shadows.clear()
@@ -59,7 +66,7 @@ func _rebuild() -> void:
 	queue_redraw()
 
 func _draw() -> void:
-	if map == null:
+	if map == null or _uses_square_grid_map():
 		return
 	var daylight := _daylight()
 	var night := 1.0 - daylight
@@ -103,3 +110,6 @@ func _sun_direction() -> Vector2:
 	if day_night == null:
 		day_night = get_node_or_null("../DayNightCycle")
 	return day_night.get_sun_direction() if day_night != null else Vector2(1.0, 0.45).normalized()
+
+func _uses_square_grid_map() -> bool:
+	return map != null and str(map.get("map_type_id")) in ["seeded_grid_frontier", "grid_test_canvas", "ai_testing_ground", "fortress_ai_arena"]

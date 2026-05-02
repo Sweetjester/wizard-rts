@@ -117,9 +117,11 @@ func _direction_row() -> int:
 	var angle := direction.angle()
 	return posmod(int(round((angle + PI * 0.5) / (TAU / 8.0))), 8)
 
-func take_damage(amount: int, source: Node = null) -> void:
-	health = maxi(0, health - amount)
-	_gain_evolution_xp(float(amount) * 0.35)
+func take_damage(amount: int, source: Node = null, damage_type: StringName = &"physical") -> void:
+	var mitigation := magic_armor if damage_type == &"magic" else armor
+	var actual_damage := maxi(1, amount - mitigation)
+	health = maxi(0, health - actual_damage)
+	_gain_evolution_xp(float(actual_damage) * 0.35)
 	queue_redraw()
 	if health <= 0:
 		_handle_lethal_damage(source)

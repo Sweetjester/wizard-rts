@@ -39,6 +39,8 @@ const MAP_TYPE_GRID_TEST_CANVAS := "grid_test_canvas"
 const MAP_TYPE_AI_TESTING_GROUND := "ai_testing_ground"
 const MAP_TYPE_FORTRESS_AI_ARENA := "fortress_ai_arena"
 const GRID_TEST_CELL_SIZE := 64
+const FRONTIER_MAIN_ROAD_X := 48
+const FRONTIER_MAIN_ROAD_Y := 48
 
 # ── STATE ──────────────────────────────────────────────────────────────────────
 var layer_low:  TileMapLayer
@@ -962,6 +964,8 @@ func _find_open_frontier_rect(size: Vector2i, reserved_rects: Array[Rect2i], pre
 		), size)
 		if _rect_conflicts_reserved(candidate, reserved_rects, 2):
 			continue
+		if _frontier_rect_blocks_core_roads(candidate):
+			continue
 		var center := Vector2(candidate.position.x + candidate.size.x * 0.5, candidate.position.y + candidate.size.y * 0.5)
 		var edge_penalty := 0.0
 		edge_penalty += maxf(0.0, 12.0 - float(candidate.position.x)) * 3.0
@@ -973,6 +977,11 @@ func _find_open_frontier_rect(size: Vector2i, reserved_rects: Array[Rect2i], pre
 			best_score = score
 			best_rect = candidate
 	return best_rect
+
+func _frontier_rect_blocks_core_roads(rect: Rect2i) -> bool:
+	var protected_horizontal := Rect2i(3, FRONTIER_MAIN_ROAD_Y - 3, MAP_W - 6, 7)
+	var protected_vertical := Rect2i(FRONTIER_MAIN_ROAD_X - 3, 3, 7, MAP_H - 6)
+	return rect.intersects(protected_horizontal) or rect.intersects(protected_vertical)
 
 func _expanded_rect(rect: Rect2i, margin: int) -> Rect2i:
 	return Rect2i(rect.position - Vector2i(margin, margin), rect.size + Vector2i(margin * 2, margin * 2))
@@ -1236,23 +1245,82 @@ func _build_roads() -> void:
 		_carve_road_between(from_anchor, to_anchor, 1)
 
 func _build_frontier_road_network() -> void:
-	var hub := nearest_walkable_cell(Vector2i(MAP_W / 2, MAP_H / 2), 24)
-	if not is_in_bounds(hub):
-		hub = Vector2i(MAP_W / 2, MAP_H / 2)
-	_carve_road_cell(hub, 2)
-	var anchors: Array[Vector2i] = []
+	_carve_frontier_arterial_roads()
 	for plot in plots:
 		_carve_frontier_plot_approach(plot)
-		var anchor: Vector2i = plot.get("road_anchor", plot.get("anchor", hub))
+		var anchor: Vector2i = plot.get("road_anchor", plot.get("anchor", Vector2i(FRONTIER_MAIN_ROAD_X, FRONTIER_MAIN_ROAD_Y)))
 		anchor = nearest_walkable_cell(anchor, 8)
-		if is_in_bounds(anchor):
-			anchors.append(anchor)
-			_carve_frontier_road(anchor, hub)
-	anchors.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
-		return a.x < b.x if a.x != b.x else a.y < b.y
-	)
-	for i in range(anchors.size() - 1):
-		_carve_frontier_road(anchors[i], anchors[i + 1])
+		if not is_in_bounds(anchor):
+			continue
+		var spine_target := _frontier_spine_target_for_anchor(anchor)
+		if not is_in_bounds(spine_target):
+			spine_target = Vector2i(FRONTIER_MAIN_ROAD_X, FRONTIER_MAIN_ROAD_Y)
+		_carve_frontier_road(anchor, spine_target)
+
+func _carve_frontier_arterial_roads() -> void:
+	_carve_frontier_arterial_path(Vector2i(4, FRONTIER_MAIN_ROAD_Y), Vector2i(MAP_W - 5, FRONTIER_MAIN_ROAD_Y), true)
+	_carve_frontier_arterial_path(Vector2i(FRONTIER_MAIN_ROAD_X, 4), Vector2i(FRONTIER_MAIN_ROAD_X, MAP_H - 5), false)
+
+func _carve_frontier_arterial_path(start: Vector2i, target: Vector2i, horizontal: bool) -> void:
+	var arterial := AStarGrid2D.new()
+	arterial.region = Rect2i(0, 0, MAP_W, MAP_H)
+	arterial.cell_size = Vector2.ONE
+	arterial.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_NEVER
+	arterial.default_compute_heuristic = AStarGrid2D.HEURISTIC_MANHATTAN
+	arterial.default_estimate_heuristic = AStarGrid2D.HEURISTIC_MANHATTAN
+	arterial.update()
+	for x in MAP_W:
+		for y in MAP_H:
+			var cell := Vector2i(x, y)
+			var solid := cell.x <= 2 or cell.x >= MAP_W - 3 or cell.y <= 2 or cell.y >= MAP_H - 3
+			solid = solid or _is_frontier_plot_reserved_for_arterial(cell)
+			arterial.set_point_solid(cell, solid)
+			if not solid:
+				var line_distance: int = abs(cell.y - FRONTIER_MAIN_ROAD_Y) if horizontal else abs(cell.x - FRONTIER_MAIN_ROAD_X)
+				arterial.set_point_weight_scale(cell, 1.0 + float(line_distance) * 0.12)
+	start = _nearest_frontier_arterial_cell(start, arterial)
+	target = _nearest_frontier_arterial_cell(target, arterial)
+	if not arterial.is_in_boundsv(start) or not arterial.is_in_boundsv(target) or arterial.is_point_solid(start) or arterial.is_point_solid(target):
+		return
+	var previous := start
+	var path := arterial.get_id_path(start, target)
+	for i in range(path.size()):
+		var cell: Vector2i = path[i]
+		var next: Vector2i = path[min(i + 1, path.size() - 1)]
+		var axis := _frontier_road_axis(previous, next)
+		_carve_frontier_road_cell(cell, axis)
+		previous = cell
+
+func _nearest_frontier_arterial_cell(origin: Vector2i, arterial: AStarGrid2D) -> Vector2i:
+	if arterial.is_in_boundsv(origin) and not arterial.is_point_solid(origin):
+		return origin
+	for radius in range(1, 12):
+		for x in range(origin.x - radius, origin.x + radius + 1):
+			for y in range(origin.y - radius, origin.y + radius + 1):
+				if abs(x - origin.x) != radius and abs(y - origin.y) != radius:
+					continue
+				var cell := Vector2i(x, y)
+				if arterial.is_in_boundsv(cell) and not arterial.is_point_solid(cell):
+					return cell
+	return origin
+
+func _is_frontier_plot_reserved_for_arterial(cell: Vector2i) -> bool:
+	for plot in plots:
+		var rect: Rect2i = plot.get("rect", Rect2i())
+		if _expanded_rect(rect, 1).has_point(cell):
+			return true
+		if plot.has("ramp_rect"):
+			var ramp_rect: Rect2i = plot["ramp_rect"]
+			if _expanded_rect(ramp_rect, 1).has_point(cell):
+				return true
+	return false
+
+func _frontier_spine_target_for_anchor(anchor: Vector2i) -> Vector2i:
+	var horizontal_target := Vector2i(anchor.x, FRONTIER_MAIN_ROAD_Y)
+	var vertical_target := Vector2i(FRONTIER_MAIN_ROAD_X, anchor.y)
+	if abs(anchor.y - FRONTIER_MAIN_ROAD_Y) <= abs(anchor.x - FRONTIER_MAIN_ROAD_X):
+		return nearest_walkable_cell(horizontal_target, 8)
+	return nearest_walkable_cell(vertical_target, 8)
 
 func _carve_frontier_road(from_cell: Vector2i, to_cell: Vector2i) -> void:
 	var bend_x_first := Vector2i(to_cell.x, from_cell.y)
@@ -1284,11 +1352,11 @@ func _carve_frontier_plot_approach(plot: Dictionary) -> void:
 	if str(plot.get("kind", "")) != "base" and not plot.has("road_anchor"):
 		plot["road_anchor"] = Vector2i(rect.position.x + rect.size.x / 2, rect.end.y)
 	var road_anchor: Vector2i = plot.get("road_anchor", plot.get("anchor", rect.position))
-	_carve_frontier_road_cell(road_anchor, Vector2i.ZERO)
 	if str(plot.get("kind", "")) == "base":
 		if not plot.has("ramp_rect"):
 			return
 		var ramp_rect: Rect2i = plot["ramp_rect"]
+		var ramp_axis := Vector2i(1, 0) if ramp_rect.size.x >= ramp_rect.size.y else Vector2i(0, 1)
 		for x in range(ramp_rect.position.x - 1, ramp_rect.end.x + 1):
 			for y in range(ramp_rect.position.y - 1, ramp_rect.end.y + 1):
 				var cell := Vector2i(x, y)
@@ -1298,7 +1366,7 @@ func _carve_frontier_plot_approach(plot: Dictionary) -> void:
 					grid[x][y] = E_RAMP
 					feature_grid[x][y] = "ramp"
 				else:
-					_carve_frontier_road_cell(cell, Vector2i.ZERO)
+					_carve_frontier_road_cell(cell, ramp_axis)
 		return
 	var entrance := Vector2i(rect.position.x + rect.size.x / 2, rect.end.y - 1)
 	for y in range(entrance.y + 1, entrance.y + 5):
@@ -1307,7 +1375,7 @@ func _carve_frontier_plot_approach(plot: Dictionary) -> void:
 			if not is_in_bounds(cell):
 				continue
 			if not rect.has_point(cell):
-				_carve_frontier_road_cell(cell, Vector2i.ZERO)
+				_carve_frontier_road_cell(cell, Vector2i(0, 1))
 
 func _carve_frontier_road_segment(from_cell: Vector2i, to_cell: Vector2i) -> void:
 	var current := from_cell

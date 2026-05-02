@@ -13,9 +13,13 @@ const SPAWNER_DRONE_SCENE_PATH := "res://scenes/units/spawner_drone.tscn"
 @export var owner_player_id: int = 1
 @export var unit_archetype: StringName = &"life_treant"
 @export var max_health: int = 80
+@export var armor: int = 0
+@export var magic_armor: int = 0
 @export var attack_damage: int = 8
 @export var attack_range: float = 96.0
 @export var attack_cooldown: float = 1.0
+@export var attack_type: StringName = &"melee"
+@export var attack_splash_radius: float = 0.0
 @export var projectile_speed: float = 620.0
 @export var ignores_terrain: bool = false
 
@@ -67,6 +71,14 @@ var _charge_until_msec := 0
 var _spawner_rooted := false
 var _root_cast_remaining := 0.0
 var _uproot_cast_remaining := 0.0
+var _flight_cast_remaining := 0.0
+var _flight_state: StringName = &"grounded"
+var _hunt_elapsed := 0.0
+var _hunt_charges := 0
+var _observer_aura_enabled := false
+var animation_action: StringName = &"idle"
+var ability_animation_action: StringName = &""
+var _ability_animation_until_msec := 0
 var _economy_manager: EconomyManager
 var mass_lane_offset := Vector2.ZERO
 var arena_leash_enabled := false
@@ -76,6 +88,7 @@ var _dying := false
 var _drone_children: Array[Node2D] = []
 var _mass_art_hidden := false
 var _force_lightweight_arena_unit := false
+var _damage_over_time_effects: Array[Dictionary] = []
 
 func _ready() -> void:
 	collision_layer = 2
@@ -109,13 +122,13 @@ func _process(delta: float) -> void:
 		_redraw_elapsed = 0.0
 		return
 	if health < max_health:
-		var damaged_redraw_interval := 0.35 if mass_mode else 0.0
+		var damaged_redraw_interval := 0.35 if mass_mode else 0.18
 		if _redraw_elapsed >= damaged_redraw_interval:
 			queue_redraw()
 			_redraw_elapsed = 0.0
 		return
 	if moving or unit_state in [&"attacking", &"attack_move", &"patrol", &"hold", &"stunned"]:
-		var redraw_interval := _mass_redraw_interval() if mass_mode else 0.0
+		var redraw_interval := _mass_redraw_interval() if mass_mode else _normal_redraw_interval()
 		if _redraw_elapsed >= redraw_interval:
 			queue_redraw()
 			_redraw_elapsed = 0.0
@@ -149,6 +162,11 @@ func is_inside_selection_rect(rect: Rect2) -> bool:
 func issue_move_order(world_pos: Vector2) -> void:
 	if _blocks_movement_for_rooting():
 		return
+	if _requires_takeoff_for_move():
+		_start_takeoff()
+		_command_destination = _legal_destination(world_pos)
+		_has_command_destination = true
+		return
 	attack_target = null
 	command_mode = &"move"
 	unit_state = &"moving"
@@ -170,6 +188,11 @@ func issue_shared_path_order(shared_path: Array[Vector2], offset: Vector2) -> vo
 		_has_command_destination = false
 		return
 	var final_target := _legal_destination(shared_path[shared_path.size() - 1] + offset)
+	if _requires_takeoff_for_move():
+		_start_takeoff()
+		_command_destination = final_target
+		_has_command_destination = true
+		return
 	_command_destination = final_target
 	_has_command_destination = true
 	path = _joined_shared_path(shared_path, final_target)
@@ -187,7 +210,13 @@ func _physics_process(delta: float) -> void:
 func rts_movement_tick(delta: float) -> void:
 	_life_elapsed += delta
 	_update_limited_lifetime()
+	_update_damage_over_time(delta)
 	_update_spawner_root_casts(delta)
+	_update_winged_spawner_flight(delta)
+	if _flight_cast_remaining > 0.0:
+		velocity = Vector2.ZERO
+		moving = false
+		return
 	var mass_mode := _mass_performance_mode()
 	var sim_delta := _mass_simulation_delta(delta, mass_mode)
 	if sim_delta <= 0.0:
@@ -217,6 +246,7 @@ func rts_movement_tick(delta: float) -> void:
 			_maintain_arena_attack_objective()
 		elif attack_target == null:
 			unit_state = &"idle"
+			_try_land_winged_spawner()
 		if mass_mode:
 			if velocity.length_squared() > 1.0:
 				global_position += velocity * sim_delta
@@ -248,6 +278,7 @@ func rts_movement_tick(delta: float) -> void:
 				unit_state = &"attack_move"
 			else:
 				unit_state = &"idle"
+				_try_land_winged_spawner()
 		_queue_unit_redraw()
 		return
 
@@ -256,7 +287,7 @@ func rts_movement_tick(delta: float) -> void:
 	velocity = move_dir * current_speed + separation
 	if mass_mode:
 		var proposed := global_position + velocity * sim_delta
-		if _would_overlap_at(proposed, move_dir):
+		if _uses_hard_mass_overlap_blocking() and _would_overlap_at(proposed, move_dir):
 			var side_step := Vector2(-move_dir.y, move_dir.x) * current_speed * 0.35
 			var side_a := global_position + (side_step + separation) * sim_delta
 			var side_b := global_position + (-side_step + separation) * sim_delta
@@ -284,12 +315,27 @@ func issue_attack_target(target: Node2D) -> void:
 func issue_attack_move_order(world_pos: Vector2) -> void:
 	if _blocks_movement_for_rooting():
 		return
+	if _requires_takeoff_for_move():
+		_start_takeoff()
+		command_mode = &"attack_move"
+		unit_state = &"takeoff"
+		_command_destination = _legal_destination(world_pos)
+		_has_command_destination = true
+		return
 	issue_move_order(world_pos)
 	command_mode = &"attack_move"
 	unit_state = &"attack_move"
 
 func issue_arena_attack_move_order(world_pos: Vector2) -> void:
 	if _blocks_movement_for_rooting():
+		return
+	if _requires_takeoff_for_move():
+		_start_takeoff()
+		command_mode = &"attack_move"
+		unit_state = &"takeoff"
+		var deferred_target := _legal_destination(_clamp_to_arena(world_pos))
+		_command_destination = deferred_target
+		_has_command_destination = true
 		return
 	attack_target = null
 	command_mode = &"attack_move"
@@ -305,6 +351,15 @@ func issue_arena_attack_move_order(world_pos: Vector2) -> void:
 
 func issue_patrol_order(world_pos: Vector2) -> void:
 	if _blocks_movement_for_rooting():
+		return
+	if _requires_takeoff_for_move():
+		_start_takeoff()
+		command_mode = &"patrol"
+		patrol_a = global_position
+		patrol_b = world_pos
+		_patrol_heading_to_b = true
+		_command_destination = _legal_destination(world_pos)
+		_has_command_destination = true
 		return
 	attack_target = null
 	command_mode = &"patrol"
@@ -335,11 +390,17 @@ func issue_stop_order() -> void:
 	_queue_unit_redraw()
 
 func rts_combat_tick(delta: float, nearby_units: Array[Node2D]) -> void:
-	if health <= 0 or _is_stunned():
+	if health <= 0 or _is_stunned() or _flight_cast_remaining > 0.0:
 		return
 	_attack_elapsed += delta
 	_grapple_elapsed += delta
 	_spawner_elapsed += delta
+	_update_hunt_passive(delta)
+	_update_animation_action()
+	if _observer_aura_enabled:
+		attack_target = null
+		unit_state = &"observing"
+		return
 	if attack_target != null and (not is_instance_valid(attack_target) or not _is_enemy_unit(attack_target)):
 		attack_target = null
 		if command_mode == &"attack_move":
@@ -370,7 +431,7 @@ func rts_combat_tick(delta: float, nearby_units: Array[Node2D]) -> void:
 		unit_state = &"rooted"
 	else:
 		unit_state = &"attacking"
-	if _attack_elapsed < attack_cooldown:
+	if _attack_elapsed < _current_attack_cooldown():
 		return
 	_attack_elapsed = 0.0
 	if attack_target.has_method("take_damage"):
@@ -379,9 +440,10 @@ func rts_combat_tick(delta: float, nearby_units: Array[Node2D]) -> void:
 		_try_auto_grapple(attack_target)
 		var weapon := WeaponCatalog.get_weapon(unit_archetype)
 		var casts := int(weapon.get("casts", 2 if bool(UnitCatalog.get_definition(unit_archetype).get("dual_cast", false)) else 1))
+		var damage_multiplier := _consume_attack_damage_multiplier()
 		for _i in casts:
 			if is_instance_valid(attack_target):
-				_fire_attack(attack_target)
+				_fire_attack(attack_target, damage_multiplier)
 				_gain_evolution_xp(float(attack_damage) * 0.6)
 		var heal := int(UnitCatalog.get_definition(unit_archetype).get("heal_per_attack", 0))
 		if heal > 0:
@@ -408,6 +470,9 @@ func _chase_attack_target() -> void:
 		chase_target = _clamp_to_arena(chase_target)
 	_command_destination = _legal_destination(chase_target)
 	_has_command_destination = true
+	if _requires_takeoff_for_move():
+		_start_takeoff()
+		return
 	if ignores_terrain or terrain == null or _uses_direct_mass_arena_chase():
 		path = [_command_destination]
 	else:
@@ -669,21 +734,21 @@ func _resume_patrol_leg() -> void:
 	_set_path_to_world(patrol_b if _patrol_heading_to_b else patrol_a, true)
 	unit_state = &"patrol"
 
-func _fire_attack(target: Node2D) -> void:
+func _fire_attack(target: Node2D, damage_multiplier: float = 1.0) -> void:
 	if _uses_projectile():
 		if _uses_mass_direct_aoe_attack():
-			_fire_mass_direct_aoe_attack(target)
+			_fire_mass_direct_aoe_attack(target, damage_multiplier)
 			return
 		if _uses_mass_hitscan_attack():
 			var weapon := WeaponCatalog.get_weapon(unit_archetype)
-			target.take_damage(int(weapon.get("damage", attack_damage)), self)
+			target.take_damage(maxi(1, int(float(weapon.get("damage", attack_damage)) * damage_multiplier)), self)
 			return
-		_spawn_projectile(target)
+		_spawn_projectile(target, damage_multiplier)
 	else:
 		_last_melee_attack_msec = Time.get_ticks_msec()
 		if not _mass_performance_mode() or selected:
 			queue_redraw()
-		target.take_damage(attack_damage, self)
+		target.take_damage(maxi(1, int(float(attack_damage) * damage_multiplier)), self)
 
 func _uses_projectile() -> bool:
 	return WeaponCatalog.uses_projectile(unit_archetype)
@@ -701,7 +766,7 @@ func _uses_mass_hitscan_attack() -> bool:
 		return false
 	if float(weapon.get("aoe_radius", 0.0)) > 0.0:
 		return false
-	return unit_archetype in [&"horror", &"apex", &"spawner_drone", &"spore_spitter"]
+	return unit_archetype in [&"horror", &"hunter", &"apex", &"champion", &"spawner_drone", &"spore_spitter"]
 
 func _uses_mass_direct_aoe_attack() -> bool:
 	if selected or rts_world == null or not is_instance_valid(rts_world):
@@ -713,12 +778,12 @@ func _uses_mass_direct_aoe_attack() -> bool:
 	var weapon := WeaponCatalog.get_weapon(unit_archetype)
 	return weapon.get("kind", &"melee") == &"artillery" and float(weapon.get("aoe_radius", 0.0)) > 0.0
 
-func _fire_mass_direct_aoe_attack(target: Node2D) -> void:
+func _fire_mass_direct_aoe_attack(target: Node2D, damage_multiplier: float = 1.0) -> void:
 	if target == null or not is_instance_valid(target) or rts_world == null or not is_instance_valid(rts_world):
 		return
 	var weapon := WeaponCatalog.get_weapon(unit_archetype)
 	var radius := float(weapon.get("aoe_radius", 0.0))
-	var damage := int(weapon.get("damage", attack_damage))
+	var damage := maxi(1, int(float(weapon.get("damage", attack_damage)) * damage_multiplier))
 	var center := target.global_position
 	var max_hits := 10
 	var count := rts_world.count_units_all()
@@ -736,20 +801,121 @@ func _fire_mass_direct_aoe_attack(target: Node2D) -> void:
 		var falloff := clampf(1.0 - center.distance_to(victim.global_position) / maxf(radius * 1.35, 1.0), 0.35, 1.0)
 		victim.take_damage(maxi(1, int(float(damage) * falloff)), self)
 
-func _effective_attack_range_to(target: Node2D) -> float:
-	if target != null and is_instance_valid(target) and target.has_method("get_selection_kind") and target.get_selection_kind() == &"structure":
-		return attack_range + maxf(32.0, float(target.get("selection_radius")) * 0.75)
-	return attack_range
+func _update_hunt_passive(delta: float) -> void:
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	var interval := float(definition.get("hunt_charge_seconds", 0.0))
+	if interval <= 0.0:
+		_hunt_elapsed = 0.0
+		_hunt_charges = 0
+		return
+	_hunt_elapsed += delta
+	var max_charges := int(definition.get("hunt_max_charges", 1))
+	while _hunt_elapsed >= interval:
+		_hunt_elapsed -= interval
+		_hunt_charges = mini(max_charges, _hunt_charges + 1)
 
-func _spawn_projectile(target: Node2D) -> void:
+func _consume_attack_damage_multiplier() -> float:
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	var multiplier := 1.0
+	if _hunt_charges > 0:
+		_hunt_charges -= 1
+		multiplier *= float(definition.get("hunt_damage_multiplier", 1.0))
+		_set_ability_animation(&"hunt_attack", 0.45)
+	if bool(definition.get("ignores_terrain", false)) and moving and definition.has("moving_attack_damage_multiplier"):
+		multiplier *= float(definition.get("moving_attack_damage_multiplier", 1.0))
+	return multiplier
+
+func _current_attack_cooldown() -> float:
+	var cooldown := attack_cooldown
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	if definition.has("low_health_attack_speed_bonus"):
+		var missing_health_ratio := 1.0 - (float(health) / maxf(1.0, float(max_health)))
+		var bonus := clampf(float(definition.get("low_health_attack_speed_bonus", 0.0)) * missing_health_ratio, 0.0, 0.75)
+		cooldown *= 1.0 - bonus
+	return maxf(0.1, cooldown)
+
+func _observer_aura_range_bonus() -> float:
+	if owner_player_id != 1:
+		return 0.0
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	if int(definition.get("attack_range_cells", 0)) <= 1:
+		return 0.0
+	if rts_world == null or not is_instance_valid(rts_world):
+		return 0.0
+	var allies := rts_world.query_units(global_position, 420.0) if rts_world.has_method("query_units") else []
+	for ally in allies:
+		if ally == self or not is_instance_valid(ally):
+			continue
+		if _owner_id_for_node(ally) != owner_player_id:
+			continue
+		if ally.has_method("is_observer_aura_enabled") and bool(ally.call("is_observer_aura_enabled")):
+			return 64.0
+	return 0.0
+
+func _update_animation_action() -> void:
+	if _ability_animation_until_msec > 0 and Time.get_ticks_msec() >= _ability_animation_until_msec:
+		ability_animation_action = &""
+		_ability_animation_until_msec = 0
+	if not str(ability_animation_action).is_empty():
+		animation_action = ability_animation_action
+		return
+	if _dying:
+		animation_action = &"death"
+	elif _is_stunned():
+		animation_action = &"stunned"
+	elif unit_state in [&"rooting", &"rooted", &"uprooting", &"takeoff", &"landing", &"observing"]:
+		animation_action = unit_state
+	elif attack_target != null and is_instance_valid(attack_target):
+		animation_action = &"attack"
+	elif moving:
+		animation_action = &"move"
+	else:
+		animation_action = &"idle"
+
+func get_evolution_progress() -> Dictionary:
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	var needed := float(definition.get("evolution_xp_required", 0.0))
+	return {
+		"xp": evolution_xp,
+		"needed": needed,
+		"level": evolution_level,
+		"evolves_to": definition.get("evolves_to", &""),
+	}
+
+func debug_force_evolve() -> bool:
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	var progress := get_evolution_progress()
+	var needed := float(progress.get("needed", definition.get("evolution_xp_required", 0.0)))
+	if needed <= 0.0:
+		return false
+	_gain_evolution_xp(needed - evolution_xp + 0.01)
+	return true
+
+func _set_ability_animation(action: StringName, seconds: float = 0.7) -> void:
+	ability_animation_action = action
+	_ability_animation_until_msec = Time.get_ticks_msec() + int(maxf(seconds, 0.05) * 1000.0)
+
+func _effective_attack_range_to(target: Node2D) -> float:
+	var range := attack_range
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	if _hunt_charges > 0:
+		range *= float(definition.get("hunt_range_multiplier", 1.0))
+	if bool(definition.get("ignores_terrain", false)) and moving and definition.has("moving_attack_range_multiplier"):
+		range *= float(definition.get("moving_attack_range_multiplier", 1.0))
+	range += _observer_aura_range_bonus()
+	if target != null and is_instance_valid(target) and target.has_method("get_selection_kind") and target.get_selection_kind() == &"structure":
+		return range + maxf(32.0, float(target.get("selection_radius")) * 0.75)
+	return range
+
+func _spawn_projectile(target: Node2D, damage_multiplier: float = 1.0) -> void:
 	var origin := global_position + Vector2(0, -12)
 	if rts_world != null and is_instance_valid(rts_world):
 		var weapon := WeaponCatalog.get_weapon(unit_archetype)
-		var projectile := rts_world.spawn_projectile(self, target, int(weapon.get("damage", attack_damage)), weapon.get("color", _projectile_color()), float(weapon.get("speed", projectile_speed)), origin)
+		var projectile := rts_world.spawn_projectile(self, target, maxi(1, int(float(weapon.get("damage", attack_damage)) * damage_multiplier)), weapon.get("color", _projectile_color()), float(weapon.get("speed", projectile_speed)), origin)
 		projectile.set_aoe_radius(float(weapon.get("aoe_radius", 0.0)))
 		return
 	var projectile := RtsProjectile.new()
-	projectile.configure(self, target, attack_damage, _projectile_color(), projectile_speed)
+	projectile.configure(self, target, maxi(1, int(float(attack_damage) * damage_multiplier)), _projectile_color(), projectile_speed)
 	projectile.set_aoe_radius(float(WeaponCatalog.get_weapon(unit_archetype).get("aoe_radius", 0.0)))
 	get_parent().add_child(projectile)
 	projectile.global_position = origin
@@ -757,7 +923,7 @@ func _spawn_projectile(target: Node2D) -> void:
 func _projectile_color() -> Color:
 	var team := team_accent_color()
 	match unit_archetype:
-		&"horror":
+		&"horror", &"hunter":
 			return team.lightened(0.1)
 		&"apex":
 			return team
@@ -831,18 +997,52 @@ func _apply_owner_art_tint() -> void:
 			tint = Color(1.16, 1.02, 0.72, 1.0)
 	art.modulate = tint
 
-func take_damage(amount: int, source: Node = null) -> void:
+func take_damage(amount: int, source: Node = null, damage_type: StringName = &"physical") -> void:
 	if _dying:
 		return
-	var actual_damage: int = mini(amount, health)
+	var mitigation := magic_armor if damage_type == &"magic" else armor
+	if UnitCatalog.get_definition(unit_archetype).has("low_health_armor_bonus"):
+		var missing_health_ratio := 1.0 - (float(health) / maxf(1.0, float(max_health)))
+		mitigation += int(round(float(UnitCatalog.get_definition(unit_archetype).get("low_health_armor_bonus", 0)) * missing_health_ratio))
+	var mitigated_amount := maxi(1, amount - mitigation)
+	var actual_damage: int = mini(mitigated_amount, health)
 	if rts_world != null and is_instance_valid(rts_world):
 		rts_world.record_damage(source, self, actual_damage)
-	health = maxi(0, health - amount)
-	_gain_evolution_xp(float(amount) * 0.35)
+	health = maxi(0, health - actual_damage)
+	_gain_evolution_xp(float(actual_damage) * 0.35)
 	if not _mass_performance_mode() or selected or health <= 0:
 		_queue_unit_redraw(health <= 0)
 	if health <= 0:
 		_die(source)
+
+func apply_poison(source: Node = null, damage_per_second: float = 4.0, duration_seconds: float = 4.0) -> void:
+	if _dying or damage_per_second <= 0.0 or duration_seconds <= 0.0:
+		return
+	_damage_over_time_effects.append({
+		"source": source,
+		"dps": damage_per_second,
+		"remaining": duration_seconds,
+		"carry": 0.0,
+	})
+
+func _update_damage_over_time(delta: float) -> void:
+	if _damage_over_time_effects.is_empty() or _dying:
+		return
+	for i in range(_damage_over_time_effects.size() - 1, -1, -1):
+		var effect: Dictionary = _damage_over_time_effects[i]
+		var remaining := float(effect.get("remaining", 0.0)) - delta
+		var carry := float(effect.get("carry", 0.0)) + float(effect.get("dps", 0.0)) * delta
+		var damage := int(floor(carry))
+		effect["remaining"] = remaining
+		effect["carry"] = carry - float(damage)
+		_damage_over_time_effects[i] = effect
+		if damage > 0:
+			var source: Node = effect.get("source", null)
+			take_damage(damage, source if source != null and is_instance_valid(source) else null, &"magic")
+			if _dying:
+				return
+		if remaining <= 0.0:
+			_damage_over_time_effects.remove_at(i)
 
 func _die(source: Node = null) -> void:
 	if _dying:
@@ -930,6 +1130,7 @@ func _evolve(definition: Dictionary) -> void:
 	health = max_health
 	move_speed += float(definition.get("evolution_speed_bonus", 0.0))
 	attack_damage = int(float(attack_damage) * 1.15)
+	_set_ability_animation(&"evolve", 1.2)
 	_queue_unit_redraw()
 
 func _try_auto_grapple(target: Node2D) -> void:
@@ -956,6 +1157,13 @@ func _try_auto_grapple(target: Node2D) -> void:
 	var resistance := int(UnitCatalog.get_definition(target_archetype).get("grapple_resistance", 1))
 	if total_power >= resistance and target.has_method("stun_for_seconds"):
 		target.stun_for_seconds(float(definition.get("grapple_seconds", 2.0)))
+	var aoe_radius := float(definition.get("grapple_aoe_radius", 0.0))
+	if aoe_radius > 0.0 and rts_world != null and is_instance_valid(rts_world):
+		var victims := rts_world.query_enemy_units(target.global_position, aoe_radius, owner_player_id, 12) if rts_world.has_method("query_enemy_units") else []
+		for victim in victims:
+			if victim == target or not is_instance_valid(victim) or not victim.has_method("stun_for_seconds"):
+				continue
+			victim.stun_for_seconds(float(definition.get("grapple_seconds", 2.0)))
 
 func activate_charge() -> bool:
 	var definition := UnitCatalog.get_definition(unit_archetype)
@@ -963,6 +1171,7 @@ func activate_charge() -> bool:
 		return false
 	_charge_until_msec = Time.get_ticks_msec() + 3200
 	unit_state = &"attack_move" if attack_target == null else &"attacking"
+	_set_ability_animation(&"charge", 0.55)
 	_queue_unit_redraw()
 	return true
 
@@ -974,9 +1183,32 @@ func activate_grapple() -> bool:
 	if target == null:
 		return false
 	_grapple_elapsed = float(definition.get("grapple_cooldown_seconds", 4.0))
+	_set_ability_animation(&"grapple", 0.65)
 	_try_auto_grapple(target)
 	issue_attack_target(target)
 	return true
+
+func activate_observer_aura() -> bool:
+	if unit_archetype != &"life_wizard":
+		return false
+	_observer_aura_enabled = not _observer_aura_enabled
+	if _observer_aura_enabled:
+		attack_target = null
+		path.clear()
+		moving = false
+		velocity = Vector2.ZERO
+		unit_state = &"observing"
+		ability_animation_action = &"observer_aura"
+		_ability_animation_until_msec = 0
+	else:
+		unit_state = &"idle"
+		ability_animation_action = &""
+		_ability_animation_until_msec = 0
+	_queue_unit_redraw()
+	return true
+
+func is_observer_aura_enabled() -> bool:
+	return _observer_aura_enabled
 
 func activate_summon_drone() -> bool:
 	var definition := UnitCatalog.get_definition(unit_archetype)
@@ -1006,6 +1238,7 @@ func activate_root() -> bool:
 	velocity = Vector2.ZERO
 	_root_cast_remaining = float(definition.get("root_cast_seconds", 2.0))
 	unit_state = &"rooting"
+	_set_ability_animation(&"root_cast", float(definition.get("root_cast_seconds", 2.0)))
 	return true
 
 func activate_uproot() -> bool:
@@ -1016,6 +1249,7 @@ func activate_uproot() -> bool:
 		return false
 	_uproot_cast_remaining = float(definition.get("uproot_cast_seconds", 2.0))
 	unit_state = &"uprooting"
+	_set_ability_animation(&"uproot_cast", float(definition.get("uproot_cast_seconds", 2.0)))
 	return true
 
 func activate_eat_ally() -> bool:
@@ -1115,6 +1349,77 @@ func _blocks_movement_for_rooting() -> bool:
 func _requires_root_to_fire() -> bool:
 	return bool(UnitCatalog.get_definition(unit_archetype).get("requires_root_to_fire", false))
 
+func _is_winged_spawner() -> bool:
+	return unit_archetype == &"winged_spawner"
+
+func _requires_takeoff_for_move() -> bool:
+	return _is_winged_spawner() and _flight_state == &"grounded" and _flight_cast_remaining <= 0.0
+
+func _start_takeoff() -> void:
+	if not _is_winged_spawner():
+		return
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	_flight_state = &"taking_off"
+	_flight_cast_remaining = float(definition.get("takeoff_seconds", 0.5))
+	moving = false
+	velocity = Vector2.ZERO
+	path.clear()
+	unit_state = &"takeoff"
+	_set_ability_animation(&"takeoff", _flight_cast_remaining)
+	_queue_unit_redraw()
+
+func _try_land_winged_spawner() -> void:
+	if not _is_winged_spawner() or _flight_state != &"flying" or moving:
+		return
+	if attack_target != null and is_instance_valid(attack_target):
+		return
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	_flight_state = &"landing"
+	_flight_cast_remaining = float(definition.get("landing_seconds", 0.5))
+	velocity = Vector2.ZERO
+	unit_state = &"landing"
+	_set_ability_animation(&"landing", _flight_cast_remaining)
+	_queue_unit_redraw()
+
+func _update_winged_spawner_flight(delta: float) -> void:
+	if not _is_winged_spawner():
+		_flight_state = &"grounded"
+		_flight_cast_remaining = 0.0
+		return
+	if _flight_cast_remaining <= 0.0:
+		return
+	_flight_cast_remaining = maxf(0.0, _flight_cast_remaining - delta)
+	moving = false
+	velocity = Vector2.ZERO
+	if _flight_state == &"taking_off":
+		unit_state = &"takeoff"
+		if _flight_cast_remaining <= 0.0:
+			_flight_state = &"flying"
+			ability_animation_action = &""
+			_ability_animation_until_msec = 0
+			if _has_command_destination:
+				path = _single_point_path(_command_destination) if ignores_terrain else _world_path_to(_command_destination)
+				moving = not path.is_empty()
+				if moving:
+					target_pos = path[0]
+					unit_state = command_mode if command_mode != &"idle" else &"moving"
+					_reset_stuck_watch()
+				else:
+					unit_state = &"idle"
+					_try_land_winged_spawner()
+			else:
+				unit_state = &"idle"
+				_try_land_winged_spawner()
+		_queue_unit_redraw()
+	elif _flight_state == &"landing":
+		unit_state = &"landing"
+		if _flight_cast_remaining <= 0.0:
+			_flight_state = &"grounded"
+			ability_animation_action = &""
+			_ability_animation_until_msec = 0
+			unit_state = &"idle"
+		_queue_unit_redraw()
+
 func _current_move_speed() -> float:
 	var speed := move_speed
 	var definition := UnitCatalog.get_definition(unit_archetype)
@@ -1206,9 +1511,13 @@ func _apply_catalog_definition() -> void:
 	if definition.is_empty():
 		return
 	max_health = int(definition.get("max_hp", max_health))
+	armor = int(definition.get("armor", armor))
+	magic_armor = int(definition.get("magic_armor", magic_armor))
 	attack_damage = int(definition.get("attack_damage", attack_damage))
 	attack_range = float(definition.get("attack_range_cells", 1)) * 64.0
-	attack_cooldown = float(definition.get("attack_cooldown_ticks", 20)) / 20.0
+	attack_cooldown = float(definition.get("attack_speed_seconds", float(definition.get("attack_cooldown_ticks", 20)) / 20.0))
+	attack_type = StringName(definition.get("attack_type", attack_type))
+	attack_splash_radius = float(definition.get("attack_splash_radius_cells", 0.0)) * 64.0
 	projectile_speed = float(definition.get("projectile_speed", projectile_speed))
 	ignores_terrain = bool(definition.get("ignores_terrain", false))
 
@@ -1236,6 +1545,8 @@ func _separation_velocity(move_dir: Vector2 = Vector2.ZERO) -> Vector2:
 
 func _mass_separation_velocity(move_dir: Vector2 = Vector2.ZERO) -> Vector2:
 	if rts_world == null or not is_instance_valid(rts_world):
+		return Vector2.ZERO
+	if terrain != null and str(terrain.get("map_type_id")) in ["seeded_grid_frontier", "grid_test_canvas"]:
 		return Vector2.ZERO
 	var push := Vector2.ZERO
 	var checked := 0
@@ -1532,6 +1843,8 @@ func _draw_health_bar() -> void:
 func _mass_performance_mode() -> bool:
 	if terrain != null and str(terrain.get("map_type_id")) in ["ai_testing_ground", "fortress_ai_arena"]:
 		return rts_world == null or not is_instance_valid(rts_world) or rts_world.count_units_all() >= 120
+	if terrain != null and str(terrain.get("map_type_id")) in ["seeded_grid_frontier", "grid_test_canvas"]:
+		return rts_world != null and is_instance_valid(rts_world) and rts_world.count_units_all() >= 160
 	return rts_world != null and is_instance_valid(rts_world) and rts_world.count_units_all() >= 360
 
 func _mass_redraw_interval() -> float:
@@ -1547,6 +1860,11 @@ func _mass_redraw_interval() -> float:
 	if count >= 500:
 		return 0.75
 	return 0.3
+
+func _normal_redraw_interval() -> float:
+	if terrain != null and str(terrain.get("map_type_id")) in ["seeded_grid_frontier", "grid_test_canvas"]:
+		return 0.12
+	return 0.08
 
 func _mass_simulation_delta(delta: float, mass_mode: bool) -> float:
 	if _force_lightweight_arena_unit:
@@ -1578,6 +1896,12 @@ func _mass_physics_stride() -> int:
 		if count >= 900:
 			return 4
 		if count >= 400:
+			return 2
+		return 1
+	if terrain != null and str(terrain.get("map_type_id")) in ["seeded_grid_frontier", "grid_test_canvas"]:
+		if count >= 700:
+			return 3
+		if count >= 160:
 			return 2
 		return 1
 	if count >= 1200:
@@ -1652,6 +1976,9 @@ func _skip_path_lookahead_for_mass_mode() -> bool:
 
 func _uses_direct_mass_arena_chase() -> bool:
 	return _mass_performance_mode() and terrain != null and str(terrain.get("map_type_id")) in ["ai_testing_ground", "fortress_ai_arena"]
+
+func _uses_hard_mass_overlap_blocking() -> bool:
+	return terrain != null and str(terrain.get("map_type_id")) in ["ai_testing_ground", "fortress_ai_arena"]
 
 func set_arena_leash(rect: Rect2, home: Vector2) -> void:
 	arena_leash_enabled = true

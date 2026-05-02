@@ -14,7 +14,12 @@ func eat_ally(target: Node) -> bool:
 		return false
 	if not target.has_method("salvage_value"):
 		return false
-	_gain_evolution_xp(float(target.get("max_health")) * 1.3)
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	if bool(definition.get("consume_ally_heals", false)):
+		heal_damage(maxi(1, int(float(target.get("max_health")) * 0.65)))
+	else:
+		_gain_evolution_xp(float(target.get("max_health")) * 1.3)
+	_set_ability_animation(&"consume_ally", 0.75)
 	target.queue_free()
 	return true
 

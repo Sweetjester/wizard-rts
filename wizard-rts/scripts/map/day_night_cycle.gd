@@ -40,6 +40,8 @@ func _rebuild() -> void:
 	if map == null or map.grid.is_empty():
 		call_deferred("_rebuild")
 		return
+	if str(map.get("map_type_id")) in ["seeded_grid_frontier", "grid_test_canvas", "ai_testing_ground", "fortress_ai_arena"]:
+		redraw_interval = maxf(redraw_interval, 2.0)
 	queue_redraw()
 
 func get_daylight_amount() -> float:

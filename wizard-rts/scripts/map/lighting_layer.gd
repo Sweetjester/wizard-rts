@@ -26,6 +26,8 @@ func _ready() -> void:
 	call_deferred("_rebuild")
 
 func _process(delta: float) -> void:
+	if _uses_square_grid_map():
+		return
 	_elapsed += delta
 	if _elapsed < update_interval:
 		return
@@ -39,6 +41,9 @@ func _rebuild() -> void:
 		return
 	day_night = get_node_or_null("../DayNightCycle")
 	plot_lights.clear()
+	if _uses_square_grid_map():
+		queue_redraw()
+		return
 	for plot in map.get_plots():
 		var anchor: Vector2i = plot.get("anchor", Vector2i.ZERO)
 		var kind := str(plot.get("kind", ""))
@@ -53,6 +58,8 @@ func _draw() -> void:
 	if map == null:
 		return
 	_draw_ambient()
+	if _uses_square_grid_map():
+		return
 	_draw_plot_lights()
 	_draw_unit_lights()
 
@@ -106,3 +113,6 @@ func _night_amount() -> float:
 	if day_night == null:
 		day_night = get_node_or_null("../DayNightCycle")
 	return day_night.get_night_amount() if day_night != null else 0.35
+
+func _uses_square_grid_map() -> bool:
+	return map != null and str(map.get("map_type_id")) in ["seeded_grid_frontier", "grid_test_canvas", "ai_testing_ground", "fortress_ai_arena"]

@@ -4,9 +4,9 @@ func _init() -> void:
 	call_deferred("_run")
 
 func _run() -> void:
-	var first := await _build_summary("vampire-test-seed")
-	var second := await _build_summary("vampire-test-seed")
-	var different := await _build_summary("different-vampire-seed")
+	var first := await _build_summary("frontier-test-seed")
+	var second := await _build_summary("frontier-test-seed")
+	var different := await _build_summary("different-frontier-seed")
 
 	if first["signature"] != second["signature"]:
 		push_error("Same seed produced different map signatures")
@@ -16,28 +16,24 @@ func _run() -> void:
 		push_error("Different seeds produced identical map signatures")
 		quit(1)
 		return
-	if int(first["base_plots"]) != 3 or int(first["plots"]) < 8:
-		push_error("Expected Vampire Mushroom Forest to create base plots and authored content plots")
+	if int(first["base_plots"]) < 4 or int(first["plots"]) < 9:
+		push_error("Expected Seeded Grid Frontier to create base plots and busy authored content coverage")
 		quit(1)
 		return
-	if int(first["economy_spaces"]) != 6:
-		push_error("Expected exactly six economy spaces across the three base plots")
+	if int(first["economy_spaces"]) < 4:
+		push_error("Expected one economy space per high-ground base plot")
 		quit(1)
 		return
-	if not bool(first["hollow_plots_valid"]):
-		push_error("Expected tower and outpost to be 10x10 hollow blocked structures with entrances")
+	if not bool(first["base_sizes_valid"]):
+		push_error("Expected all Seeded Grid Frontier base plots to be 15x15")
 		quit(1)
 		return
-	if int(first["lakes"]) < 2:
-		push_error("Expected map generation to create multiple readable lakes")
+	if not bool(first["road_spans_map"]):
+		push_error("Expected Seeded Grid Frontier roads to span the map")
 		quit(1)
 		return
-	if int(first["ramp_cells"]) < 60:
-		push_error("Expected ramps to be large enough to read clearly")
-		quit(1)
-		return
-	if int(first["landmarks"]) < 12:
-		push_error("Expected large-map landmarks with giant mushroom silhouettes")
+	if int(first["ramp_cells"]) < 16:
+		push_error("Expected at least one readable 2x2 ramp per base")
 		quit(1)
 		return
 
@@ -55,10 +51,11 @@ func _build_summary(seed_text: String) -> Dictionary:
 	await process_frame
 
 	var summary: Dictionary = map.get_map_summary()
-	var hollow_plots_valid := _validate_hollow_plot(map, "abandoned_wizard_tower") and _validate_hollow_plot(map, "bandit_outpost")
 	var layout: Dictionary = summary["layout"]
 	var plot_signature := _plot_signature(summary.get("plot_layout", []))
 	var ramp_cells := _ramp_cell_count(layout.get("ramps", []))
+	var base_sizes_valid := _validate_base_sizes(map)
+	var road_spans_map := _road_network_spans_map(map)
 	var signature := "%s|%s|%s|%s|%s|%s|%s|%s" % [
 		summary["seed"],
 		layout["high_ground"],
@@ -77,10 +74,9 @@ func _build_summary(seed_text: String) -> Dictionary:
 		"plots": summary["plots"],
 		"base_plots": summary["base_plots"],
 		"economy_spaces": summary["economy_spaces"],
-		"lakes": layout.get("lakes", []).size(),
-		"landmarks": layout.get("landmarks", []).size(),
 		"ramp_cells": ramp_cells,
-		"hollow_plots_valid": hollow_plots_valid,
+		"base_sizes_valid": base_sizes_valid,
+		"road_spans_map": road_spans_map,
 		"signature": signature,
 	}
 
@@ -102,23 +98,47 @@ func _ramp_cell_count(ramp_layout: Array) -> int:
 		total += rect.size.x * rect.size.y
 	return total
 
-func _validate_hollow_plot(map: Node, plot_id: String) -> bool:
-	for plot in map.get_plots():
-		if str(plot.get("id", "")) != plot_id:
-			continue
-		var rect: Rect2i = plot["rect"]
-		if rect.size != Vector2i(10, 10):
+func _validate_base_sizes(map: Node) -> bool:
+	for plot in map.get_base_plots():
+		var rect: Rect2i = plot.get("rect", Rect2i())
+		if rect.size != Vector2i(15, 15):
 			return false
-		var entrance_x := rect.position.x + rect.size.x / 2
-		var entrance_y := rect.end.y - 1
-		for x in range(rect.position.x, rect.end.x):
-			for y in range(rect.position.y, rect.end.y):
-				var cell := Vector2i(x, y)
-				var is_edge := cell.x == rect.position.x or cell.y == rect.position.y or cell.x == rect.end.x - 1 or cell.y == rect.end.y - 1
-				var is_entrance: bool = y == entrance_y and abs(x - entrance_x) <= 1
-				if is_edge and not is_entrance and map.is_walkable_cell(cell):
-					return false
-				if (not is_edge or is_entrance) and not map.is_walkable_cell(cell):
-					return false
-		return true
-	return false
+	return true
+
+func _road_network_spans_map(map: Node) -> bool:
+	var feature_grid: Array = map.get("feature_grid")
+	var starts: Array[Vector2i] = []
+	for y in range(4, 92):
+		if _is_road_feature(feature_grid[4][y]):
+			starts.append(Vector2i(4, y))
+	if starts.is_empty():
+		return false
+	var reached := {}
+	var queue: Array[Vector2i] = starts.duplicate()
+	for start in starts:
+		reached[start] = true
+	while not queue.is_empty():
+		var cell: Vector2i = queue.pop_front()
+		for offset in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var next: Vector2i = cell + offset
+			if not map.is_in_bounds(next) or reached.has(next):
+				continue
+			if not _is_road_feature(feature_grid[next.x][next.y]):
+				continue
+			reached[next] = true
+			queue.append(next)
+	var touches_east := false
+	var touches_north := false
+	var touches_south := false
+	for cell in reached.keys():
+		if cell.x >= 91:
+			touches_east = true
+		if cell.y <= 4:
+			touches_north = true
+		if cell.y >= 91:
+			touches_south = true
+	return touches_east and touches_north and touches_south
+
+func _is_road_feature(feature: Variant) -> bool:
+	var text := str(feature)
+	return text == "path" or text == "ramp"

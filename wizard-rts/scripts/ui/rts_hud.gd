@@ -29,6 +29,8 @@ var status_label: Label
 var detail_name_label: Label
 var detail_body_label: Label
 var detail_meta_label: Label
+var evolution_bar: ProgressBar
+var evolution_label: Label
 var alert_label: Label
 var command_container: HBoxContainer
 var ai_test_container: HBoxContainer
@@ -173,9 +175,17 @@ func _build_ui() -> void:
 	detail_name_label.add_theme_font_size_override("font_size", 18)
 	detail_body_label = _make_label()
 	detail_meta_label = _make_label()
+	evolution_bar = ProgressBar.new()
+	evolution_bar.custom_minimum_size = Vector2(320, 12)
+	evolution_bar.visible = false
+	evolution_bar.show_percentage = false
+	evolution_label = _make_label()
+	evolution_label.visible = false
 	details.add_child(detail_name_label)
 	details.add_child(detail_body_label)
 	details.add_child(detail_meta_label)
+	details.add_child(evolution_bar)
+	details.add_child(evolution_label)
 
 	var command_column := VBoxContainer.new()
 	command_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -234,6 +244,7 @@ func _setup_ai_test_controls() -> void:
 	_add_button(ai_test_container, "Test Horror", func() -> void: _spawn_ai_test_unit(&"horror"))
 	_add_button(ai_test_container, "Test Apex", func() -> void: _spawn_ai_test_unit(&"apex"))
 	_add_button(ai_test_container, "Test Spawner", func() -> void: _spawn_ai_test_unit(&"spawner"))
+	_add_button(ai_test_container, "Test Serpent", func() -> void: _spawn_ai_test_unit(&"stone_face_serpent"))
 	_add_button(ai_test_container, "Unit Stats", _open_unit_stat_window)
 	if ai_telemetry_label != null:
 		ai_telemetry_label.visible = true
@@ -431,6 +442,9 @@ func _stat_meta_text(archetype: StringName, definition: Dictionary) -> String:
 	var parts: Array[String] = []
 	parts.append("Archetype %s" % str(archetype))
 	parts.append("HP %s" % int(definition.get("max_hp", 0)))
+	if definition.has("armor") or definition.has("magic_armor"):
+		parts.append("Armor %s" % int(definition.get("armor", 0)))
+		parts.append("Magic %s" % int(definition.get("magic_armor", 0)))
 	if definition.has("cost_bio"):
 		parts.append("Cost %s Bio" % int(definition.get("cost_bio", 0)))
 	if definition.has("train_time_seconds"):
@@ -445,9 +459,9 @@ func _stat_meta_text(archetype: StringName, definition: Dictionary) -> String:
 func _combat_text(archetype: StringName, definition: Dictionary) -> String:
 	var weapon := WeaponCatalog.get_weapon(archetype)
 	var range_cells := int(definition.get("attack_range_cells", 0))
-	var cooldown := float(definition.get("attack_cooldown_ticks", 0)) / 20.0
+	var cooldown := float(definition.get("attack_speed_seconds", float(definition.get("attack_cooldown_ticks", 0)) / 20.0))
 	var parts: Array[String] = []
-	parts.append("Weapon %s" % str(weapon.get("kind", &"none")).capitalize())
+	parts.append("Type %s" % str(definition.get("attack_type", weapon.get("kind", &"none"))).replace("_", " ").capitalize())
 	parts.append("Damage %s" % int(definition.get("attack_damage", weapon.get("damage", 0))))
 	parts.append("Range %s" % range_cells)
 	if cooldown > 0.0:
@@ -456,6 +470,8 @@ func _combat_text(archetype: StringName, definition: Dictionary) -> String:
 		parts.append("Casts %s" % int(weapon.get("casts", 1)))
 	if weapon.has("aoe_radius"):
 		parts.append("AoE %s px" % int(weapon.get("aoe_radius", 0)))
+	elif float(definition.get("attack_splash_radius_cells", 0.0)) > 0.0:
+		parts.append("Splash %.1f cells" % float(definition.get("attack_splash_radius_cells", 0.0)))
 	return " | ".join(parts)
 
 func _unit_stat_breakdown(archetype: StringName, definition: Dictionary) -> String:
@@ -465,8 +481,13 @@ func _unit_stat_breakdown(archetype: StringName, definition: Dictionary) -> Stri
 	lines.append("Damage: %s | Range: %s cells | Cooldown: %.2fs | Weapon: %s" % [
 		int(definition.get("attack_damage", weapon.get("damage", 0))),
 		int(definition.get("attack_range_cells", 0)),
-		float(definition.get("attack_cooldown_ticks", 0)) / 20.0,
-		str(weapon.get("kind", &"none")).capitalize(),
+		float(definition.get("attack_speed_seconds", float(definition.get("attack_cooldown_ticks", 0)) / 20.0)),
+		str(definition.get("attack_type", weapon.get("kind", &"none"))).replace("_", " ").capitalize(),
+	])
+	lines.append("Durability: HP %s | Armor %s | Magic armor %s" % [
+		int(definition.get("max_hp", 0)),
+		int(definition.get("armor", 0)),
+		int(definition.get("magic_armor", 0)),
 	])
 	if weapon.has("projectile_speed"):
 		lines.append("Projectile speed: %s" % int(weapon.get("projectile_speed", 0)))
@@ -487,6 +508,16 @@ func _unit_stat_breakdown(archetype: StringName, definition: Dictionary) -> Stri
 	lines.append("")
 	lines.append("Framework hooks")
 	lines.append(_role_text(archetype, definition))
+	if definition.has("animation_profile"):
+		var profile: Dictionary = definition.get("animation_profile")
+		var actions: Array[String] = []
+		for action in profile.get("actions", []):
+			actions.append(str(action))
+		lines.append("Animation: %s px frames | %s directions | %s" % [
+			str(profile.get("frame_size", Vector2i.ZERO)),
+			int(profile.get("directions", 0)),
+			", ".join(actions),
+		])
 	return "\n".join(lines)
 
 func _role_text(_archetype: StringName, definition: Dictionary) -> String:
@@ -510,6 +541,16 @@ func _role_text(_archetype: StringName, definition: Dictionary) -> String:
 		notes.append("Evolves to %s at %s XP" % [UnitCatalog.get_definition(evolves_to).get("display_name", evolves_to), int(definition.get("evolution_xp_required", 0))])
 	if definition.has("heal_per_attack"):
 		notes.append("Heals %s on attack" % int(definition.get("heal_per_attack", 0)))
+	if definition.has("hunt_charge_seconds"):
+		notes.append("Hunt charge every %.0fs: next attack x%.1f range and x%.1f damage" % [
+			float(definition.get("hunt_charge_seconds", 0.0)),
+			float(definition.get("hunt_range_multiplier", 1.0)),
+			float(definition.get("hunt_damage_multiplier", 1.0)),
+		])
+	if definition.has("grapple_aoe_radius"):
+		notes.append("Grapple roots nearby enemies in %s px" % int(definition.get("grapple_aoe_radius", 0.0)))
+	if definition.has("consume_ally_heals"):
+		notes.append("Consume Ally heals this unit")
 	if definition.has("production"):
 		var produced: Array[String] = []
 		for item in definition.get("production", []):
@@ -529,11 +570,11 @@ func _role_text(_archetype: StringName, definition: Dictionary) -> String:
 
 func _stat_accent(archetype: StringName) -> Color:
 	match archetype:
-		&"life_wizard", &"horror", &"evangalion_wizard":
+		&"life_wizard", &"horror", &"hunter", &"evangalion_wizard":
 			return Color("#7DDDE8")
 		&"fire_wizard", &"bloodcap_runner", &"vampire_mushroom_thrall", &"spore_spitter", &"bloodcap_brute":
 			return Color("#E85A5A")
-		&"terrible_thing", &"awful_thing", &"apex", &"apex_predator", &"spawner", &"spawner_drone", &"bio_absorber", &"vinewall", &"bio_launcher":
+		&"terrible_thing", &"gripper", &"awful_thing", &"apex", &"champion", &"apex_predator", &"spawner", &"winged_spawner", &"spawner_drone", &"stone_face_serpent", &"bio_absorber", &"vinewall", &"bio_launcher":
 			return Color("#7BC47F")
 	return Color("#D6C7AE")
 
@@ -634,11 +675,13 @@ func _update_selection_details(selected: Array[Node]) -> void:
 		detail_name_label.text = "No selection"
 		detail_body_label.text = "Select units or buildings to inspect them."
 		detail_meta_label.text = ""
+		_set_evolution_bar(null)
 		return
 	if selected.size() > 1:
 		detail_name_label.text = "%s selected" % selected.size()
 		detail_body_label.text = _mixed_selection_summary(selected)
 		detail_meta_label.text = "A attack-move | P patrol | H hold | S stop"
+		_set_evolution_bar(null)
 		return
 	var node := selected[0]
 	var archetype := _archetype_for(node)
@@ -655,13 +698,42 @@ func _update_selection_details(selected: Array[Node]) -> void:
 		var build_text := "Complete" if complete else "Building %.0f%%" % [100.0 * build_progress / maxf(build_time, 0.01)]
 		var train_text := _training_text_for(node)
 		detail_body_label.text = "HP %s/%s | %s | Footprint %sx%s%s" % [hp, max_hp, build_text, int(node.get("footprint").x), int(node.get("footprint").y), train_text]
+		_set_evolution_bar(null)
 	else:
 		var state := str(node.get("unit_state")).capitalize()
-		detail_body_label.text = "HP %s/%s | %s | Bio value %s" % [hp, max_hp, state, _salvage_for(node)]
+		var armor := int(_property_or(node, "armor", int(definition.get("armor", 0))))
+		var magic_armor := int(_property_or(node, "magic_armor", int(definition.get("magic_armor", 0))))
+		detail_body_label.text = "HP %s/%s | Armor %s | Magic %s | %s | Bio value %s" % [hp, max_hp, armor, magic_armor, state, _salvage_for(node)]
+		_set_evolution_bar(node)
 	var damage := int(definition.get("attack_damage", 0))
 	var range := int(definition.get("attack_range_cells", 0))
 	var cost := int(definition.get("cost_bio", 0))
-	detail_meta_label.text = "Damage %s | Range %s | Cost %s Bio" % [damage, range, cost]
+	var speed := float(definition.get("attack_speed_seconds", float(definition.get("attack_cooldown_ticks", 0)) / 20.0))
+	var attack_type := str(definition.get("attack_type", "none")).replace("_", " ").capitalize()
+	detail_meta_label.text = "%s | Damage %s | Range %s | Speed %.2fs | Cost %s Bio" % [attack_type, damage, range, speed, cost]
+
+func _set_evolution_bar(node: Node) -> void:
+	if evolution_bar == null or evolution_label == null:
+		return
+	if node == null or not is_instance_valid(node) or not node.has_method("get_evolution_progress"):
+		evolution_bar.visible = false
+		evolution_label.visible = false
+		return
+	var progress: Dictionary = node.call("get_evolution_progress")
+	var needed := float(progress.get("needed", 0.0))
+	if needed <= 0.0:
+		evolution_bar.visible = false
+		evolution_label.visible = false
+		return
+	var xp := float(progress.get("xp", 0.0))
+	evolution_bar.visible = true
+	evolution_label.visible = true
+	evolution_bar.min_value = 0.0
+	evolution_bar.max_value = needed
+	evolution_bar.value = clampf(xp, 0.0, needed)
+	var evolves_to := StringName(progress.get("evolves_to", &""))
+	var target_name := str(UnitCatalog.get_definition(evolves_to).get("display_name", evolves_to)) if not str(evolves_to).is_empty() else "next mutation"
+	evolution_label.text = "Evolution %.0f/%.0f -> %s" % [xp, needed, target_name]
 
 func _mixed_selection_summary(selected: Array[Node]) -> String:
 	var counts: Dictionary = {}
@@ -704,11 +776,13 @@ func _rebuild_context_commands(selected: Array[Node]) -> void:
 		_add_button(command_container, "Bio Launcher", func() -> void: _start_build(&"bio_launcher"))
 		_add_button(command_container, "Bio Mend", _bio_mend)
 		_add_button(command_container, "Seal Away", _seal_away)
+		_add_button(command_container, "Observer Aura", func() -> void: _activate_selected("activate_observer_aura", "Observer Aura"))
 	elif _selection_has_archetype(selected, &"barracks"):
 		_add_button(command_container, "Thing", func() -> void: _produce_from_selected(&"terrible_thing"))
 		_add_button(command_container, "Horror", func() -> void: _produce_from_selected(&"horror"))
 		_add_button(command_container, "Apex", func() -> void: _produce_from_selected(&"apex"))
 		_add_button(command_container, "Spawner", func() -> void: _produce_from_selected(&"spawner"))
+		_add_button(command_container, "Serpent", func() -> void: _produce_from_selected(&"stone_face_serpent"))
 	elif _selection_has_archetype(selected, &"bio_absorber"):
 		_add_button(command_container, "Heal Aura", func() -> void: _absorber_upgrade(&"heal_aura"))
 		_add_button(command_container, "Bio Turret", func() -> void: _absorber_upgrade(&"bio_launcher"))
@@ -719,6 +793,8 @@ func _rebuild_context_commands(selected: Array[Node]) -> void:
 		_add_button(command_container, "Launcher Bile", func() -> void: _research_upgrade(&"launcher_bile"))
 	else:
 		_add_unit_active_buttons(selected)
+		if _is_testing_mode() and _selection_has_evolvable_kon_unit(selected):
+			_add_button(command_container, "Level Up", _debug_level_up_selected)
 		_add_button(command_container, "Bio Mend", _bio_mend)
 		_add_button(command_container, "Seal Away", _seal_away)
 
@@ -748,6 +824,20 @@ func _property_or(node: Node, property_name: String, fallback: Variant) -> Varia
 
 func _is_structure(node: Node) -> bool:
 	return node.has_method("get_selection_kind") and node.get_selection_kind() == &"structure"
+
+func _is_testing_mode() -> bool:
+	return wave_director != null and wave_director.has_method("is_ai_testing_ground") and bool(wave_director.call("is_ai_testing_ground"))
+
+func _selection_has_evolvable_kon_unit(selected: Array[Node]) -> bool:
+	for node in selected:
+		if not is_instance_valid(node) or not node.has_method("debug_force_evolve"):
+			continue
+		var definition := UnitCatalog.get_definition(_archetype_for(node))
+		if definition.get("unit_family", &"") in [&"terrible_thing", &"horror", &"apex", &"spawner", &"stone_face_serpent"]:
+			var progress: Dictionary = node.get_evolution_progress() if node.has_method("get_evolution_progress") else {}
+			if float(progress.get("needed", definition.get("evolution_xp_required", 0.0))) > 0.0:
+				return true
+	return false
 
 func _salvage_for(node: Node) -> int:
 	if node.has_method("salvage_value"):
@@ -848,6 +938,10 @@ func _add_unit_active_buttons(selected: Array[Node]) -> void:
 				_add_button(command_container, "Root", func() -> void: _activate_selected("activate_root", "Root"))
 			"Uproot":
 				_add_button(command_container, "Uproot", func() -> void: _activate_selected("activate_uproot", "Uproot"))
+			"Observer Aura":
+				_add_button(command_container, "Observer Aura", func() -> void: _activate_selected("activate_observer_aura", "Observer Aura"))
+			"Stone Form":
+				_add_button(command_container, "Stone Form", func() -> void: _activate_selected("activate_stone_form", "Stone Form"))
 
 func _activate_selected(method_name: String, label: String) -> void:
 	if selection_controller == null:
@@ -856,7 +950,20 @@ func _activate_selected(method_name: String, label: String) -> void:
 	for unit in selection_controller.selected_units:
 		if is_instance_valid(unit) and unit.has_method(method_name) and bool(unit.call(method_name)):
 			activated += 1
-	status_label.text = "%s activated on %s unit%s" % [label, activated, "" if activated == 1 else "s"]
+	if label == "Stone Form" and activated > 0:
+		status_label.text = "Stone Form: click and drag to place the serpent wall"
+	else:
+		status_label.text = "%s activated on %s unit%s" % [label, activated, "" if activated == 1 else "s"]
+
+func _debug_level_up_selected() -> void:
+	if selection_controller == null:
+		return
+	var evolved := 0
+	for unit in selection_controller.selected_units:
+		if is_instance_valid(unit) and unit.has_method("debug_force_evolve") and bool(unit.call("debug_force_evolve")):
+			evolved += 1
+	status_label.text = "Debug level up applied to %s unit%s" % [evolved, "" if evolved == 1 else "s"]
+	_update_selection_panel(true)
 
 func _produce_from_selected(archetype: StringName) -> void:
 	if build_system == null or selection_controller == null:

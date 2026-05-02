@@ -51,6 +51,7 @@ func _build_relief() -> void:
 
 	if _uses_seeded_frontier_debug_colours():
 		_build_seeded_frontier_road_colours()
+		return
 
 	for x in map.MAP_W:
 		for y in map.MAP_H:

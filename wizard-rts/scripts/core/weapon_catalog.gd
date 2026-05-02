@@ -33,6 +33,13 @@ const WEAPONS := {
 		"color": Color("#7DDDE8"),
 		"casts": 1,
 	},
+	&"hunter": {
+		"kind": &"projectile",
+		"damage": 16,
+		"speed": 780.0,
+		"color": Color("#7DDDE8"),
+		"casts": 1,
+	},
 	&"spawner": {
 		"kind": &"artillery",
 		"damage": 38,
@@ -56,6 +63,12 @@ const WEAPONS := {
 		"color": Color("#7BC47F"),
 		"casts": 1,
 	},
+	&"stone_face_serpent": {
+		"kind": &"melee",
+		"damage": 24,
+		"color": Color("#7DDDE8"),
+		"casts": 1,
+	},
 	&"spore_spitter": {
 		"kind": &"projectile",
 		"damage": 8,
@@ -74,7 +87,7 @@ const WEAPONS := {
 }
 
 static func get_weapon(archetype: StringName) -> Dictionary:
-	var weapon: Dictionary = WEAPONS.get(archetype, {}).duplicate(true)
+	var weapon: Dictionary = WEAPONS.get(archetype, {}).duplicate()
 	var unit: Dictionary = UnitCatalog.get_definition(archetype)
 	if weapon.is_empty():
 		weapon = {
@@ -90,4 +103,7 @@ static func get_weapon(archetype: StringName) -> Dictionary:
 	return weapon
 
 static func uses_projectile(archetype: StringName) -> bool:
-	return get_weapon(archetype).get("kind", &"melee") in [&"projectile", &"artillery"]
+	var weapon: Dictionary = WEAPONS.get(archetype, {})
+	if not weapon.is_empty():
+		return weapon.get("kind", &"melee") in [&"projectile", &"artillery"]
+	return UnitCatalog.attack_range_cells(archetype) > 1

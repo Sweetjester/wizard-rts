@@ -13,6 +13,7 @@ signal boss_defeated()
 @export var horror_scene: PackedScene = preload("res://scenes/units/horror.tscn")
 @export var apex_scene: PackedScene = preload("res://scenes/units/apex.tscn")
 @export var spawner_scene: PackedScene = preload("res://scenes/units/spawner.tscn")
+@export var stone_face_serpent_scene: PackedScene = preload("res://scenes/units/stone_face_serpent.tscn")
 @export var enabled: bool = true
 @export var scouting_seconds: float = 45.0
 @export var buildup_seconds: float = 135.0
@@ -339,6 +340,7 @@ func _ai_test_kon_mix() -> Array[StringName]:
 		&"terrible_thing", &"horror", &"terrible_thing", &"terrible_thing",
 		&"apex", &"horror", &"terrible_thing", &"terrible_thing",
 		&"horror", &"terrible_thing", &"apex", &"spawner",
+		&"stone_face_serpent",
 	]
 
 func _ai_test_kon_mix_scenes() -> Array[PackedScene]:
@@ -347,6 +349,7 @@ func _ai_test_kon_mix_scenes() -> Array[PackedScene]:
 		terrible_thing_scene, horror_scene, terrible_thing_scene, terrible_thing_scene,
 		apex_scene, horror_scene, terrible_thing_scene, terrible_thing_scene,
 		horror_scene, terrible_thing_scene, apex_scene, spawner_scene,
+		stone_face_serpent_scene,
 	]
 
 func _spawn_ai_test_unit(scene: PackedScene, archetype: StringName, owner: int, spawn_cell: Vector2i, parent: Node, target: Vector2) -> Node:
@@ -386,6 +389,8 @@ func _scene_for_kon_unit(archetype: StringName) -> PackedScene:
 			return apex_scene
 		&"spawner":
 			return spawner_scene
+		&"stone_face_serpent":
+			return stone_face_serpent_scene
 	return null
 
 func _has_property(node: Node, property_name: String) -> bool:

@@ -34,6 +34,16 @@ func _run() -> void:
 	var base_plots: Array = map.get_base_plots()
 	var first_base: Dictionary = base_plots[0]
 	var first_anchor: Vector2i = first_base.get("anchor", Vector2i.ZERO)
+	for base_plot in base_plots:
+		var base_rect: Rect2i = base_plot.get("rect", Rect2i())
+		if base_rect.size != Vector2i(15, 15):
+			push_error("Seeded grid frontier base plots must be 15x15, got %s for %s" % [base_rect, str(base_plot.get("id", ""))])
+			quit(1)
+			return
+	if not _road_network_spans_map(map):
+		push_error("Seeded grid frontier should have connected road arteries spanning west/east and north/south")
+		quit(1)
+		return
 	for plot in map.get_plots():
 		var anchor: Vector2i = plot.get("anchor", Vector2i.ZERO)
 		var path: Array = map.find_path_cells(first_anchor, anchor)
@@ -93,3 +103,41 @@ func _content_entrance_has_road_approach(map: Node, plot: Dictionary) -> bool:
 		if str(feature_grid[x][entrance.y]) != "path":
 			return false
 	return true
+
+func _road_network_spans_map(map: Node) -> bool:
+	var feature_grid: Array = map.get("feature_grid")
+	var starts: Array[Vector2i] = []
+	for y in range(4, 92):
+		if _is_road_feature(feature_grid[4][y]):
+			starts.append(Vector2i(4, y))
+	if starts.is_empty():
+		return false
+	var reached := {}
+	var queue: Array[Vector2i] = starts.duplicate()
+	for start in starts:
+		reached[start] = true
+	while not queue.is_empty():
+		var cell: Vector2i = queue.pop_front()
+		for offset in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var next: Vector2i = cell + offset
+			if not map.is_in_bounds(next) or reached.has(next):
+				continue
+			if not _is_road_feature(feature_grid[next.x][next.y]):
+				continue
+			reached[next] = true
+			queue.append(next)
+	var touches_east := false
+	var touches_north := false
+	var touches_south := false
+	for cell in reached.keys():
+		if cell.x >= 91:
+			touches_east = true
+		if cell.y <= 4:
+			touches_north = true
+		if cell.y >= 91:
+			touches_south = true
+	return touches_east and touches_north and touches_south
+
+func _is_road_feature(feature: Variant) -> bool:
+	var text := str(feature)
+	return text == "path" or text == "ramp"
