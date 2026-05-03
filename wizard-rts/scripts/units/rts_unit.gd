@@ -766,7 +766,7 @@ func _uses_mass_hitscan_attack() -> bool:
 		return false
 	if float(weapon.get("aoe_radius", 0.0)) > 0.0:
 		return false
-	return unit_archetype in [&"horror", &"hunter", &"apex", &"champion", &"spawner_drone", &"spore_spitter"]
+	return unit_archetype in [&"horror", &"hunter", &"apex", &"champion", &"spawner_drone", &"spore_spitter", &"deom_scout", &"deom_crosshirran", &"deom_glaive", &"deom_odden"]
 
 func _uses_mass_direct_aoe_attack() -> bool:
 	if selected or rts_world == null or not is_instance_valid(rts_world):
@@ -1018,8 +1018,11 @@ func take_damage(amount: int, source: Node = null, damage_type: StringName = &"p
 func apply_poison(source: Node = null, damage_per_second: float = 4.0, duration_seconds: float = 4.0) -> void:
 	if _dying or damage_per_second <= 0.0 or duration_seconds <= 0.0:
 		return
+	var source_ref: WeakRef = null
+	if source != null and is_instance_valid(source):
+		source_ref = weakref(source)
 	_damage_over_time_effects.append({
-		"source": source,
+		"source_ref": source_ref,
 		"dps": damage_per_second,
 		"remaining": duration_seconds,
 		"carry": 0.0,
@@ -1037,8 +1040,17 @@ func _update_damage_over_time(delta: float) -> void:
 		effect["carry"] = carry - float(damage)
 		_damage_over_time_effects[i] = effect
 		if damage > 0:
-			var source: Node = effect.get("source", null)
-			take_damage(damage, source if source != null and is_instance_valid(source) else null, &"magic")
+			var source: Node = null
+			var source_ref = effect.get("source_ref", null)
+			if source_ref is WeakRef:
+				var source_candidate = source_ref.get_ref()
+				if source_candidate is Node and is_instance_valid(source_candidate):
+					source = source_candidate
+			elif effect.has("source"):
+				var legacy_source = effect.get("source", null)
+				if legacy_source is Node and is_instance_valid(legacy_source):
+					source = legacy_source
+			take_damage(damage, source, &"magic")
 			if _dying:
 				return
 		if remaining <= 0.0:

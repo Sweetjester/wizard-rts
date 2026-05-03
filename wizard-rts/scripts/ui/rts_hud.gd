@@ -240,12 +240,7 @@ func _setup_ai_test_controls() -> void:
 	_add_button(ai_test_container, "Target 500", func() -> void: _queue_ai_test_until(500))
 	_add_button(ai_test_container, "Target 1000", func() -> void: _queue_ai_test_until(1000))
 	_add_button(ai_test_container, "Target 1500", func() -> void: _queue_ai_test_until(1500))
-	_add_button(ai_test_container, "Test Thing", func() -> void: _spawn_ai_test_unit(&"terrible_thing"))
-	_add_button(ai_test_container, "Test Horror", func() -> void: _spawn_ai_test_unit(&"horror"))
-	_add_button(ai_test_container, "Test Apex", func() -> void: _spawn_ai_test_unit(&"apex"))
-	_add_button(ai_test_container, "Test Spawner", func() -> void: _spawn_ai_test_unit(&"spawner"))
-	_add_button(ai_test_container, "Test Serpent", func() -> void: _spawn_ai_test_unit(&"stone_face_serpent"))
-	_add_button(ai_test_container, "Unit Stats", _open_unit_stat_window)
+	_add_button(ai_test_container, "Unit Stats / Spawn", _open_unit_stat_window)
 	if ai_telemetry_label != null:
 		ai_telemetry_label.visible = true
 	status_label.text = "Neutral observer mode. Spawn mirrored armies to test AI, pathing, targeting, and performance."
@@ -405,6 +400,18 @@ func _show_unit_stat_card(archetype: StringName, detail_body: VBoxContainer) -> 
 		detail_body.remove_child(child)
 		child.queue_free()
 	detail_body.add_child(_build_stat_card(archetype))
+	if _is_testing_mode() and _is_spawnable_test_unit(archetype):
+		var actions := HBoxContainer.new()
+		actions.add_theme_constant_override("separation", 10)
+		detail_body.add_child(actions)
+		var spawn_button := _add_button(actions, "Spawn Test Unit", func() -> void:
+			_spawn_ai_test_unit(archetype)
+		)
+		spawn_button.custom_minimum_size = Vector2(160, 44)
+		var hint := _make_label()
+		hint.text = "Spawns as neutral observer test faction near the arena center."
+		hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		actions.add_child(hint)
 	var definition := UnitCatalog.get_definition(archetype)
 	var breakdown := _make_label()
 	breakdown.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -574,6 +581,8 @@ func _stat_accent(archetype: StringName) -> Color:
 			return Color("#7DDDE8")
 		&"fire_wizard", &"bloodcap_runner", &"vampire_mushroom_thrall", &"spore_spitter", &"bloodcap_brute":
 			return Color("#E85A5A")
+		&"deom_scout", &"deom_blade", &"deom_crosshirran", &"deom_hammer", &"deom_glaive", &"deom_odden":
+			return Color("#F0D487")
 		&"terrible_thing", &"gripper", &"awful_thing", &"apex", &"champion", &"apex_predator", &"spawner", &"winged_spawner", &"spawner_drone", &"stone_face_serpent", &"bio_absorber", &"vinewall", &"bio_launcher":
 			return Color("#7BC47F")
 	return Color("#D6C7AE")
@@ -827,6 +836,23 @@ func _is_structure(node: Node) -> bool:
 
 func _is_testing_mode() -> bool:
 	return wave_director != null and wave_director.has_method("is_ai_testing_ground") and bool(wave_director.call("is_ai_testing_ground"))
+
+func _is_spawnable_test_unit(archetype: StringName) -> bool:
+	if wave_director == null or not wave_director.has_method("spawn_ai_test_player_unit"):
+		return false
+	return archetype in [
+		&"terrible_thing",
+		&"horror",
+		&"apex",
+		&"spawner",
+		&"stone_face_serpent",
+		&"deom_scout",
+		&"deom_blade",
+		&"deom_crosshirran",
+		&"deom_hammer",
+		&"deom_glaive",
+		&"deom_odden",
+	]
 
 func _selection_has_evolvable_kon_unit(selected: Array[Node]) -> bool:
 	for node in selected:

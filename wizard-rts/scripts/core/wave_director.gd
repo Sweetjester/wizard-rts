@@ -8,12 +8,13 @@ signal boss_defeated()
 
 @export var map_generator_path: NodePath = NodePath("../MapGenerator")
 @export var rts_world_path: NodePath = NodePath("../RTSWorld")
-@export var enemy_scene: PackedScene = preload("res://scenes/units/vampire_mushroom_thrall.tscn")
+@export var enemy_scene: PackedScene = preload("res://scenes/units/deom_legion_unit.tscn")
 @export var terrible_thing_scene: PackedScene = preload("res://scenes/units/terrible_thing.tscn")
 @export var horror_scene: PackedScene = preload("res://scenes/units/horror.tscn")
 @export var apex_scene: PackedScene = preload("res://scenes/units/apex.tscn")
 @export var spawner_scene: PackedScene = preload("res://scenes/units/spawner.tscn")
 @export var stone_face_serpent_scene: PackedScene = preload("res://scenes/units/stone_face_serpent.tscn")
+@export var deom_legion_scene: PackedScene = preload("res://scenes/units/deom_legion_unit.tscn")
 @export var enabled: bool = true
 @export var scouting_seconds: float = 45.0
 @export var buildup_seconds: float = 135.0
@@ -200,7 +201,7 @@ func get_ai_test_spawn_telemetry() -> Dictionary:
 func spawn_ai_test_player_unit(archetype: StringName) -> Dictionary:
 	if not is_ai_testing_ground() or map_generator == null:
 		return {"accepted": false, "reason": "not_ai_testing_ground"}
-	var scene := _scene_for_kon_unit(archetype)
+	var scene := _scene_for_test_unit(archetype)
 	if scene == null:
 		return {"accepted": false, "reason": "unknown_unit"}
 	var live_units: int = rts_world.count_units_all() if rts_world != null and rts_world.has_method("count_units_all") else _count_ai_test_units_fallback()
@@ -343,6 +344,13 @@ func _ai_test_kon_mix() -> Array[StringName]:
 		&"stone_face_serpent",
 	]
 
+func _ai_test_deom_mix() -> Array[StringName]:
+	return [
+		&"deom_scout", &"deom_blade", &"deom_crosshirran", &"deom_scout",
+		&"deom_blade", &"deom_crosshirran", &"deom_hammer", &"deom_glaive",
+		&"deom_scout", &"deom_blade", &"deom_glaive", &"deom_odden",
+	]
+
 func _ai_test_kon_mix_scenes() -> Array[PackedScene]:
 	return [
 		terrible_thing_scene, horror_scene, terrible_thing_scene, apex_scene,
@@ -351,6 +359,12 @@ func _ai_test_kon_mix_scenes() -> Array[PackedScene]:
 		horror_scene, terrible_thing_scene, apex_scene, spawner_scene,
 		stone_face_serpent_scene,
 	]
+
+func _ai_test_deom_mix_scenes() -> Array[PackedScene]:
+	var scenes: Array[PackedScene] = []
+	for _i in _ai_test_deom_mix():
+		scenes.append(deom_legion_scene)
+	return scenes
 
 func _spawn_ai_test_unit(scene: PackedScene, archetype: StringName, owner: int, spawn_cell: Vector2i, parent: Node, target: Vector2) -> Node:
 	if scene == null:
@@ -393,6 +407,17 @@ func _scene_for_kon_unit(archetype: StringName) -> PackedScene:
 			return stone_face_serpent_scene
 	return null
 
+func _scene_for_test_unit(archetype: StringName) -> PackedScene:
+	var kon_scene := _scene_for_kon_unit(archetype)
+	if kon_scene != null:
+		return kon_scene
+	if _deom_archetypes().has(archetype):
+		return deom_legion_scene
+	return null
+
+func _deom_archetypes() -> Array[StringName]:
+	return [&"deom_scout", &"deom_blade", &"deom_crosshirran", &"deom_hammer", &"deom_glaive", &"deom_odden"]
+
 func _has_property(node: Node, property_name: String) -> bool:
 	for property in node.get_property_list():
 		if str(property.get("name", "")) == property_name:
@@ -429,16 +454,18 @@ func get_boss_seconds_remaining() -> int:
 
 func _enemy_archetype_for_wave(index: int) -> StringName:
 	if wave_index <= 1:
-		return &"bloodcap_runner" if index % 3 == 0 else &"vampire_mushroom_thrall"
+		return &"deom_scout" if index % 3 == 0 else &"deom_blade"
 	if wave_index <= 3:
 		if index % 4 == 0:
-			return &"spore_spitter"
-		return &"bloodcap_runner" if index % 3 == 0 else &"vampire_mushroom_thrall"
+			return &"deom_crosshirran"
+		return &"deom_scout" if index % 3 == 0 else &"deom_blade"
 	if index % 6 == 0:
-		return &"bloodcap_brute"
+		return &"deom_hammer"
 	if index % 4 == 0:
-		return &"spore_spitter"
-	return &"bloodcap_runner" if index % 3 == 0 else &"vampire_mushroom_thrall"
+		return &"deom_glaive"
+	if wave_index >= 7 and index % 9 == 0:
+		return &"deom_odden"
+	return &"deom_crosshirran" if index % 3 == 0 else &"deom_blade"
 
 func _retarget_enemy_army() -> void:
 	var target := _player_target_world()
