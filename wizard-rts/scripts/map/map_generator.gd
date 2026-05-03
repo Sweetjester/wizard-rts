@@ -38,9 +38,13 @@ const MAP_TYPE_SEEDED_GRID_FRONTIER := "seeded_grid_frontier"
 const MAP_TYPE_GRID_TEST_CANVAS := "grid_test_canvas"
 const MAP_TYPE_AI_TESTING_GROUND := "ai_testing_ground"
 const MAP_TYPE_FORTRESS_AI_ARENA := "fortress_ai_arena"
+const MAP_TYPE_PLOT_GENERATOR_TEST := "plot_generator_test"
 const GRID_TEST_CELL_SIZE := 64
 const FRONTIER_MAIN_ROAD_X := 48
 const FRONTIER_MAIN_ROAD_Y := 48
+const FRONTIER_ROAD_SPINES := [12, 48, 84]
+const MapPlotConfigResource := preload("res://scripts/map/plots/MapPlotConfig.gd")
+const PlotGeneratorResource := preload("res://scripts/map/plots/PlotGenerator.gd")
 
 # ── STATE ──────────────────────────────────────────────────────────────────────
 var layer_low:  TileMapLayer
@@ -96,6 +100,7 @@ var chokepoints:     Array = []
 var economy_zones:   Array = []
 var plots: Array[Dictionary] = []
 var base_plots: Array[Dictionary] = []
+var _plot_test_bounds := Rect2i()
 
 # ── INIT ───────────────────────────────────────────────────────────────────────
 func _ready() -> void:
@@ -106,6 +111,12 @@ func _ready() -> void:
 	seed_value = _resolve_seed()
 	_rng = DeterministicRng.new(seed_value)
 	_configure_map_type()
+	if map_type_id == MAP_TYPE_PLOT_GENERATOR_TEST:
+		_build_plot_generator_test_map()
+		print("[MapGenerator] ", get_map_type_name(), " seed=", seed_value, " complete")
+		print("[MapGenerator] Plot test spawns:", spawn_positions.size(), " | Anchors:", chokepoints.size())
+		map_generated.emit(get_map_summary())
+		return
 	_configure_seeded_layout()
 	_load_tiles()
 	_build_grid()
@@ -154,6 +165,8 @@ func get_map_type_name() -> String:
 			return "Kon's Observation Arena"
 		MAP_TYPE_FORTRESS_AI_ARENA:
 			return "Kon's Siege Arena"
+		MAP_TYPE_PLOT_GENERATOR_TEST:
+			return "Plot Generator Test"
 	return map_type_id
 
 func get_map_type_data() -> Dictionary:
@@ -192,6 +205,15 @@ func get_map_type_data() -> Dictionary:
 			"story_theme": "A systems proving ground for RTS footprints, pathing, blockers, and economy plots.",
 			"terrain_design": "Single-height flat terrain with no decorative clutter, made to test building placement and unit movement.",
 			"plot_rule": "Simple rectangular base plots with economy spaces are stamped directly onto the grid.",
+		}
+	if map_type_id == MAP_TYPE_PLOT_GENERATOR_TEST:
+		return {
+			"id": MAP_TYPE_PLOT_GENERATOR_TEST,
+			"name": "Plot Generator Test",
+			"art_style": "Tiny Swords island plots with water, organic coastlines, multi-level grass cliffs, foam, rocks, bushes, and overhang decoration.",
+			"story_theme": "A focused island laboratory for validating content-plot generation before it is stamped into full RTS worlds.",
+			"terrain_design": "One procedural island plot generated through logical tile layers: water, foam, grass landmass, cliff faces, cliff tops, overhangs, and decoration.",
+			"plot_rule": "The plot exposes walkable cells and road connection anchors so a future world generator can stamp it at any offset.",
 		}
 	return {
 		"id": MAP_TYPE_VAMPIRE_MUSHROOM_FOREST,
@@ -346,7 +368,112 @@ func _build_grid() -> void:
 				feature_grid[x].append("")
 
 func _uses_square_grid_map() -> bool:
-	return map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER or map_type_id == MAP_TYPE_GRID_TEST_CANVAS or map_type_id == MAP_TYPE_AI_TESTING_GROUND or map_type_id == MAP_TYPE_FORTRESS_AI_ARENA
+	return map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER or map_type_id == MAP_TYPE_GRID_TEST_CANVAS or map_type_id == MAP_TYPE_AI_TESTING_GROUND or map_type_id == MAP_TYPE_FORTRESS_AI_ARENA or map_type_id == MAP_TYPE_PLOT_GENERATOR_TEST
+
+func _build_plot_generator_test_map() -> void:
+	layer_low.clear()
+	layer_mid.clear()
+	layer_high.clear()
+	layer_low.modulate = Color.WHITE
+	layer_mid.modulate = Color.WHITE
+	layer_high.modulate = Color.WHITE
+	_clear_plot_generator_children()
+	_init_plot_test_grid()
+	var config: Resource = MapPlotConfigResource.new()
+	config.seed = seed_value
+	config.size = Vector2i(42, 28)
+	config.landmass_radius = 0.82
+	config.landmass_roughness = 0.42
+	config.smoothing_passes = 4
+	config.cliff_count = 6
+	config.cliff_min_size = 8
+	config.cliff_max_size = 34
+	config.bush_density = 0.045
+	config.rock_density = 0.025
+	config.water_rock_density = 0.018
+	var offset := Vector2i((MAP_W - config.size.x) / 2, (MAP_H - config.size.y) / 2 - 8)
+	_plot_test_bounds = Rect2i(offset, config.size)
+	var plot_generator: Node = PlotGeneratorResource.new()
+	plot_generator.name = "RuntimePlotGenerator"
+	add_child(plot_generator)
+	plot_generator.call("generate", config, offset)
+	_import_plot_generator_cells(plot_generator)
+	_build_height_and_cost_maps()
+	_build_pathfinder()
+	_register_plot_generator_test_zones(plot_generator)
+
+func _clear_plot_generator_children() -> void:
+	for child in get_children():
+		if child.name == "RuntimePlotGenerator":
+			remove_child(child)
+			child.queue_free()
+
+func _init_plot_test_grid() -> void:
+	grid.clear()
+	feature_grid.clear()
+	height_map.clear()
+	movement_costs.clear()
+	road_cells.clear()
+	dynamic_blocked_cells.clear()
+	_path_cache.clear()
+	spawn_positions.clear()
+	enemy_spawns.clear()
+	chokepoints.clear()
+	economy_zones.clear()
+	plots.clear()
+	base_plots.clear()
+	ramps.clear()
+	lakes.clear()
+	landmarks.clear()
+	for x in MAP_W:
+		grid.append([])
+		feature_grid.append([])
+		for y in MAP_H:
+			grid[x].append(E_WATER)
+			feature_grid[x].append("plot_test_water")
+
+func _import_plot_generator_cells(plot_generator: Node) -> void:
+	for cell in plot_generator.call("get_walkable_cells"):
+		if not is_in_bounds(cell):
+			continue
+		var elevation := int(plot_generator.call("get_elevation_at", cell))
+		grid[cell.x][cell.y] = E_MID if elevation > 0 else E_LOW
+		feature_grid[cell.x][cell.y] = "plot_cliff" if elevation > 0 else "plot_grass"
+	if plot_generator.has_method("get_ramp_cells"):
+		for value in plot_generator.call("get_ramp_cells"):
+			var ramp_cell: Vector2i = value
+			if not is_in_bounds(ramp_cell):
+				continue
+			grid[ramp_cell.x][ramp_cell.y] = E_RAMP
+			feature_grid[ramp_cell.x][ramp_cell.y] = "plot_ramp"
+			ramps.append(Rect2i(ramp_cell, Vector2i.ONE))
+
+func _register_plot_generator_test_zones(plot_generator: Node) -> void:
+	var walkable: Array = plot_generator.call("get_walkable_cells")
+	var flat_cells: Array[Vector2i] = []
+	for value in walkable:
+		var cell: Vector2i = value
+		if is_in_bounds(cell) and grid[cell.x][cell.y] == E_LOW:
+			flat_cells.append(cell)
+	var center := _plot_test_bounds.position + Vector2i(_plot_test_bounds.size.x / 2, _plot_test_bounds.size.y / 2)
+	flat_cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		return a.distance_squared_to(center) < b.distance_squared_to(center)
+	)
+	if not flat_cells.is_empty():
+		spawn_positions.append(flat_cells[0])
+	var anchors: Array = plot_generator.call("get_connection_anchors")
+	for value in anchors:
+		var anchor: Vector2i = value
+		chokepoints.append(anchor)
+	plots.append({
+		"id": "tiny_swords_island_plot",
+		"kind": "content_plot",
+		"name": "Tiny Swords island plot",
+		"rect": _plot_test_bounds,
+		"anchor": center,
+		"connection_anchors": anchors.duplicate(),
+		"economy_spaces": [],
+	})
 
 func _generate_cell_elevation(cell: Vector2i) -> int:
 	if cell.x <= 1 or cell.x >= MAP_W - 2 or cell.y <= 1 or cell.y >= MAP_H - 2:
@@ -526,6 +653,11 @@ func cell_to_world(cell: Vector2i) -> Vector2:
 
 func get_world_bounds() -> Rect2:
 	if _uses_square_grid_map():
+		if map_type_id == MAP_TYPE_PLOT_GENERATOR_TEST and _plot_test_bounds.size != Vector2i.ZERO:
+			return Rect2(
+				Vector2(_plot_test_bounds.position) * float(GRID_TEST_CELL_SIZE),
+				Vector2(_plot_test_bounds.size) * float(GRID_TEST_CELL_SIZE)
+			).grow(float(GRID_TEST_CELL_SIZE) * 2.0)
 		return Rect2(Vector2.ZERO, Vector2(float(MAP_W * GRID_TEST_CELL_SIZE), float(MAP_H * GRID_TEST_CELL_SIZE)))
 	var min_point := Vector2(INF, INF)
 	var max_point := Vector2(-INF, -INF)
@@ -931,31 +1063,47 @@ func _build_seeded_grid_frontier_plots() -> void:
 		plot["ramp_rect"] = _frontier_ramp_for_base(rect)
 		_register_plot(plot)
 
-	var content_specs := [
-		["abandoned_wizard_tower", "Abandoned wizard tower", "quest", Vector2(0.50, 0.48)],
-		["bandit_outpost", "Bandit outpost", "enemy_outpost", Vector2(0.66, 0.44)],
-		["sealed_archive", "Sealed archive", "quest", Vector2(0.34, 0.50)],
-		["raider_supply_camp", "Raider supply camp", "enemy_outpost", Vector2(0.52, 0.78)],
-		["ancient_crossroads", "Ancient crossroads", "objective", Vector2(0.50, 0.28)],
+	_build_blank_frontier_content_plots(reserved_rects)
+
+func _build_blank_frontier_content_plots(reserved_rects: Array[Rect2i]) -> void:
+	var content_specs: Array[Dictionary] = [
+		{"label": "large", "size": Vector2i(20, 20), "target": Vector2(0.25, 0.25)},
+		{"label": "large", "size": Vector2i(20, 20), "target": Vector2(0.75, 0.25)},
+		{"label": "large", "size": Vector2i(20, 20), "target": Vector2(0.25, 0.75)},
+		{"label": "medium", "size": Vector2i(10, 10), "target": Vector2(0.25, 0.78)},
+		{"label": "medium", "size": Vector2i(10, 10), "target": Vector2(0.74, 0.78)},
+		{"label": "medium", "size": Vector2i(10, 10), "target": Vector2(0.50, 0.66)},
+		{"label": "small", "size": Vector2i(5, 5), "target": Vector2(0.22, 0.50)},
+		{"label": "small", "size": Vector2i(5, 5), "target": Vector2(0.50, 0.22)},
+		{"label": "small", "size": Vector2i(5, 5), "target": Vector2(0.78, 0.50)},
 	]
+	var index_by_size := {"small": 0, "medium": 0, "large": 0}
 	for spec in content_specs:
-		var rect := _find_open_frontier_rect(Vector2i(10, 10), reserved_rects, spec[3], 240)
-		reserved_rects.append(_expanded_rect(rect, 6))
+		var size_label := str(spec["label"])
+		index_by_size[size_label] = int(index_by_size[size_label]) + 1
+		var size: Vector2i = spec["size"]
+		var target: Vector2 = spec["target"]
+		var rect := _find_open_frontier_rect(size, reserved_rects, target, 320)
+		reserved_rects.append(_expanded_rect(rect, 4))
+		var serial := int(index_by_size[size_label])
 		_register_plot({
-			"id": spec[0],
-			"name": spec[1],
-			"kind": spec[2],
+			"id": "blank_%s_content_plot_%s" % [size_label, serial],
+			"name": "%s blank content plot %s" % [size_label.capitalize(), serial],
+			"kind": "content_blank",
+			"content_size": size_label,
 			"rect": rect,
-			"anchor": rect.position + Vector2i(5, 5),
+			"anchor": rect.position + Vector2i(rect.size.x / 2, rect.size.y / 2),
+			"road_anchor": Vector2i(rect.position.x + rect.size.x / 2, rect.end.y + 1),
 			"economy_spaces": [],
-			"difficulty": 0.45 + float(_rng.range_int(0, 450)) / 1000.0,
-			"defensibility": 0.35 + float(_rng.range_int(0, 350)) / 1000.0,
-			"story": "Reserved 10x10 content plot connected to the road network.",
+			"difficulty": 0.25 + float(serial) * 0.15,
+			"defensibility": 0.35,
+			"story": "Blank %sx%s content reservation. Future generation will stamp authored content here from the branch road." % [rect.size.x, rect.size.y],
 		})
 
 func _find_open_frontier_rect(size: Vector2i, reserved_rects: Array[Rect2i], preferred_normalized_position: Vector2, attempts: int) -> Rect2i:
 	var best_rect := _clamped_rect(Vector2i(int(preferred_normalized_position.x * MAP_W), int(preferred_normalized_position.y * MAP_H)), size)
 	var best_score := -INF
+	var found_candidate := false
 	var preferred_pos := Vector2(preferred_normalized_position.x * MAP_W, preferred_normalized_position.y * MAP_H)
 	for i in range(attempts):
 		var candidate := _clamped_rect(Vector2i(
@@ -976,12 +1124,29 @@ func _find_open_frontier_rect(size: Vector2i, reserved_rects: Array[Rect2i], pre
 		if score > best_score:
 			best_score = score
 			best_rect = candidate
-	return best_rect
+			found_candidate = true
+	if found_candidate:
+		return best_rect
+	return _fallback_frontier_rect(size, reserved_rects)
+
+func _fallback_frontier_rect(size: Vector2i, reserved_rects: Array[Rect2i]) -> Rect2i:
+	for y in range(4, MAP_H - size.y - 4):
+		for x in range(4, MAP_W - size.x - 4):
+			var candidate := Rect2i(x, y, size.x, size.y)
+			if _rect_conflicts_reserved(candidate, reserved_rects, 2):
+				continue
+			if _frontier_rect_blocks_core_roads(candidate):
+				continue
+			return candidate
+	return _fallback_plot_rect(size, reserved_rects)
 
 func _frontier_rect_blocks_core_roads(rect: Rect2i) -> bool:
-	var protected_horizontal := Rect2i(3, FRONTIER_MAIN_ROAD_Y - 3, MAP_W - 6, 7)
-	var protected_vertical := Rect2i(FRONTIER_MAIN_ROAD_X - 3, 3, 7, MAP_H - 6)
-	return rect.intersects(protected_horizontal) or rect.intersects(protected_vertical)
+	for spine in FRONTIER_ROAD_SPINES:
+		var protected_horizontal := Rect2i(3, int(spine) - 3, MAP_W - 6, 7)
+		var protected_vertical := Rect2i(int(spine) - 3, 3, 7, MAP_H - 6)
+		if rect.intersects(protected_horizontal) or rect.intersects(protected_vertical):
+			return true
+	return false
 
 func _expanded_rect(rect: Rect2i, margin: int) -> Rect2i:
 	return Rect2i(rect.position - Vector2i(margin, margin), rect.size + Vector2i(margin * 2, margin * 2))
@@ -1147,12 +1312,24 @@ func _stamp_plots_into_grid() -> void:
 		match str(plot.get("kind", "")):
 			"base":
 				_stamp_base_plot(plot)
+			"content_blank":
+				_stamp_blank_content_plot(plot)
 			"quest":
 				_stamp_hollow_plot(plot, "tower_wall", "tower_floor")
 			"enemy_outpost":
 				_stamp_hollow_plot(plot, "bandit_wall", "bandit_floor")
 			"objective":
 				_stamp_objective_plot(plot)
+
+func _stamp_blank_content_plot(plot: Dictionary) -> void:
+	var rect: Rect2i = plot["rect"]
+	for x in range(rect.position.x, rect.end.x):
+		for y in range(rect.position.y, rect.end.y):
+			var cell := Vector2i(x, y)
+			if not is_in_bounds(cell):
+				continue
+			grid[x][y] = E_LOW
+			feature_grid[x][y] = "content_plot_blank"
 
 func _stamp_base_plot(plot: Dictionary) -> void:
 	var rect: Rect2i = plot["rect"]
@@ -1182,13 +1359,7 @@ func _stamp_base_plot(plot: Dictionary) -> void:
 
 func _frontier_base_road_anchor(base_rect: Rect2i, ramp_rect: Rect2i) -> Vector2i:
 	var ramp_center := ramp_rect.position + Vector2i(ramp_rect.size.x / 2, ramp_rect.size.y / 2)
-	if ramp_rect.position.x >= base_rect.end.x:
-		return nearest_walkable_cell(Vector2i(ramp_rect.end.x, ramp_center.y), 4)
-	if ramp_rect.end.x <= base_rect.position.x:
-		return nearest_walkable_cell(Vector2i(ramp_rect.position.x - 1, ramp_center.y), 4)
-	if ramp_rect.position.y >= base_rect.end.y:
-		return nearest_walkable_cell(Vector2i(ramp_center.x, ramp_rect.end.y), 4)
-	return nearest_walkable_cell(Vector2i(ramp_center.x, ramp_rect.position.y - 1), 4)
+	return ramp_center
 
 func _stamp_hollow_plot(plot: Dictionary, wall_feature: String, floor_feature: String) -> void:
 	var rect: Rect2i = plot["rect"]
@@ -1258,8 +1429,20 @@ func _build_frontier_road_network() -> void:
 		_carve_frontier_road(anchor, spine_target)
 
 func _carve_frontier_arterial_roads() -> void:
-	_carve_frontier_arterial_path(Vector2i(4, FRONTIER_MAIN_ROAD_Y), Vector2i(MAP_W - 5, FRONTIER_MAIN_ROAD_Y), true)
-	_carve_frontier_arterial_path(Vector2i(FRONTIER_MAIN_ROAD_X, 4), Vector2i(FRONTIER_MAIN_ROAD_X, MAP_H - 5), false)
+	for spine in FRONTIER_ROAD_SPINES:
+		_carve_frontier_straight_road_segment(Vector2i(4, int(spine)), Vector2i(MAP_W - 5, int(spine)))
+		_carve_frontier_straight_road_segment(Vector2i(int(spine), 4), Vector2i(int(spine), MAP_H - 5))
+
+func _carve_frontier_straight_road_segment(from_cell: Vector2i, to_cell: Vector2i) -> void:
+	var current := from_cell
+	var axis := _frontier_road_axis(from_cell, to_cell)
+	_carve_frontier_road_cell(current, axis)
+	while current != to_cell:
+		if current.x != to_cell.x:
+			current.x += clampi(to_cell.x - current.x, -1, 1)
+		elif current.y != to_cell.y:
+			current.y += clampi(to_cell.y - current.y, -1, 1)
+		_carve_frontier_road_cell(current, axis)
 
 func _carve_frontier_arterial_path(start: Vector2i, target: Vector2i, horizontal: bool) -> void:
 	var arterial := AStarGrid2D.new()
@@ -1316,11 +1499,24 @@ func _is_frontier_plot_reserved_for_arterial(cell: Vector2i) -> bool:
 	return false
 
 func _frontier_spine_target_for_anchor(anchor: Vector2i) -> Vector2i:
-	var horizontal_target := Vector2i(anchor.x, FRONTIER_MAIN_ROAD_Y)
-	var vertical_target := Vector2i(FRONTIER_MAIN_ROAD_X, anchor.y)
-	if abs(anchor.y - FRONTIER_MAIN_ROAD_Y) <= abs(anchor.x - FRONTIER_MAIN_ROAD_X):
+	var nearest_horizontal_y := _nearest_frontier_spine(anchor.y)
+	var nearest_vertical_x := _nearest_frontier_spine(anchor.x)
+	var horizontal_target := Vector2i(anchor.x, nearest_horizontal_y)
+	var vertical_target := Vector2i(nearest_vertical_x, anchor.y)
+	if abs(anchor.y - nearest_horizontal_y) <= abs(anchor.x - nearest_vertical_x):
 		return nearest_walkable_cell(horizontal_target, 8)
 	return nearest_walkable_cell(vertical_target, 8)
+
+func _nearest_frontier_spine(value: int) -> int:
+	var best := int(FRONTIER_ROAD_SPINES[0])
+	var best_distance: int = abs(value - best)
+	for spine in FRONTIER_ROAD_SPINES:
+		var spine_value := int(spine)
+		var distance: int = abs(value - spine_value)
+		if distance < best_distance:
+			best = spine_value
+			best_distance = distance
+	return best
 
 func _carve_frontier_road(from_cell: Vector2i, to_cell: Vector2i) -> void:
 	var bend_x_first := Vector2i(to_cell.x, from_cell.y)
@@ -1621,7 +1817,7 @@ func _square_grid_ground_modulate() -> Color:
 		MAP_TYPE_FORTRESS_AI_ARENA:
 			return Color("#1E4A34")
 		MAP_TYPE_SEEDED_GRID_FRONTIER:
-			return Color("#2B5B3D")
+			return Color.WHITE
 	return Color("#2D6A3F")
 
 func _paint_objects() -> void:
@@ -1833,7 +2029,6 @@ func _register_zones() -> void:
 			enemy_spawns.append(Vector2i(MAP_W - 5, y))
 		chokepoints.append_array([Vector2i(32, 32), Vector2i(48, 48), Vector2i(64, 64)])
 		return
-
 	if not base_plots.is_empty():
 		var starter: Dictionary = base_plots[min(1, base_plots.size() - 1)]
 		var starter_rect: Rect2i = starter["rect"]

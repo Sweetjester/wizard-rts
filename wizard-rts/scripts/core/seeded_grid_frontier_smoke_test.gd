@@ -25,6 +25,25 @@ func _run() -> void:
 		push_error("Seeded grid frontier should create busy content coverage")
 		quit(1)
 		return
+	var blank_counts := {"small": 0, "medium": 0, "large": 0}
+	var blank_sizes := {"small": Vector2i(5, 5), "medium": Vector2i(10, 10), "large": Vector2i(20, 20)}
+	for plot in map.get_plots():
+		if str(plot.get("kind", "")) != "content_blank":
+			continue
+		var content_size := str(plot.get("content_size", ""))
+		if blank_counts.has(content_size):
+			blank_counts[content_size] = int(blank_counts[content_size]) + 1
+		var expected_size: Vector2i = blank_sizes.get(content_size, Vector2i.ZERO)
+		var rect: Rect2i = plot.get("rect", Rect2i())
+		if expected_size != Vector2i.ZERO and rect.size != expected_size:
+			push_error("Blank %s plot should be %s, got %s" % [content_size, expected_size, rect])
+			quit(1)
+			return
+	for content_size in blank_counts.keys():
+		if int(blank_counts[content_size]) != 3:
+			push_error("Expected three %s blank content plots, got %s" % [content_size, blank_counts[content_size]])
+			quit(1)
+			return
 	var ramps: Array = map.get_map_summary().get("layout", {}).get("ramps", [])
 	if ramps.size() < 4:
 		push_error("Seeded grid frontier should create one ramp per base")

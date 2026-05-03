@@ -1,6 +1,7 @@
 extends Control
 
 const GAME_SCENE := "res://scripts/map/main_map.tscn"
+const MAP_EDITOR_SCENE := "res://scenes/map/map_editor.tscn"
 
 @onready var main_panel: VBoxContainer = %MainPanel
 @onready var audio_panel: VBoxContainer = %AudioPanel
@@ -26,6 +27,8 @@ func _ready() -> void:
 	volume_slider.value = AudioManager.music_volume
 	mute_check.button_pressed = AudioManager.music_muted
 	_setup_display_controls()
+	_add_map_editor_button()
+	_add_plot_generator_test_button()
 	_add_seeded_grid_map_button()
 	_add_fortress_map_button()
 	_show_main()
@@ -82,6 +85,10 @@ func _on_fortress_ai_arena_pressed() -> void:
 	selected_map_type_id = "fortress_ai_arena"
 	begin_button.disabled = false
 
+func _on_plot_generator_test_pressed() -> void:
+	selected_map_type_id = "plot_generator_test"
+	begin_button.disabled = false
+
 func _on_begin_pressed() -> void:
 	if selected_character_id.is_empty():
 		return
@@ -134,6 +141,9 @@ func _on_performance_check_toggled(toggled_on: bool) -> void:
 
 func _on_quit_pressed() -> void:
 	get_tree().quit()
+
+func _on_map_editor_pressed() -> void:
+	get_tree().change_scene_to_file(MAP_EDITOR_SCENE)
 
 func _show_main() -> void:
 	main_panel.show()
@@ -232,6 +242,18 @@ func _add_fortress_map_button() -> void:
 	var insert_index := maxi(0, map_panel.get_child_count() - 1)
 	map_panel.add_child(button)
 
+func _add_map_editor_button() -> void:
+	if main_panel == null or main_panel.has_node("MapEditorButton"):
+		return
+	var button := Button.new()
+	button.name = "MapEditorButton"
+	button.text = "Map Editor"
+	button.custom_minimum_size = Vector2(280, 54)
+	button.pressed.connect(_on_map_editor_pressed)
+	var insert_index := maxi(0, main_panel.get_child_count() - 2)
+	main_panel.add_child(button)
+	main_panel.move_child(button, insert_index)
+
 func _add_seeded_grid_map_button() -> void:
 	if map_panel == null or map_panel.has_node("SeededGridFrontierButton"):
 		return
@@ -269,6 +291,50 @@ func _add_seeded_grid_map_button() -> void:
 	description.fit_content = true
 	description.bbcode_enabled = false
 	description.text = "Uses the successful square-grid test canvas as the foundation. Every new game rolls a fresh seed; regenerate in-game to preview another map."
+	description.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layout.add_child(description)
+
+	map_panel.add_child(button)
+	map_panel.move_child(button, insert_index)
+
+func _add_plot_generator_test_button() -> void:
+	if map_panel == null or map_panel.has_node("PlotGeneratorTestButton"):
+		return
+	var insert_index := maxi(0, map_panel.get_child_count() - 1)
+	var button := Button.new()
+	button.name = "PlotGeneratorTestButton"
+	button.custom_minimum_size = Vector2(680, 150)
+	button.focus_mode = Control.FOCUS_NONE
+	button.text = ""
+	button.pressed.connect(_on_plot_generator_test_pressed)
+
+	var layout := VBoxContainer.new()
+	layout.name = "PlotGeneratorTestLayout"
+	layout.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layout.offset_left = 18.0
+	layout.offset_top = 12.0
+	layout.offset_right = -18.0
+	layout.offset_bottom = -12.0
+	layout.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(layout)
+
+	var name_label := Label.new()
+	name_label.text = "Plot Generator Test"
+	name_label.add_theme_font_size_override("font_size", 26)
+	layout.add_child(name_label)
+
+	var subtitle := Label.new()
+	subtitle.text = "Tiny Swords island generator: coastlines, cliffs, foam, decoration, and road anchors."
+	subtitle.add_theme_font_size_override("font_size", 16)
+	subtitle.add_theme_color_override("font_color", Color("#7DDDE8"))
+	layout.add_child(subtitle)
+
+	var description := RichTextLabel.new()
+	description.custom_minimum_size = Vector2(620, 52)
+	description.fit_content = true
+	description.bbcode_enabled = false
+	description.scroll_active = false
+	description.text = "Focused mode for testing one procedural content plot in isolation. Reroll seeds in-game and keep good ones for the future world generator."
 	description.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layout.add_child(description)
 

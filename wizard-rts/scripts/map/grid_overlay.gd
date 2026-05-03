@@ -97,4 +97,4 @@ func _uses_square_test_grid() -> bool:
 	if map == null:
 		return false
 	var map_type := str(map.get("map_type_id"))
-	return map_type == "seeded_grid_frontier" or map_type == "grid_test_canvas" or map_type == "ai_testing_ground" or map_type == "fortress_ai_arena"
+	return map_type == "seeded_grid_frontier" or map_type == "grid_test_canvas" or map_type == "ai_testing_ground" or map_type == "fortress_ai_arena" or map_type == "plot_generator_test"

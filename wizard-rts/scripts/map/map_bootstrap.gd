@@ -37,6 +37,19 @@ func _spawn_if_ready() -> void:
 		_spawned = true
 		print("[MapBootstrap] Observation arena: no player wizard or HQ spawned")
 		return
+	if map_type_id == "plot_generator_test":
+		var spawn_cell: Vector2i = map_generator.get_spawn_position()
+		if not map_generator.is_walkable_cell(spawn_cell):
+			call_deferred("_spawn_if_ready")
+			return
+		var wizard := wizard_scene.instantiate()
+		wizard.name = "Wizard"
+		wizard.global_position = map_generator.cell_to_world(spawn_cell)
+		get_parent().add_child(wizard)
+		_register_simulation_entity(wizard, spawn_cell)
+		_spawned = true
+		print("[MapBootstrap] Plot generator test wizard spawned at ", spawn_cell)
+		return
 	var base_plots: Array = map_generator.get_base_plots()
 	if base_plots.is_empty():
 		call_deferred("_spawn_if_ready")

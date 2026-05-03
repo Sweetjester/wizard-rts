@@ -115,4 +115,4 @@ func _night_amount() -> float:
 	return day_night.get_night_amount() if day_night != null else 0.35
 
 func _uses_square_grid_map() -> bool:
-	return map != null and str(map.get("map_type_id")) in ["seeded_grid_frontier", "grid_test_canvas", "ai_testing_ground", "fortress_ai_arena"]
+	return map != null and str(map.get("map_type_id")) in ["seeded_grid_frontier", "grid_test_canvas", "ai_testing_ground", "fortress_ai_arena", "plot_generator_test"]

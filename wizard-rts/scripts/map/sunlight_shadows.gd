@@ -112,4 +112,4 @@ func _sun_direction() -> Vector2:
 	return day_night.get_sun_direction() if day_night != null else Vector2(1.0, 0.45).normalized()
 
 func _uses_square_grid_map() -> bool:
-	return map != null and str(map.get("map_type_id")) in ["seeded_grid_frontier", "grid_test_canvas", "ai_testing_ground", "fortress_ai_arena"]
+	return map != null and str(map.get("map_type_id")) in ["seeded_grid_frontier", "grid_test_canvas", "ai_testing_ground", "fortress_ai_arena", "plot_generator_test"]

@@ -9,7 +9,7 @@ const STRUCTURE_PREVIEW_TEXTURES := {
 	&"vinewall": preload("res://assets/buildings/kon/vinewall_segment.png"),
 	&"bio_launcher": preload("res://assets/buildings/kon/bio_launcher_rooted.png"),
 }
-const USE_PLACEHOLDER_BUILDING_PREVIEWS := true
+const USE_PLACEHOLDER_BUILDING_PREVIEWS := false
 
 signal structure_placed(player_id: int, archetype: StringName, cell: Vector2i)
 signal structure_completed(player_id: int, archetype: StringName, cell: Vector2i)
@@ -850,7 +850,7 @@ func _uses_square_test_grid() -> bool:
 	if map_generator == null:
 		return false
 	var map_type := str(map_generator.get("map_type_id"))
-	return map_type == "seeded_grid_frontier" or map_type == "grid_test_canvas" or map_type == "ai_testing_ground" or map_type == "fortress_ai_arena"
+	return map_type == "seeded_grid_frontier" or map_type == "grid_test_canvas" or map_type == "ai_testing_ground" or map_type == "fortress_ai_arena" or map_type == "plot_generator_test"
 
 func _footprint_extents(cells: Array[Vector2i]) -> Vector2i:
 	if cells.is_empty():

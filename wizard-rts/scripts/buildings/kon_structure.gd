@@ -9,7 +9,7 @@ const STRUCTURE_TEXTURES := {
 	&"vinewall": preload("res://assets/buildings/kon/vinewall_segment.png"),
 	&"bio_launcher": preload("res://assets/buildings/kon/bio_launcher_rooted.png"),
 }
-const USE_PLACEHOLDER_FOOTPRINT_ART := true
+const USE_PLACEHOLDER_FOOTPRINT_ART := false
 
 var archetype: StringName = &"bio_absorber"
 var owner_player_id: int = 1
@@ -336,7 +336,7 @@ func _grid_cell_size() -> Vector2:
 	var map := get_node_or_null("../MapGenerator")
 	if map != null:
 		var map_type := str(map.get("map_type_id"))
-		if map_type == "seeded_grid_frontier" or map_type == "grid_test_canvas" or map_type == "ai_testing_ground" or map_type == "fortress_ai_arena":
+		if map_type == "seeded_grid_frontier" or map_type == "grid_test_canvas" or map_type == "ai_testing_ground" or map_type == "fortress_ai_arena" or map_type == "plot_generator_test":
 			return Vector2(64, 64)
 	return Vector2(111, 55)
 

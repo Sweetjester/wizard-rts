@@ -108,6 +108,8 @@ func _process(_delta: float) -> void:
 	if wave_director != null and wave_director.has_method("is_ai_testing_ground") and bool(wave_director.call("is_ai_testing_ground")):
 		phase_label.text = "Kon's Siege Arena" if wave_director.has_method("is_fortress_ai_arena") and bool(wave_director.call("is_fortress_ai_arena")) else "AI Testing Ground"
 		_update_ai_telemetry(_delta)
+	elif map_generator != null and str(map_generator.get("map_type_id")) == "plot_generator_test":
+		phase_label.text = "Plot Generator Test"
 	elif wave_director != null and not wave_director.boss_has_spawned:
 		var boss_remaining := wave_director.get_boss_seconds_remaining()
 		phase_label.text = "Phase: %s | Boss in %s" % [str(wave_director.phase).capitalize(), _format_time(boss_remaining)]
@@ -248,10 +250,14 @@ func _setup_ai_test_controls() -> void:
 func _setup_map_generator_controls() -> void:
 	if map_tool_container == null or map_generator == null:
 		return
-	if str(map_generator.get("map_type_id")) != "seeded_grid_frontier":
+	var map_type := str(map_generator.get("map_type_id"))
+	if map_type != "seeded_grid_frontier" and map_type != "plot_generator_test":
 		return
 	map_tool_container.visible = true
-	_add_button(map_tool_container, "Generate Map", _regenerate_seeded_grid_map)
+	if map_type == "plot_generator_test":
+		_add_button(map_tool_container, "Generate Plot", _regenerate_plot_generator_test_map)
+	else:
+		_add_button(map_tool_container, "Generate Map", _regenerate_seeded_grid_map)
 	_add_button(map_tool_container, "Keep Seed", _copy_seed_to_status)
 	_copy_seed_to_status()
 
@@ -261,12 +267,19 @@ func _regenerate_seeded_grid_map() -> void:
 		session.call("start_new_game", "", str(session.get("wizard_class_id")), "seeded_grid_frontier")
 	get_tree().reload_current_scene()
 
+func _regenerate_plot_generator_test_map() -> void:
+	var session := get_node_or_null("/root/GameSession")
+	if session != null and session.has_method("start_new_game"):
+		session.call("start_new_game", "", str(session.get("wizard_class_id")), "plot_generator_test")
+	get_tree().reload_current_scene()
+
 func _copy_seed_to_status() -> void:
 	if map_generator == null:
 		return
 	var seed_text := str(map_generator.get("map_seed_text"))
 	var seed_label := seed_text if not seed_text.strip_edges().is_empty() else str(map_generator.get("seed_value"))
-	status_label.text = "Map seed: %s | Press Generate Map to roll and preview a replacement." % seed_label
+	var action := "Generate Plot" if str(map_generator.get("map_type_id")) == "plot_generator_test" else "Generate Map"
+	status_label.text = "Map seed: %s | Press %s to roll and preview a replacement." % [seed_label, action]
 
 func _spawn_ai_test_wave() -> void:
 	if wave_director == null or not wave_director.has_method("spawn_ai_test_wave"):
@@ -886,6 +899,8 @@ func _on_resources_changed(_player_id: int, resources: Dictionary) -> void:
 func _on_phase_changed(phase: StringName) -> void:
 	if wave_director != null and wave_director.has_method("is_ai_testing_ground") and bool(wave_director.call("is_ai_testing_ground")):
 		phase_label.text = "Kon's Siege Arena" if wave_director.has_method("is_fortress_ai_arena") and bool(wave_director.call("is_fortress_ai_arena")) else "AI Testing Ground"
+	elif map_generator != null and str(map_generator.get("map_type_id")) == "plot_generator_test":
+		phase_label.text = "Plot Generator Test"
 	elif wave_director != null and not wave_director.boss_has_spawned:
 		phase_label.text = "Phase: %s | Boss in %s" % [str(phase).capitalize(), _format_time(wave_director.get_boss_seconds_remaining())]
 	else:
