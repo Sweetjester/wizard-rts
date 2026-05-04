@@ -31,11 +31,11 @@ func _process(delta: float) -> void:
 		_accumulator -= step_seconds
 		_step_once()
 
-func reset(seed: int) -> void:
+func reset(seed_value: int) -> void:
 	_accumulator = 0.0
 	_next_command_id = 1
 	_queued_commands.clear()
-	state.reset(seed)
+	state.reset(seed_value)
 
 func queue_command(command: RTSCommand) -> void:
 	if command.tick < state.tick:

@@ -45,6 +45,16 @@ const FRONTIER_MAIN_ROAD_Y := 48
 const FRONTIER_ROAD_SPINES := [12, 48, 84]
 const MapPlotConfigResource := preload("res://scripts/map/plots/MapPlotConfig.gd")
 const PlotGeneratorResource := preload("res://scripts/map/plots/PlotGenerator.gd")
+const RUNTIME_TERRAIN_TILESET_PATH := "res://resources/tilesets/tiny_swords_plot_tileset.tres"
+const TERRAIN_SET_GRASS := 0
+const TERRAIN_ID_GRASS := 0
+const TERRAIN_SET_ROAD := 3
+const TERRAIN_ID_ROAD := 0
+const TINY_WATER_SOURCE_ID := 0
+const TINY_WATER_ATLAS := Vector2i(0, 0)
+const ELEVATION_HIGH := "HIGH"
+const ELEVATION_LOW := "LOW"
+const ElevationDebugOverlayScript := preload("res://scripts/map/elevation_debug_overlay.gd")
 
 # ── STATE ──────────────────────────────────────────────────────────────────────
 var layer_low:  TileMapLayer
@@ -58,6 +68,7 @@ var movement_costs: Array = []
 @export var map_type_id: String = MAP_TYPE_SEEDED_GRID_FRONTIER
 @export var map_seed: int = 20260425
 @export var map_seed_text: String = ""
+@export var show_elevation_debug: bool = true
 var _rng := DeterministicRng.new()
 var _pathfinder := AStarGrid2D.new()
 var seed_value: int = 20260425
@@ -101,6 +112,7 @@ var economy_zones:   Array = []
 var plots: Array[Dictionary] = []
 var base_plots: Array[Dictionary] = []
 var _plot_test_bounds := Rect2i()
+var _elevation_debug_overlay: Node2D
 
 # ── INIT ───────────────────────────────────────────────────────────────────────
 func _ready() -> void:
@@ -121,13 +133,18 @@ func _ready() -> void:
 	_load_tiles()
 	_build_grid()
 	_build_plots()
+	_assign_plot_elevations()
+	_build_elevation_zones()
 	_stamp_plots_into_grid()
+	_flatten_tiny_high_fragments()
 	_build_roads()
+	_validate_frontier_elevation_layout(true)
 	_build_landmarks()
 	_build_height_and_cost_maps()
 	_build_pathfinder()
 	_paint()
 	_register_zones()
+	_debug_print_elevation_summary()
 	print("[MapGenerator] ", get_map_type_name(), " seed=", seed_value, " complete")
 	print("[MapGenerator] Spawns:", spawn_positions.size(),
 		" | Enemies:", enemy_spawns.size(),
@@ -302,6 +319,7 @@ func _configure_seeded_layout() -> void:
 func _load_tiles() -> void:
 	var ts = layer_low.tile_set
 	if not ts: push_error("[MapGenerator] No TileSet on TileMapLow"); return
+	_log_runtime_tileset(ts)
 	for i in ts.get_source_count():
 		var sid = ts.get_source_id(i)
 		var src = ts.get_source(sid)
@@ -314,7 +332,31 @@ func _load_tiles() -> void:
 			var terrain = "_".join(parts.slice(0, parts.size()-1))
 			if not T.has(terrain): T[terrain] = []
 			T[terrain].append(sid)
+	T["water"] = [TINY_WATER_SOURCE_ID]
+	_register_tiny_swords_nonterrain_sources(ts)
 	print("[MapGenerator] Loaded", T.size(), "terrain types")
+
+func _log_runtime_tileset(tile_set: TileSet) -> void:
+	var resource_path := tile_set.resource_path
+	print("[MapGenerator] Runtime TileSet path: ", resource_path)
+	if resource_path != RUNTIME_TERRAIN_TILESET_PATH:
+		push_warning("[MapGenerator] Expected runtime terrain TileSet '%s' but TileMapLow has '%s'" % [RUNTIME_TERRAIN_TILESET_PATH, resource_path])
+
+func _register_tiny_swords_nonterrain_sources(tile_set: TileSet) -> void:
+	if tile_set.resource_path != RUNTIME_TERRAIN_TILESET_PATH:
+		return
+	T["foliage"] = _existing_source_ids(tile_set, [10, 11, 12, 13])
+	T["decoration"] = T["foliage"]
+	T["corrupted"] = T["foliage"]
+	T["economy_plot"] = _existing_source_ids(tile_set, [20, 21, 22, 23])
+	T["giant_mushroom"] = T["foliage"]
+
+func _existing_source_ids(tile_set: TileSet, source_ids: Array[int]) -> Array[int]:
+	var valid: Array[int] = []
+	for source_id in source_ids:
+		if tile_set.has_source(source_id):
+			valid.append(source_id)
+	return valid
 
 func pick(terrain: String) -> int:
 	var themed := "%s_vm" % terrain
@@ -822,6 +864,14 @@ func _invalidate_path_cache() -> void:
 func _is_unramped_height_edge(cell: Vector2i) -> bool:
 	if not is_walkable_cell(cell) or grid[cell.x][cell.y] == E_RAMP:
 		return false
+	if _is_near_ramp_cell(cell, 1):
+		return false
+	if feature_grid[cell.x][cell.y] == "path" and _is_near_ramp_cell(cell, 4):
+		return false
+	if feature_grid[cell.x][cell.y] == "high_access":
+		return false
+	if _is_inside_plot_rect(cell):
+		return false
 	var height := int(height_map[cell.x][cell.y])
 	for offset: Vector2i in [Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(0, -1)]:
 		var neighbor: Vector2i = cell + offset
@@ -860,6 +910,13 @@ func _ramp_for_cell(cell: Vector2i) -> Rect2i:
 		if ramp.has_point(cell):
 			return ramp
 	return Rect2i(cp_x1, cp_y, cp_x2 - cp_x1 + 1, max(1, ramp_y - cp_y + 1))
+
+func _is_inside_plot_rect(cell: Vector2i) -> bool:
+	for plot in plots:
+		var rect: Rect2i = plot.get("rect", Rect2i())
+		if rect.has_point(cell):
+			return true
+	return false
 
 func _movement_cost_for_cell(cell: Vector2i, elevation: int) -> float:
 	match elevation:
@@ -1307,6 +1364,72 @@ func _register_plot(plot: Dictionary) -> void:
 	if plot.get("kind", "") == "base":
 		base_plots.append(plot)
 
+func _assign_plot_elevations() -> void:
+	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+		for plot in plots:
+			plot["elevation"] = ELEVATION_LOW
+		return
+	var content_index := 0
+	for plot in plots:
+		var kind := str(plot.get("kind", ""))
+		match kind:
+			"base":
+				var defensibility := float(plot.get("defensibility", 0.0))
+				plot["elevation"] = ELEVATION_HIGH if defensibility >= 0.72 else ELEVATION_LOW
+			"content_blank":
+				content_index += 1
+				var content_size := str(plot.get("content_size", ""))
+				if content_size == "small" or content_index <= 3:
+					plot["elevation"] = ELEVATION_LOW
+				else:
+					plot["elevation"] = ELEVATION_HIGH
+			"enemy_outpost", "objective":
+				plot["elevation"] = ELEVATION_HIGH if _rng.chance_per_mille(760) else ELEVATION_LOW
+			_:
+				plot["elevation"] = ELEVATION_LOW
+
+func _build_elevation_zones() -> void:
+	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+		return
+	for plot in plots:
+		if str(plot.get("elevation", ELEVATION_LOW)) == ELEVATION_HIGH:
+			_grow_frontier_elevation_zone(plot, E_HIGH)
+	for plot in plots:
+		if str(plot.get("elevation", ELEVATION_LOW)) == ELEVATION_HIGH:
+			_ensure_frontier_plot_ramp(plot)
+
+func _grow_frontier_elevation_zone(plot: Dictionary, elevation: int) -> void:
+	var rect: Rect2i = plot.get("rect", Rect2i())
+	if rect.size == Vector2i.ZERO:
+		return
+	var margin := 3 if str(plot.get("kind", "")) == "base" else 2
+	var zone := _expanded_rect(rect, margin)
+	for x in range(zone.position.x, zone.end.x):
+		for y in range(zone.position.y, zone.end.y):
+			var cell := Vector2i(x, y)
+			if not is_in_bounds(cell):
+				continue
+			if feature_grid[x][y] == "map_border":
+				continue
+			var edge_distance: int = min(min(x - zone.position.x, zone.end.x - 1 - x), min(y - zone.position.y, zone.end.y - 1 - y))
+			if edge_distance <= 0 and _hash_cell(cell, 511) % 1000 < 420:
+				continue
+			grid[x][y] = elevation
+			feature_grid[x][y] = "high_zone"
+
+func _ensure_frontier_plot_ramp(plot: Dictionary) -> void:
+	if plot.has("ramp_rect"):
+		return
+	var rect: Rect2i = plot.get("rect", Rect2i())
+	if rect.size == Vector2i.ZERO:
+		return
+	var ramp_rect := _frontier_ramp_for_base(rect)
+	if str(plot.get("kind", "")) != "base":
+		var entrance_x := rect.position.x + rect.size.x / 2
+		ramp_rect = Rect2i(entrance_x - 1, rect.end.y, 3, 3)
+	plot["ramp_rect"] = ramp_rect
+	plot["road_anchor"] = _frontier_base_road_anchor(rect, ramp_rect)
+
 func _stamp_plots_into_grid() -> void:
 	for plot in plots:
 		match str(plot.get("kind", "")):
@@ -1323,17 +1446,23 @@ func _stamp_plots_into_grid() -> void:
 
 func _stamp_blank_content_plot(plot: Dictionary) -> void:
 	var rect: Rect2i = plot["rect"]
+	var floor_elevation := E_HIGH if str(plot.get("elevation", ELEVATION_LOW)) == ELEVATION_HIGH else E_LOW
 	for x in range(rect.position.x, rect.end.x):
 		for y in range(rect.position.y, rect.end.y):
 			var cell := Vector2i(x, y)
 			if not is_in_bounds(cell):
 				continue
-			grid[x][y] = E_LOW
+			grid[x][y] = floor_elevation
 			feature_grid[x][y] = "content_plot_blank"
+	if floor_elevation == E_HIGH and plot.has("ramp_rect"):
+		_stamp_frontier_ramp(plot)
+		plot["anchor"] = Vector2i(rect.position.x + rect.size.x / 2, rect.end.y - 2)
 
 func _stamp_base_plot(plot: Dictionary) -> void:
 	var rect: Rect2i = plot["rect"]
-	var floor_elevation := E_HIGH if map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER else _dominant_elevation_near(rect.position + Vector2i(rect.size.x / 2, rect.size.y / 2))
+	var floor_elevation := E_HIGH if str(plot.get("elevation", ELEVATION_LOW)) == ELEVATION_HIGH else E_LOW
+	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+		floor_elevation = _dominant_elevation_near(rect.position + Vector2i(rect.size.x / 2, rect.size.y / 2))
 	for x in range(rect.position.x, rect.end.x):
 		for y in range(rect.position.y, rect.end.y):
 			var cell := Vector2i(x, y)
@@ -1342,20 +1471,48 @@ func _stamp_base_plot(plot: Dictionary) -> void:
 			grid[x][y] = floor_elevation
 			feature_grid[x][y] = "base_floor"
 	if map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER and plot.has("ramp_rect"):
+		_stamp_frontier_ramp(plot)
 		var ramp_rect: Rect2i = plot["ramp_rect"]
-		ramps.append(ramp_rect)
-		for x in range(ramp_rect.position.x, ramp_rect.end.x):
-			for y in range(ramp_rect.position.y, ramp_rect.end.y):
-				var ramp_cell := Vector2i(x, y)
-				if not is_in_bounds(ramp_cell):
-					continue
-				grid[x][y] = E_RAMP
-				feature_grid[x][y] = "ramp"
 		plot["road_anchor"] = _frontier_base_road_anchor(rect, ramp_rect)
 	for economy_cell in plot.get("economy_spaces", []):
 		if is_in_bounds(economy_cell):
 			grid[economy_cell.x][economy_cell.y] = floor_elevation
 			feature_grid[economy_cell.x][economy_cell.y] = "economy_space"
+
+func _stamp_frontier_ramp(plot: Dictionary) -> void:
+	var ramp_rect: Rect2i = plot["ramp_rect"]
+	var plot_rect: Rect2i = plot.get("rect", Rect2i())
+	if not ramps.has(ramp_rect):
+		ramps.append(ramp_rect)
+	var landing_rect := _expanded_rect(ramp_rect, 1)
+	for x in range(landing_rect.position.x, landing_rect.end.x):
+		for y in range(landing_rect.position.y, landing_rect.end.y):
+			var landing_cell := Vector2i(x, y)
+			if not is_in_bounds(landing_cell) or ramp_rect.has_point(landing_cell) or plot_rect.has_point(landing_cell):
+				continue
+			if grid[x][y] == E_HIGH:
+				grid[x][y] = E_LOW
+				feature_grid[x][y] = "frontier_canvas"
+	for x in range(ramp_rect.position.x, ramp_rect.end.x):
+		for y in range(ramp_rect.position.y, ramp_rect.end.y):
+			var ramp_cell := Vector2i(x, y)
+			if not is_in_bounds(ramp_cell):
+				continue
+			grid[x][y] = E_RAMP
+			feature_grid[x][y] = "ramp"
+	_stamp_frontier_high_access_corridor(plot)
+
+func _stamp_frontier_high_access_corridor(plot: Dictionary) -> void:
+	var ramp_rect: Rect2i = plot["ramp_rect"]
+	var start := ramp_rect.position + Vector2i(ramp_rect.size.x / 2, ramp_rect.size.y / 2)
+	var target: Vector2i = plot.get("anchor", start)
+	for cell in _line_cells(start, target):
+		for offset in [Vector2i.ZERO, Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+			var access_cell: Vector2i = cell + offset
+			if not is_in_bounds(access_cell) or grid[access_cell.x][access_cell.y] == E_RAMP:
+				continue
+			if grid[access_cell.x][access_cell.y] == E_HIGH:
+				feature_grid[access_cell.x][access_cell.y] = "high_access"
 
 func _frontier_base_road_anchor(base_rect: Rect2i, ramp_rect: Rect2i) -> Vector2i:
 	var ramp_center := ramp_rect.position + Vector2i(ramp_rect.size.x / 2, ramp_rect.size.y / 2)
@@ -1405,6 +1562,7 @@ func _build_roads() -> void:
 		return
 	if map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER:
 		_build_frontier_road_network()
+		_smooth_roads_with_validation()
 		return
 	var hub := nearest_walkable_cell(Vector2i(MAP_W / 2, MAP_H / 2), 24)
 	for plot in plots:
@@ -1414,6 +1572,7 @@ func _build_roads() -> void:
 		var from_anchor: Vector2i = plots[i].get("anchor", hub)
 		var to_anchor: Vector2i = plots[i + 1].get("anchor", hub)
 		_carve_road_between(from_anchor, to_anchor, 1)
+	_smooth_roads_with_validation()
 
 func _build_frontier_road_network() -> void:
 	_carve_frontier_arterial_roads()
@@ -1519,6 +1678,15 @@ func _nearest_frontier_spine(value: int) -> int:
 	return best
 
 func _carve_frontier_road(from_cell: Vector2i, to_cell: Vector2i) -> void:
+	var routed_path := _find_frontier_road_path(from_cell, to_cell)
+	if routed_path.size() >= 2:
+		for i in range(routed_path.size()):
+			var previous: Vector2i = routed_path[maxi(0, i - 1)]
+			var current: Vector2i = routed_path[i]
+			var next: Vector2i = routed_path[mini(routed_path.size() - 1, i + 1)]
+			var axis := _frontier_road_axis(previous, next)
+			_carve_frontier_road_cell(current, axis)
+		return
 	var bend_x_first := Vector2i(to_cell.x, from_cell.y)
 	var bend_y_first := Vector2i(from_cell.x, to_cell.y)
 	var score_x := _frontier_road_route_conflict_score(from_cell, bend_x_first) + _frontier_road_route_conflict_score(bend_x_first, to_cell)
@@ -1526,6 +1694,56 @@ func _carve_frontier_road(from_cell: Vector2i, to_cell: Vector2i) -> void:
 	var bend := bend_x_first if score_x <= score_y else bend_y_first
 	_carve_frontier_road_segment(from_cell, bend)
 	_carve_frontier_road_segment(bend, to_cell)
+
+func _find_frontier_road_path(from_cell: Vector2i, to_cell: Vector2i) -> Array[Vector2i]:
+	var start := _nearest_frontier_road_allowed_cell(from_cell, 8)
+	var target := _nearest_frontier_road_allowed_cell(to_cell, 12)
+	var path: Array[Vector2i] = []
+	if not is_in_bounds(start) or not is_in_bounds(target):
+		return path
+	var router := AStarGrid2D.new()
+	router.region = Rect2i(0, 0, MAP_W, MAP_H)
+	router.cell_size = Vector2.ONE
+	router.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_NEVER
+	router.default_compute_heuristic = AStarGrid2D.HEURISTIC_MANHATTAN
+	router.default_estimate_heuristic = AStarGrid2D.HEURISTIC_MANHATTAN
+	router.update()
+	for x in MAP_W:
+		for y in MAP_H:
+			var cell := Vector2i(x, y)
+			router.set_point_solid(cell, not _frontier_road_path_allows_cell(cell))
+	if router.is_point_solid(start) or router.is_point_solid(target):
+		return path
+	var raw_path := router.get_id_path(start, target)
+	for value in raw_path:
+		path.append(value)
+	return path
+
+func _nearest_frontier_road_allowed_cell(origin: Vector2i, max_radius: int) -> Vector2i:
+	if is_in_bounds(origin) and _frontier_road_path_allows_cell(origin):
+		return origin
+	for radius in range(1, max_radius + 1):
+		for x in range(origin.x - radius, origin.x + radius + 1):
+			for y in range(origin.y - radius, origin.y + radius + 1):
+				if abs(x - origin.x) != radius and abs(y - origin.y) != radius:
+					continue
+				var cell := Vector2i(x, y)
+				if is_in_bounds(cell) and _frontier_road_path_allows_cell(cell):
+					return cell
+	return Vector2i(-1, -1)
+
+func _frontier_road_path_allows_cell(cell: Vector2i) -> bool:
+	if not is_in_bounds(cell) or _is_frontier_plot_reserved_for_roads(cell):
+		return false
+	var feature: String = feature_grid[cell.x][cell.y]
+	if feature.ends_with("_wall") or feature == "giant_mushroom":
+		return false
+	var elevation: int = grid[cell.x][cell.y]
+	if elevation == E_BLOCKED or elevation == E_WATER:
+		return false
+	if elevation == E_HIGH and feature != "ramp" and not _is_near_ramp_cell(cell, 1):
+		return false
+	return true
 
 func _frontier_road_route_conflict_score(from_cell: Vector2i, to_cell: Vector2i) -> int:
 	var current := from_cell
@@ -1608,6 +1826,8 @@ func _carve_frontier_single_road_cell(cell: Vector2i) -> void:
 	var existing_feature: String = feature_grid[cell.x][cell.y]
 	if existing_feature.ends_with("_wall") or existing_feature == "giant_mushroom":
 		return
+	if grid[cell.x][cell.y] == E_HIGH and existing_feature != "ramp" and not _is_near_ramp_cell(cell, 1):
+		return
 	if grid[cell.x][cell.y] == E_BLOCKED or grid[cell.x][cell.y] == E_WATER:
 		grid[cell.x][cell.y] = _dominant_elevation_near(cell)
 	feature_grid[cell.x][cell.y] = "path"
@@ -1653,6 +1873,323 @@ func _carve_road_cell(center: Vector2i, width: int) -> void:
 				grid[x][y] = _dominant_elevation_near(cell)
 			feature_grid[x][y] = "path"
 			road_cells[cell] = true
+
+func _smooth_roads_with_validation() -> void:
+	if road_cells.is_empty():
+		return
+	var original_roads := road_cells.duplicate()
+	var original_count := original_roads.size()
+	var protected_cells := _required_road_cells()
+	var candidate_roads := _copy_cell_dictionary(road_cells)
+	_round_road_corners(candidate_roads, protected_cells)
+	_trim_road_protrusions(candidate_roads, protected_cells)
+	if not _validate_road_smoothing(candidate_roads, protected_cells):
+		_restore_road_cells(original_roads)
+		push_warning("[MapGenerator] Road smoothing failed validation. Reverted to original road grid.")
+		print("[MapGenerator] Road smoothing original=", original_count, " smoothed=", original_count, " added=0 removed=0 validation=false")
+		return
+	var smoothed_count := candidate_roads.size()
+	var added := 0
+	var removed := 0
+	for cell in candidate_roads.keys():
+		if not original_roads.has(cell):
+			added += 1
+	for cell in original_roads.keys():
+		if not candidate_roads.has(cell):
+			removed += 1
+	_restore_road_cells(candidate_roads)
+	print("[MapGenerator] Road smoothing original=", original_count, " smoothed=", smoothed_count, " added=", added, " removed=", removed, " validation=true")
+
+func _copy_cell_dictionary(source: Dictionary) -> Dictionary:
+	var copy := {}
+	for cell in source.keys():
+		copy[cell] = true
+	return copy
+
+func _required_road_cells() -> Dictionary:
+	var required := {}
+	for plot in plots:
+		var anchor: Vector2i = plot.get("road_anchor", plot.get("anchor", Vector2i(-1, -1)))
+		if is_in_bounds(anchor):
+			var road_cell := _nearest_road_cell(anchor, road_cells, 10)
+			if is_in_bounds(road_cell):
+				required[road_cell] = true
+		if plot.has("ramp_rect"):
+			var ramp_rect: Rect2i = plot["ramp_rect"]
+			for x in range(ramp_rect.position.x - 1, ramp_rect.end.x + 1):
+				for y in range(ramp_rect.position.y - 1, ramp_rect.end.y + 1):
+					var cell := Vector2i(x, y)
+					if road_cells.has(cell):
+						required[cell] = true
+	for spine in FRONTIER_ROAD_SPINES:
+		for edge_anchor in [Vector2i(4, int(spine)), Vector2i(MAP_W - 5, int(spine)), Vector2i(int(spine), 4), Vector2i(int(spine), MAP_H - 5)]:
+			var road_edge := _nearest_road_cell(edge_anchor, road_cells, 4)
+			if is_in_bounds(road_edge):
+				required[road_edge] = true
+	return required
+
+func _nearest_road_cell(origin: Vector2i, roads: Dictionary, max_radius: int) -> Vector2i:
+	if roads.has(origin):
+		return origin
+	for radius in range(1, max_radius + 1):
+		for x in range(origin.x - radius, origin.x + radius + 1):
+			for y in range(origin.y - radius, origin.y + radius + 1):
+				if abs(x - origin.x) != radius and abs(y - origin.y) != radius:
+					continue
+				var cell := Vector2i(x, y)
+				if roads.has(cell):
+					return cell
+	return Vector2i(-1, -1)
+
+func _round_road_corners(roads: Dictionary, protected_cells: Dictionary) -> void:
+	var additions := {}
+	for cell in roads.keys():
+		for corner in [Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(-1, -1)]:
+			var side_a: Vector2i = cell + Vector2i(corner.x, 0)
+			var side_b: Vector2i = cell + Vector2i(0, corner.y)
+			var diagonal: Vector2i = cell + corner
+			if roads.has(side_a) and roads.has(side_b) and not roads.has(diagonal) and _can_be_road_cell(diagonal):
+				additions[diagonal] = true
+	for cell in additions.keys():
+		roads[cell] = true
+
+func _trim_road_protrusions(roads: Dictionary, protected_cells: Dictionary) -> void:
+	var removals := {}
+	for cell in roads.keys():
+		if protected_cells.has(cell):
+			continue
+		if not _can_trim_road_cell(cell):
+			continue
+		var cardinal_count := _road_cardinal_neighbor_count(cell, roads)
+		var all_count := _road_neighbor_count(cell, roads)
+		if cardinal_count <= 1 and all_count <= 3:
+			removals[cell] = true
+		elif cardinal_count == 2 and all_count <= 2 and _is_road_outside_corner(cell, roads):
+			removals[cell] = true
+	for cell in removals.keys():
+		roads.erase(cell)
+
+func _can_be_road_cell(cell: Vector2i) -> bool:
+	if not is_in_bounds(cell) or _is_frontier_plot_reserved_for_roads(cell):
+		return false
+	var existing_feature: String = feature_grid[cell.x][cell.y]
+	if existing_feature.ends_with("_wall") or existing_feature == "giant_mushroom":
+		return false
+	if grid[cell.x][cell.y] == E_HIGH and existing_feature != "ramp" and not _is_near_ramp_cell(cell, 1):
+		return false
+	return grid[cell.x][cell.y] != E_WATER and grid[cell.x][cell.y] != E_BLOCKED
+
+func _can_trim_road_cell(cell: Vector2i) -> bool:
+	if not is_in_bounds(cell):
+		return false
+	for plot in plots:
+		if plot.has("ramp_rect"):
+			var ramp_rect: Rect2i = plot["ramp_rect"]
+			if _expanded_rect(ramp_rect, 1).has_point(cell):
+				return false
+		var anchor: Vector2i = plot.get("road_anchor", plot.get("anchor", Vector2i(-1, -1)))
+		var delta := cell - anchor
+		if is_in_bounds(anchor) and delta.x * delta.x + delta.y * delta.y <= 4:
+			return false
+	return true
+
+func _is_road_outside_corner(cell: Vector2i, roads: Dictionary) -> bool:
+	var east := roads.has(cell + Vector2i.RIGHT)
+	var west := roads.has(cell + Vector2i.LEFT)
+	var south := roads.has(cell + Vector2i.DOWN)
+	var north := roads.has(cell + Vector2i.UP)
+	var missing_south_east := east and south and not roads.has(cell + Vector2i(1, 1))
+	var missing_north_east := east and north and not roads.has(cell + Vector2i(1, -1))
+	var missing_south_west := west and south and not roads.has(cell + Vector2i(-1, 1))
+	var missing_north_west := west and north and not roads.has(cell + Vector2i(-1, -1))
+	return missing_south_east or missing_north_east or missing_south_west or missing_north_west
+
+func _road_cardinal_neighbor_count(cell: Vector2i, roads: Dictionary) -> int:
+	var count := 0
+	for offset in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+		if roads.has(cell + offset):
+			count += 1
+	return count
+
+func _road_neighbor_count(cell: Vector2i, roads: Dictionary) -> int:
+	var count := 0
+	for x in range(-1, 2):
+		for y in range(-1, 2):
+			if x == 0 and y == 0:
+				continue
+			if roads.has(cell + Vector2i(x, y)):
+				count += 1
+	return count
+
+func _validate_road_smoothing(candidate_roads: Dictionary, protected_cells: Dictionary) -> bool:
+	if candidate_roads.is_empty():
+		print("[MapGenerator] Road smoothing validation failed: no roads remain.")
+		return false
+	var required: Array[Vector2i] = []
+	for cell in protected_cells.keys():
+		var road_cell := _nearest_road_cell(cell, candidate_roads, 4)
+		if not is_in_bounds(road_cell) or not _road_anchor_is_walkable(road_cell):
+			print("[MapGenerator] Road smoothing validation failed: required road anchor not walkable near ", cell)
+			return false
+		required.append(road_cell)
+	if required.is_empty():
+		print("[MapGenerator] Road smoothing validation failed: no required anchors.")
+		return false
+	var reachable_roads := _flood_road_cells(required[0], candidate_roads)
+	for road_cell in required:
+		if not reachable_roads.has(road_cell):
+			print("[MapGenerator] Road smoothing validation failed: disconnected road anchor ", road_cell)
+			return false
+	var start := _road_validation_start_cell(required[0])
+	var reachable_walkable := _flood_walkable_cells(start)
+	for plot in plots:
+		var anchor: Vector2i = plot.get("anchor", plot.get("road_anchor", Vector2i(-1, -1)))
+		anchor = nearest_walkable_cell(anchor, 8)
+		if not is_in_bounds(anchor) or not reachable_walkable.has(anchor):
+			print("[MapGenerator] Road smoothing validation failed: plot anchor unreachable ", plot.get("id", "<unknown>"), " at ", anchor)
+			return false
+	return true
+
+func _validate_frontier_elevation_layout(verbose: bool = false) -> bool:
+	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+		return true
+	var errors: Array[String] = []
+	var high_zones := _collect_elevation_zones(E_HIGH)
+	for zone in high_zones:
+		if not _high_zone_has_ramp(zone):
+			errors.append("HIGH zone without ramp, size=%s" % zone.size())
+	var start := _road_validation_start_cell(Vector2i(FRONTIER_MAIN_ROAD_X, FRONTIER_MAIN_ROAD_Y))
+	var reachable_walkable := _flood_walkable_cells(start)
+	for plot in plots:
+		var anchor: Vector2i = plot.get("anchor", plot.get("road_anchor", Vector2i(-1, -1)))
+		anchor = nearest_walkable_cell(anchor, 8)
+		if not is_in_bounds(anchor) or not reachable_walkable.has(anchor):
+			errors.append("plot unreachable: %s at %s" % [plot.get("id", "<unknown>"), anchor])
+		if str(plot.get("elevation", ELEVATION_LOW)) == ELEVATION_HIGH and not plot.has("ramp_rect"):
+			errors.append("HIGH plot missing ramp: %s" % plot.get("id", "<unknown>"))
+		var road_anchor: Vector2i = plot.get("road_anchor", anchor)
+		var nearest_road := _nearest_road_cell(road_anchor, road_cells, 6)
+		if not is_in_bounds(nearest_road):
+			errors.append("plot road not connected: %s at %s" % [plot.get("id", "<unknown>"), road_anchor])
+	for ramp in ramps:
+		var ramp_center := ramp.position + Vector2i(ramp.size.x / 2, ramp.size.y / 2)
+		var road_near_ramp := _nearest_road_cell(ramp_center, road_cells, 3)
+		if not is_in_bounds(road_near_ramp):
+			errors.append("ramp not reachable from road at %s" % ramp_center)
+	var passed := errors.is_empty()
+	if verbose:
+		if passed:
+			print("[MapGenerator] Elevation validation passed.")
+		else:
+			for error in errors:
+				push_warning("[MapGenerator] Elevation validation failed: " + error)
+	return passed
+
+func _flatten_tiny_high_fragments() -> void:
+	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+		return
+	var zones := _collect_elevation_zones(E_HIGH)
+	for zone in zones:
+		if zone.size() >= 8 or _high_zone_has_ramp(zone):
+			continue
+		for cell_value in zone:
+			var cell: Vector2i = cell_value
+			if is_in_bounds(cell) and feature_grid[cell.x][cell.y] == "high_zone":
+				grid[cell.x][cell.y] = E_LOW
+				feature_grid[cell.x][cell.y] = "frontier_canvas"
+
+func _collect_elevation_zones(elevation: int) -> Array[Array]:
+	var zones: Array[Array] = []
+	var visited := {}
+	for x in MAP_W:
+		for y in MAP_H:
+			var cell := Vector2i(x, y)
+			if visited.has(cell) or grid[x][y] != elevation:
+				continue
+			var zone: Array[Vector2i] = []
+			var queue: Array[Vector2i] = [cell]
+			visited[cell] = true
+			var index := 0
+			while index < queue.size():
+				var current: Vector2i = queue[index]
+				index += 1
+				zone.append(current)
+				for offset in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+					var next_cell: Vector2i = current + offset
+					if not is_in_bounds(next_cell) or visited.has(next_cell):
+						continue
+					if grid[next_cell.x][next_cell.y] != elevation:
+						continue
+					visited[next_cell] = true
+					queue.append(next_cell)
+			zones.append(zone)
+	return zones
+
+func _high_zone_has_ramp(zone: Array) -> bool:
+	for cell_value in zone:
+		var cell: Vector2i = cell_value
+		for offset in [Vector2i.ZERO, Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+			var nearby: Vector2i = cell + offset
+			if is_in_bounds(nearby) and grid[nearby.x][nearby.y] == E_RAMP:
+				return true
+	return false
+
+func _road_anchor_is_walkable(cell: Vector2i) -> bool:
+	return is_in_bounds(cell) and grid[cell.x][cell.y] != E_WATER and grid[cell.x][cell.y] != E_BLOCKED
+
+func _road_validation_start_cell(fallback: Vector2i) -> Vector2i:
+	for plot in plots:
+		var anchor: Vector2i = plot.get("anchor", fallback)
+		anchor = nearest_walkable_cell(anchor, 8)
+		if is_in_bounds(anchor):
+			return anchor
+	return fallback
+
+func _flood_road_cells(start: Vector2i, roads: Dictionary) -> Dictionary:
+	var visited := {}
+	if not roads.has(start):
+		return visited
+	var queue: Array[Vector2i] = [start]
+	visited[start] = true
+	var index := 0
+	while index < queue.size():
+		var cell := queue[index]
+		index += 1
+		for offset in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+			var next_cell: Vector2i = cell + offset
+			if roads.has(next_cell) and not visited.has(next_cell):
+				visited[next_cell] = true
+				queue.append(next_cell)
+	return visited
+
+func _flood_walkable_cells(start: Vector2i) -> Dictionary:
+	var visited := {}
+	if not is_walkable_cell(start):
+		return visited
+	var queue: Array[Vector2i] = [start]
+	visited[start] = true
+	var index := 0
+	while index < queue.size():
+		var cell := queue[index]
+		index += 1
+		for offset in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+			var next_cell: Vector2i = cell + offset
+			if is_walkable_cell(next_cell) and not visited.has(next_cell):
+				visited[next_cell] = true
+				queue.append(next_cell)
+	return visited
+
+func _restore_road_cells(new_roads: Dictionary) -> void:
+	for cell in road_cells.keys():
+		if is_in_bounds(cell) and feature_grid[cell.x][cell.y] == "path":
+			feature_grid[cell.x][cell.y] = ""
+	road_cells = _copy_cell_dictionary(new_roads)
+	for cell in road_cells.keys():
+		if not is_in_bounds(cell):
+			continue
+		if grid[cell.x][cell.y] == E_WATER or grid[cell.x][cell.y] == E_BLOCKED:
+			grid[cell.x][cell.y] = _dominant_elevation_near(cell)
+		feature_grid[cell.x][cell.y] = "path"
 
 func _build_landmarks() -> void:
 	landmarks.clear()
@@ -1754,39 +2291,36 @@ func _paint() -> void:
 		_paint_square_grid_map()
 		return
 
+	var grass_cells: Array[Vector2i] = []
+	var road_cells_to_paint: Array[Vector2i] = []
 	for x in MAP_W:
 		for y in MAP_H:
 			var e = grid[x][y]
 			var pos = Vector2i(x, y)
+			var feature: String = feature_grid[x][y]
 
 			match e:
 				E_BLOCKED:
 					pass
 				E_WATER:
-					# Water sits on low layer
-					layer_low.set_cell(pos, pick("water"), Vector2i(0,0))
-				E_LOW:
-					layer_low.set_cell(pos, pick("low_ground"), Vector2i(0,0))
-				E_MID:
-					layer_mid.set_cell(pos, pick("mid_ground"), Vector2i(0,0))
-				E_HIGH:
-					layer_high.set_cell(pos, pick("high_ground"), Vector2i(0,0))
-				E_RAMP:
-					layer_low.set_cell(pos, pick("low_ground"), Vector2i(0,0))
-					layer_mid.set_cell(pos, pick("path_slope"), Vector2i(0,0))
+					_paint_water_cell(pos)
+				_:
+					if feature == "path":
+						road_cells_to_paint.append(pos)
+					else:
+						grass_cells.append(pos)
 
+	_apply_connected_ground_and_roads(layer_low, grass_cells, road_cells_to_paint)
 	_paint_objects()
 	_paint_plots()
+	_update_elevation_debug_overlay()
 
 func _paint_square_grid_map() -> void:
 	layer_low.modulate = _square_grid_ground_modulate()
 	layer_mid.modulate = Color.WHITE
 	layer_high.modulate = Color.WHITE
-	var low_id := pick("low_ground")
-	var mid_id := pick("mid_ground")
-	var high_id := pick("high_ground")
-	var water_id := pick("water")
-	var ramp_id := pick("path_slope")
+	var grass_cells: Array[Vector2i] = []
+	var road_cells_to_paint: Array[Vector2i] = []
 	for x in MAP_W:
 		for y in MAP_H:
 			var pos := Vector2i(x, y)
@@ -1795,20 +2329,52 @@ func _paint_square_grid_map() -> void:
 			match elevation:
 				E_BLOCKED:
 					if map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER and feature != "map_border":
-						layer_low.set_cell(pos, pick("foliage" if feature == "forest_blocker" else "high_ground"), Vector2i(0,0))
+						if feature == "forest_blocker":
+							layer_low.set_cell(pos, pick("foliage"), Vector2i(0,0))
 				E_WATER:
-					layer_low.set_cell(pos, water_id, Vector2i(0,0))
-				E_MID:
-					layer_low.set_cell(pos, mid_id, Vector2i(0,0))
-				E_HIGH:
-					layer_low.set_cell(pos, high_id, Vector2i(0,0))
-				E_RAMP:
-					layer_low.set_cell(pos, ramp_id, Vector2i(0,0))
+					_paint_water_cell(pos)
 				_:
-					layer_low.set_cell(pos, low_id, Vector2i(0,0))
-			if feature == "path":
-				_set_plot_cell(pos, "path")
+					if feature == "path":
+						road_cells_to_paint.append(pos)
+					else:
+						grass_cells.append(pos)
+	_apply_connected_ground_and_roads(layer_low, grass_cells, road_cells_to_paint)
 	_paint_plots()
+	_update_elevation_debug_overlay()
+
+func _apply_connected_ground_and_roads(layer: TileMapLayer, grass_cells: Array[Vector2i], road_cells_to_paint: Array[Vector2i]) -> void:
+	if layer == null:
+		return
+	var tile_set := layer.tile_set
+	var tile_set_path := tile_set.resource_path if tile_set != null else "<missing>"
+	if tile_set_path != RUNTIME_TERRAIN_TILESET_PATH:
+		push_warning("[MapGenerator] Connected terrain expected '%s' but got '%s'" % [RUNTIME_TERRAIN_TILESET_PATH, tile_set_path])
+	if not grass_cells.is_empty():
+		layer.set_cells_terrain_connect(grass_cells, TERRAIN_SET_GRASS, TERRAIN_ID_GRASS, false)
+	if not road_cells_to_paint.is_empty():
+		layer.set_cells_terrain_connect(road_cells_to_paint, TERRAIN_SET_ROAD, TERRAIN_ID_ROAD, false)
+	print("[MapGenerator] Connected terrain TileSet=", tile_set_path, " grass_cells=", grass_cells.size(), " road_cells=", road_cells_to_paint.size())
+
+func _paint_water_cell(cell: Vector2i) -> void:
+	layer_low.set_cell(cell, TINY_WATER_SOURCE_ID, TINY_WATER_ATLAS)
+
+func _update_elevation_debug_overlay() -> void:
+	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+		if _elevation_debug_overlay != null and is_instance_valid(_elevation_debug_overlay):
+			_elevation_debug_overlay.set_debug_enabled(false)
+		return
+	if _elevation_debug_overlay == null or not is_instance_valid(_elevation_debug_overlay):
+		_elevation_debug_overlay = ElevationDebugOverlayScript.new()
+		_elevation_debug_overlay.name = "ElevationDebugOverlay"
+		add_child(_elevation_debug_overlay)
+	_elevation_debug_overlay.z_index = 20
+	_elevation_debug_overlay.set_debug_enabled(show_elevation_debug)
+	_elevation_debug_overlay.configure(grid, feature_grid, road_cells, plots)
+
+func set_elevation_debug_enabled(enabled: bool) -> void:
+	show_elevation_debug = enabled
+	if _elevation_debug_overlay != null and is_instance_valid(_elevation_debug_overlay):
+		_elevation_debug_overlay.set_debug_enabled(enabled)
 
 func _square_grid_ground_modulate() -> Color:
 	match map_type_id:
@@ -1836,7 +2402,6 @@ func _paint_objects() -> void:
 					layer_low.set_cell(pos, pick("foliage"), Vector2i(0,0))
 				continue
 			if feature == "path":
-				_set_plot_cell(pos, "path")
 				continue
 
 			# Foliage border on low layer
@@ -1847,15 +2412,15 @@ func _paint_objects() -> void:
 
 			# Economy plot 1 — high ground plateau (easy)
 			if e == E_HIGH and x >= 21 and x <= 29 and y >= 8 and y <= 12:
-				layer_high.set_cell(pos, pick("high_ground"), Vector2i(0,0))
+				pass
 
 			# Economy plot 2 — mid ground west (medium)
 			elif e == E_MID and x >= 10 and x <= 16 and y >= 24 and y <= 28:
-				layer_mid.set_cell(pos, pick("mid_ground"), Vector2i(0,0))
+				pass
 
 			# Economy plot 3 — low ground south bowl (hard)
 			elif e == E_LOW and x >= 21 and x <= 29 and y >= 40 and y <= 44:
-				layer_low.set_cell(pos, pick("low_ground"), Vector2i(0,0))
+				pass
 
 			# Corrupted scatter on low ground
 			elif e == E_LOW and (x*7+y*11)%29==0:
@@ -1866,7 +2431,7 @@ func _paint_objects() -> void:
 				layer_mid.set_cell(pos, pick("decoration"), Vector2i(0,0))
 
 			elif e == E_RAMP:
-				layer_mid.set_cell(pos, pick("path_slope"), Vector2i(0,0))
+				pass
 
 func _has_walkable_drop(cell: Vector2i) -> bool:
 	for offset in [Vector2i(0, 1), Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, -1)]:
@@ -2118,6 +2683,25 @@ func get_map_summary() -> Dictionary:
 		},
 		"plot_layout": _get_plot_layout_summary(),
 	}
+
+func _debug_print_elevation_summary() -> void:
+	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+		return
+	var high_zones := _collect_elevation_zones(E_HIGH)
+	var low_zones := _collect_elevation_zones(E_LOW)
+	var high_plots := 0
+	var low_plots := 0
+	for plot in plots:
+		if str(plot.get("elevation", ELEVATION_LOW)) == ELEVATION_HIGH:
+			high_plots += 1
+		else:
+			low_plots += 1
+	print("[MapGenerator] Elevation zones high=", high_zones.size(),
+		" low=", low_zones.size(),
+		" ramps=", ramps.size(),
+		" plots_high=", high_plots,
+		" plots_low=", low_plots,
+		" validation=", _validate_frontier_elevation_layout(false))
 
 func get_path_telemetry() -> Dictionary:
 	return {

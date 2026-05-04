@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://c55e5b81k5mcw" path="res://scripts/map/map_manager.gd" id="1_yq3ld"]
 [ext_resource type="Script" uid="uid://co8oyntpicxw5" path="res://scripts/camera/camera_controller.gd" id="2_v4mqy"]
-[ext_resource type="TileSet" path="res://assets/tiles/voxel/voxel_tileset.tres" id="5_r0n1a"]
+[ext_resource type="TileSet" path="res://resources/tilesets/tiny_swords_plot_tileset.tres" id="5_r0n1a"]
 [ext_resource type="PackedScene" uid="uid://yvd6jodnc1yg" path="res://wizard.tscn" id="7_ygs3f"]
 [ext_resource type="Script" uid="uid://bkf26i06ga6j6" path="res://scripts/core/simulation_runner.gd" id="8_iuo1j"]
 [ext_resource type="Script" uid="uid://cmvww5vpu1idw" path="res://scripts/net/multiplayer_session.gd" id="9_pmc20"]

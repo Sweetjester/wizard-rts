@@ -31,6 +31,7 @@ func _ready() -> void:
 	_add_plot_generator_test_button()
 	_add_seeded_grid_map_button()
 	_add_fortress_map_button()
+	_prepare_map_card_click_targets()
 	_show_main()
 
 func _on_start_pressed() -> void:
@@ -66,28 +67,27 @@ func _on_character_continue_pressed() -> void:
 	_show_map()
 
 func _on_vampire_map_pressed() -> void:
-	selected_map_type_id = GameSession.DEFAULT_MAP_TYPE
-	begin_button.disabled = false
+	_select_map_and_begin(GameSession.DEFAULT_MAP_TYPE)
 
 func _on_seeded_grid_frontier_pressed() -> void:
-	selected_map_type_id = "seeded_grid_frontier"
-	begin_button.disabled = false
+	_select_map_and_begin("seeded_grid_frontier")
 
 func _on_grid_test_map_pressed() -> void:
-	selected_map_type_id = "grid_test_canvas"
-	begin_button.disabled = false
+	_select_map_and_begin("grid_test_canvas")
 
 func _on_ai_testing_ground_pressed() -> void:
-	selected_map_type_id = "ai_testing_ground"
-	begin_button.disabled = false
+	_select_map_and_begin("ai_testing_ground")
 
 func _on_fortress_ai_arena_pressed() -> void:
-	selected_map_type_id = "fortress_ai_arena"
-	begin_button.disabled = false
+	_select_map_and_begin("fortress_ai_arena")
 
 func _on_plot_generator_test_pressed() -> void:
-	selected_map_type_id = "plot_generator_test"
+	_select_map_and_begin("plot_generator_test")
+
+func _select_map_and_begin(map_type_id: String) -> void:
+	selected_map_type_id = map_type_id
 	begin_button.disabled = false
+	_on_begin_pressed()
 
 func _on_begin_pressed() -> void:
 	if selected_character_id.is_empty():
@@ -180,6 +180,20 @@ func _show_map() -> void:
 	character_panel.hide()
 	map_panel.show()
 
+func _prepare_map_card_click_targets() -> void:
+	if map_panel == null:
+		return
+	for child in map_panel.get_children():
+		if child is Button:
+			for descendant in child.get_children():
+				_set_descendants_mouse_ignore(descendant)
+
+func _set_descendants_mouse_ignore(node: Node) -> void:
+	if node is Control:
+		node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for child in node.get_children():
+		_set_descendants_mouse_ignore(child)
+
 func _update_character_card_state() -> void:
 	if bad_kon_card != null:
 		bad_kon_card.button_pressed = selected_character_id == "bad_kon_willow"
@@ -241,6 +255,7 @@ func _add_fortress_map_button() -> void:
 
 	var insert_index := maxi(0, map_panel.get_child_count() - 1)
 	map_panel.add_child(button)
+	map_panel.move_child(button, insert_index)
 
 func _add_map_editor_button() -> void:
 	if main_panel == null or main_panel.has_node("MapEditorButton"):

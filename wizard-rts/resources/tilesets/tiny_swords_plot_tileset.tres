@@ -15,11 +15,22 @@
 [ext_resource type="Texture2D" path="res://Tiny Swords/Tiny Swords (Free Pack)/Terrain/Decorations/Rocks in the Water/Water Rocks_02.png" id="13_44b02"]
 [ext_resource type="Texture2D" path="res://Tiny Swords/Tiny Swords (Free Pack)/Terrain/Decorations/Rocks in the Water/Water Rocks_03.png" id="14_veu52"]
 [ext_resource type="Texture2D" path="res://Tiny Swords/Tiny Swords (Free Pack)/Terrain/Decorations/Rocks in the Water/Water Rocks_04.png" id="15_2avwr"]
+[ext_resource type="Texture2D" path="res://Tiny Swords/Tiny Swords (Free Pack)/Terrain/Tileset/Tilemap_color4.png" id="16_road"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_ib4cj"]
 texture = ExtResource("1_vnlm3")
 texture_region_size = Vector2i(64, 64)
 0:0/0 = 0
+0:0/0/terrain_set = 2
+0:0/0/terrain = 0
+0:0/0/terrains_peering_bit/right_side = 0
+0:0/0/terrains_peering_bit/bottom_right_corner = 0
+0:0/0/terrains_peering_bit/bottom_side = 0
+0:0/0/terrains_peering_bit/bottom_left_corner = 0
+0:0/0/terrains_peering_bit/left_side = 0
+0:0/0/terrains_peering_bit/top_left_corner = 0
+0:0/0/terrains_peering_bit/top_side = 0
+0:0/0/terrains_peering_bit/top_right_corner = 0
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_r4ngt"]
 texture = ExtResource("2_akpa7")
@@ -570,6 +581,77 @@ texture_region_size = Vector2i(64, 64)
 14:0/0 = 0
 15:0/0 = 0
 
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_road_runtime"]
+texture = ExtResource("16_road")
+texture_region_size = Vector2i(64, 64)
+0:0/0 = 0
+0:0/0/terrain_set = 3
+0:0/0/terrain = 0
+0:0/0/terrains_peering_bit/right_side = 0
+0:0/0/terrains_peering_bit/bottom_right_corner = 0
+0:0/0/terrains_peering_bit/bottom_side = 0
+0:1/0 = 0
+0:1/0/terrain_set = 3
+0:1/0/terrain = 0
+0:1/0/terrains_peering_bit/right_side = 0
+0:1/0/terrains_peering_bit/bottom_right_corner = 0
+0:1/0/terrains_peering_bit/bottom_side = 0
+0:1/0/terrains_peering_bit/top_side = 0
+0:1/0/terrains_peering_bit/top_right_corner = 0
+0:2/0 = 0
+0:2/0/terrain_set = 3
+0:2/0/terrain = 0
+0:2/0/terrains_peering_bit/right_side = 0
+0:2/0/terrains_peering_bit/top_side = 0
+0:2/0/terrains_peering_bit/top_right_corner = 0
+1:0/0 = 0
+1:0/0/terrain_set = 3
+1:0/0/terrain = 0
+1:0/0/terrains_peering_bit/right_side = 0
+1:0/0/terrains_peering_bit/bottom_right_corner = 0
+1:0/0/terrains_peering_bit/bottom_side = 0
+1:0/0/terrains_peering_bit/bottom_left_corner = 0
+1:0/0/terrains_peering_bit/left_side = 0
+1:1/0 = 0
+1:1/0/terrain_set = 3
+1:1/0/terrain = 0
+1:1/0/terrains_peering_bit/right_side = 0
+1:1/0/terrains_peering_bit/bottom_right_corner = 0
+1:1/0/terrains_peering_bit/bottom_side = 0
+1:1/0/terrains_peering_bit/bottom_left_corner = 0
+1:1/0/terrains_peering_bit/left_side = 0
+1:1/0/terrains_peering_bit/top_left_corner = 0
+1:1/0/terrains_peering_bit/top_side = 0
+1:1/0/terrains_peering_bit/top_right_corner = 0
+1:2/0 = 0
+1:2/0/terrain_set = 3
+1:2/0/terrain = 0
+1:2/0/terrains_peering_bit/right_side = 0
+1:2/0/terrains_peering_bit/left_side = 0
+1:2/0/terrains_peering_bit/top_left_corner = 0
+1:2/0/terrains_peering_bit/top_side = 0
+1:2/0/terrains_peering_bit/top_right_corner = 0
+2:0/0 = 0
+2:0/0/terrain_set = 3
+2:0/0/terrain = 0
+2:0/0/terrains_peering_bit/bottom_side = 0
+2:0/0/terrains_peering_bit/bottom_left_corner = 0
+2:0/0/terrains_peering_bit/left_side = 0
+2:1/0 = 0
+2:1/0/terrain_set = 3
+2:1/0/terrain = 0
+2:1/0/terrains_peering_bit/bottom_side = 0
+2:1/0/terrains_peering_bit/bottom_left_corner = 0
+2:1/0/terrains_peering_bit/left_side = 0
+2:1/0/terrains_peering_bit/top_left_corner = 0
+2:1/0/terrains_peering_bit/top_side = 0
+2:2/0 = 0
+2:2/0/terrain_set = 3
+2:2/0/terrain = 0
+2:2/0/terrains_peering_bit/left_side = 0
+2:2/0/terrains_peering_bit/top_left_corner = 0
+2:2/0/terrains_peering_bit/top_side = 0
+
 [resource]
 tile_size = Vector2i(64, 64)
 terrain_set_0/mode = 0
@@ -578,6 +660,12 @@ terrain_set_0/terrain_0/color = Color(0.62352943, 0.84705883, 0.5411765, 1)
 terrain_set_1/mode = 0
 terrain_set_1/terrain_0/name = "cliff"
 terrain_set_1/terrain_0/color = Color(0.47843137, 0.654902, 0.654902, 1)
+terrain_set_2/mode = 0
+terrain_set_2/terrain_0/name = "water"
+terrain_set_2/terrain_0/color = Color(0.27450982, 0.6509804, 0.6313726, 1)
+terrain_set_3/mode = 0
+terrain_set_3/terrain_0/name = "road"
+terrain_set_3/terrain_0/color = Color(0.56078434, 0.5058824, 0.3372549, 1)
 sources/0 = SubResource("TileSetAtlasSource_ib4cj")
 sources/1 = SubResource("TileSetAtlasSource_r4ngt")
 sources/2 = SubResource("TileSetAtlasSource_1p5gh")
@@ -593,6 +681,7 @@ sources/30 = SubResource("TileSetAtlasSource_27vkv")
 sources/31 = SubResource("TileSetAtlasSource_app8o")
 sources/32 = SubResource("TileSetAtlasSource_sdmuk")
 sources/33 = SubResource("TileSetAtlasSource_oy8h6")
+sources/40 = SubResource("TileSetAtlasSource_road_runtime")
 metadata/terrain_set_land = {
 "bottom": Vector2i(1, 2),
 "bottom_left": Vector2i(0, 2),
@@ -614,4 +703,14 @@ metadata/terrain_set_cliff = {
 "source_id": 1,
 "terrain": "cliff",
 "top_center": Vector2i(6, 0)
+}
+metadata/terrain_set_water = {
+"center": Vector2i(0, 0),
+"source_id": 0,
+"terrain": "water"
+}
+metadata/terrain_set_road = {
+"center": Vector2i(1, 1),
+"source_id": 40,
+"terrain": "road"
 }

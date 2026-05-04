@@ -7,8 +7,8 @@ const _MASK := 0xffffffff
 
 var _state: int
 
-func _init(seed: int = 1) -> void:
-	_state = seed & _MASK
+func _init(seed_value: int = 1) -> void:
+	_state = seed_value & _MASK
 	if _state == 0:
 		_state = 1
 

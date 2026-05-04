@@ -300,9 +300,9 @@ func _peer_bottom() -> int:
 func _peer_bottom_right() -> int:
 	return TileSet.CELL_NEIGHBOR_BOTTOM_RIGHT_CORNER
 
-func _generate_landmass_shape(seed: int, size: Vector2i, roughness: float) -> Array:
+func _generate_landmass_shape(seed_value: int, size: Vector2i, roughness: float) -> Array:
 	var noise := FastNoiseLite.new()
-	noise.seed = seed
+	noise.seed = seed_value
 	noise.frequency = 0.095
 	noise.fractal_octaves = 3
 	var grid := _new_bool_grid(size, false)

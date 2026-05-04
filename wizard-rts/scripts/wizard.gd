@@ -1,4 +1,4 @@
-extends RTSUnit
+extends "res://scripts/units/rts_unit.gd"
 
 const LIFE_WIZARD_SHEET: Texture2D = preload("res://assets/units/kon/bad_kon_willow_directions.png")
 const FIRE_WIZARD_SHEET: Texture2D = preload("res://assets/units/vampire_mushroom_forest/fire_wizard_sheet.png")
