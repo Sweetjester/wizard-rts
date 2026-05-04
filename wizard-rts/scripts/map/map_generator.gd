@@ -54,6 +54,12 @@ const TINY_WATER_SOURCE_ID := 0
 const TINY_WATER_ATLAS := Vector2i(0, 0)
 const ELEVATION_HIGH := "HIGH"
 const ELEVATION_LOW := "LOW"
+const ROAD_MODE_GRID_ARTERIES := "grid_arteries"
+const ROAD_MODE_ORGANIC_SPINE_AND_BRANCHES := "organic_spine_and_branches"
+const FRONTIER_MAIN_SPINE_ROAD_WIDTH := 3
+const FRONTIER_BRANCH_ROAD_WIDTH := 2
+const FRONTIER_PLOT_APPROACH_ROAD_WIDTH := 2
+const FRONTIER_MAX_JUNCTION_SIZE := 4
 const ElevationDebugOverlayScript := preload("res://scripts/map/elevation_debug_overlay.gd")
 
 # ── STATE ──────────────────────────────────────────────────────────────────────
@@ -69,6 +75,7 @@ var movement_costs: Array = []
 @export var map_seed: int = 20260425
 @export var map_seed_text: String = ""
 @export var show_elevation_debug: bool = true
+@export_enum("organic_spine_and_branches", "grid_arteries") var frontier_road_layout_mode: String = ROAD_MODE_ORGANIC_SPINE_AND_BRANCHES
 var _rng := DeterministicRng.new()
 var _pathfinder := AStarGrid2D.new()
 var seed_value: int = 20260425
@@ -113,6 +120,8 @@ var plots: Array[Dictionary] = []
 var base_plots: Array[Dictionary] = []
 var _plot_test_bounds := Rect2i()
 var _elevation_debug_overlay: Node2D
+var _frontier_plateaus: Array[Dictionary] = []
+var _frontier_road_debug := {}
 
 # ── INIT ───────────────────────────────────────────────────────────────────────
 func _ready() -> void:
@@ -1391,12 +1400,30 @@ func _assign_plot_elevations() -> void:
 func _build_elevation_zones() -> void:
 	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
 		return
+	_frontier_plateaus.clear()
+	var original_grid := grid.duplicate(true)
+	var original_features := feature_grid.duplicate(true)
+	var original_ramps := ramps.duplicate(true)
 	for plot in plots:
 		if str(plot.get("elevation", ELEVATION_LOW)) == ELEVATION_HIGH:
-			_grow_frontier_elevation_zone(plot, E_HIGH)
+			_grow_frontier_organic_plateau(plot)
 	for plot in plots:
 		if str(plot.get("elevation", ELEVATION_LOW)) == ELEVATION_HIGH:
 			_ensure_frontier_plot_ramp(plot)
+	if not _validate_frontier_plateau_generation(false):
+		push_warning("[MapGenerator] Organic plateau generation failed validation. Falling back to rectangular high zones.")
+		grid = original_grid
+		feature_grid = original_features
+		ramps = original_ramps
+		_frontier_plateaus.clear()
+		for plot in plots:
+			plot.erase("ramp_rect")
+			plot.erase("plateau_id")
+			if str(plot.get("elevation", ELEVATION_LOW)) == ELEVATION_HIGH:
+				_grow_frontier_elevation_zone(plot, E_HIGH)
+		for plot in plots:
+			if str(plot.get("elevation", ELEVATION_LOW)) == ELEVATION_HIGH:
+				_ensure_frontier_plot_ramp(plot)
 
 func _grow_frontier_elevation_zone(plot: Dictionary, elevation: int) -> void:
 	var rect: Rect2i = plot.get("rect", Rect2i())
@@ -1416,6 +1443,152 @@ func _grow_frontier_elevation_zone(plot: Dictionary, elevation: int) -> void:
 				continue
 			grid[x][y] = elevation
 			feature_grid[x][y] = "high_zone"
+	plot["plateau_id"] = _frontier_plateaus.size()
+	_frontier_plateaus.append({
+		"id": plot.get("id", "plateau_%s" % _frontier_plateaus.size()),
+		"plot_id": plot.get("id", ""),
+		"cells": _cells_in_rect(zone),
+		"fallback": true,
+	})
+
+func _grow_frontier_organic_plateau(plot: Dictionary) -> void:
+	var rect: Rect2i = plot.get("rect", Rect2i())
+	if rect.size == Vector2i.ZERO:
+		return
+	var margin := 5 if str(plot.get("kind", "")) == "base" else 4
+	var max_radius := 13 if str(plot.get("kind", "")) == "base" else 9
+	var target_size := clampi(rect.size.x * rect.size.y + (margin * 18), rect.size.x * rect.size.y + 36, rect.size.x * rect.size.y + 260)
+	var center := rect.position + Vector2i(rect.size.x / 2, rect.size.y / 2)
+	var allowed_rect := _expanded_rect(rect, max_radius)
+	var plateau := {}
+	var frontier: Array[Vector2i] = []
+	for x in range(rect.position.x, rect.end.x):
+		for y in range(rect.position.y, rect.end.y):
+			var cell := Vector2i(x, y)
+			if not is_in_bounds(cell):
+				continue
+			plateau[cell] = true
+			_frontier_add_neighbors(cell, frontier, plateau, allowed_rect, center, max_radius)
+	var guard := 0
+	while plateau.size() < target_size and not frontier.is_empty() and guard < target_size * 18:
+		guard += 1
+		var best_index := _best_frontier_plateau_candidate(frontier, plateau, rect, center, max_radius)
+		var cell: Vector2i = frontier.pop_at(best_index)
+		if plateau.has(cell):
+			continue
+		plateau[cell] = true
+		_frontier_add_neighbors(cell, frontier, plateau, allowed_rect, center, max_radius)
+	_soften_frontier_plateau_edges(plateau, rect, center)
+	_prune_disconnected_frontier_plateau(plateau, rect)
+	for cell_value in plateau.keys():
+		var cell: Vector2i = cell_value
+		if not is_in_bounds(cell):
+			continue
+		grid[cell.x][cell.y] = E_HIGH
+		feature_grid[cell.x][cell.y] = "high_zone"
+	var plateau_id := _frontier_plateaus.size()
+	plot["plateau_id"] = plateau_id
+	_frontier_plateaus.append({
+		"id": "plateau_%s" % plateau_id,
+		"plot_id": plot.get("id", ""),
+		"cells": plateau.keys(),
+		"fallback": false,
+	})
+
+func _frontier_add_neighbors(cell: Vector2i, frontier: Array[Vector2i], plateau: Dictionary, allowed_rect: Rect2i, center: Vector2i, max_radius: int) -> void:
+	for offset in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+		var next_cell: Vector2i = cell + offset
+		if not is_in_bounds(next_cell) or plateau.has(next_cell) or frontier.has(next_cell):
+			continue
+		if not allowed_rect.has_point(next_cell) or _frontier_plateau_blocks_cell(next_cell, center, max_radius):
+			continue
+		frontier.append(next_cell)
+
+func _frontier_plateau_blocks_cell(cell: Vector2i, center: Vector2i, max_radius: int) -> bool:
+	if not is_in_bounds(cell) or feature_grid[cell.x][cell.y] == "map_border":
+		return true
+	if grid[cell.x][cell.y] == E_WATER or grid[cell.x][cell.y] == E_BLOCKED:
+		return true
+	if _is_inside_low_plot_rect(cell):
+		return true
+	var delta := cell - center
+	var ellipse_distance := (float(delta.x * delta.x) / float(max_radius * max_radius)) + (float(delta.y * delta.y) / float(max_radius * max_radius))
+	if ellipse_distance > 1.18:
+		return true
+	return false
+
+func _best_frontier_plateau_candidate(frontier: Array[Vector2i], plateau: Dictionary, rect: Rect2i, center: Vector2i, max_radius: int) -> int:
+	var best_index := 0
+	var best_score: float = -INF
+	for i in frontier.size():
+		var cell: Vector2i = frontier[i]
+		var delta: Vector2i = cell - center
+		var distance: float = sqrt(float(delta.x * delta.x + delta.y * delta.y))
+		var neighbor_score: float = float(_plateau_neighbor_count(cell, plateau)) * 22.0
+		var blob_bias: float = -abs(distance - float(max_radius) * 0.58) * 3.4
+		var edge_noise: float = float(_hash_cell(cell, 1731) % 1000) / 20.0
+		var plot_bias: float = 30.0 if rect.has_point(cell) else 0.0
+		var score: float = neighbor_score + blob_bias + edge_noise + plot_bias
+		if score > best_score:
+			best_score = score
+			best_index = i
+	return best_index
+
+func _plateau_neighbor_count(cell: Vector2i, plateau: Dictionary) -> int:
+	var count := 0
+	for offset in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+		if plateau.has(cell + offset):
+			count += 1
+	return count
+
+func _soften_frontier_plateau_edges(plateau: Dictionary, protected_rect: Rect2i, center: Vector2i) -> void:
+	var removals: Array[Vector2i] = []
+	for cell_value in plateau.keys():
+		var cell: Vector2i = cell_value
+		if protected_rect.has_point(cell):
+			continue
+		var neighbors := _plateau_neighbor_count(cell, plateau)
+		var hash := _hash_cell(cell, 2459) % 1000
+		if neighbors <= 1 or (neighbors == 2 and hash < 520):
+			removals.append(cell)
+	for cell in removals:
+		plateau.erase(cell)
+
+func _prune_disconnected_frontier_plateau(plateau: Dictionary, protected_rect: Rect2i) -> void:
+	if plateau.is_empty():
+		return
+	var start := protected_rect.position + Vector2i(protected_rect.size.x / 2, protected_rect.size.y / 2)
+	if not plateau.has(start):
+		for cell_value in plateau.keys():
+			var cell: Vector2i = cell_value
+			if protected_rect.has_point(cell):
+				start = cell
+				break
+	var reached := {}
+	var queue: Array[Vector2i] = [start]
+	reached[start] = true
+	var index := 0
+	while index < queue.size():
+		var cell: Vector2i = queue[index]
+		index += 1
+		for offset in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+			var next_cell: Vector2i = cell + offset
+			if plateau.has(next_cell) and not reached.has(next_cell):
+				reached[next_cell] = true
+				queue.append(next_cell)
+	for cell_value in plateau.keys():
+		var cell: Vector2i = cell_value
+		if not reached.has(cell):
+			plateau.erase(cell)
+
+func _cells_in_rect(rect: Rect2i) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	for x in range(rect.position.x, rect.end.x):
+		for y in range(rect.position.y, rect.end.y):
+			var cell := Vector2i(x, y)
+			if is_in_bounds(cell):
+				cells.append(cell)
+	return cells
 
 func _ensure_frontier_plot_ramp(plot: Dictionary) -> void:
 	if plot.has("ramp_rect"):
@@ -1423,12 +1596,72 @@ func _ensure_frontier_plot_ramp(plot: Dictionary) -> void:
 	var rect: Rect2i = plot.get("rect", Rect2i())
 	if rect.size == Vector2i.ZERO:
 		return
-	var ramp_rect := _frontier_ramp_for_base(rect)
-	if str(plot.get("kind", "")) != "base":
-		var entrance_x := rect.position.x + rect.size.x / 2
-		ramp_rect = Rect2i(entrance_x - 1, rect.end.y, 3, 3)
+	var ramp_rect := _frontier_ramp_for_plateau(plot)
+	if ramp_rect.size == Vector2i.ZERO:
+		ramp_rect = _frontier_ramp_for_base(rect)
 	plot["ramp_rect"] = ramp_rect
 	plot["road_anchor"] = _frontier_base_road_anchor(rect, ramp_rect)
+
+func _frontier_ramp_for_plateau(plot: Dictionary) -> Rect2i:
+	var plateau_cells := _plateau_cells_for_plot(plot)
+	if plateau_cells.is_empty():
+		return Rect2i()
+	var rect: Rect2i = plot.get("rect", Rect2i())
+	var is_content := str(plot.get("kind", "")) != "base"
+	if is_content:
+		var entrance_x := rect.position.x + rect.size.x / 2
+		return Rect2i(entrance_x - 1, rect.end.y, 3, 3)
+	var best_cell := Vector2i(-1, -1)
+	var best_dir := Vector2i.ZERO
+	var best_score := INF
+	for cell_value in plateau_cells:
+		var cell: Vector2i = cell_value
+		for dir in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+			var outside: Vector2i = cell + dir
+			if not is_in_bounds(outside) or grid[outside.x][outside.y] == E_HIGH:
+				continue
+			if grid[outside.x][outside.y] == E_WATER or grid[outside.x][outside.y] == E_BLOCKED:
+				continue
+			var score := _frontier_ramp_road_score(outside)
+			if score < best_score:
+				best_score = score
+				best_cell = cell
+				best_dir = dir
+	if best_cell == Vector2i(-1, -1):
+		return Rect2i()
+	return _ramp_rect_from_edge(best_cell, best_dir)
+
+func _plateau_cells_for_plot(plot: Dictionary) -> Array:
+	var plateau_id := int(plot.get("plateau_id", -1))
+	if plateau_id >= 0 and plateau_id < _frontier_plateaus.size():
+		return _frontier_plateaus[plateau_id].get("cells", [])
+	return []
+
+func _frontier_ramp_road_score(cell: Vector2i) -> float:
+	var nearest_spine_distance := INF
+	for spine in FRONTIER_ROAD_SPINES:
+		nearest_spine_distance = minf(nearest_spine_distance, absf(float(cell.x - int(spine))))
+		nearest_spine_distance = minf(nearest_spine_distance, absf(float(cell.y - int(spine))))
+	var center_distance := Vector2(cell).distance_to(Vector2(FRONTIER_MAIN_ROAD_X, FRONTIER_MAIN_ROAD_Y)) * 0.18
+	return nearest_spine_distance + center_distance + float(_hash_cell(cell, 911) % 100) / 100.0
+
+func _ramp_rect_from_edge(edge_cell: Vector2i, dir: Vector2i) -> Rect2i:
+	if dir == Vector2i.RIGHT:
+		return Rect2i(edge_cell.x, edge_cell.y - 1, 3, 3)
+	if dir == Vector2i.LEFT:
+		return Rect2i(edge_cell.x - 2, edge_cell.y - 1, 3, 3)
+	if dir == Vector2i.UP:
+		return Rect2i(edge_cell.x - 1, edge_cell.y - 2, 3, 3)
+	return Rect2i(edge_cell.x - 1, edge_cell.y, 3, 3)
+
+func _is_inside_low_plot_rect(cell: Vector2i) -> bool:
+	for plot in plots:
+		if str(plot.get("elevation", ELEVATION_LOW)) == ELEVATION_HIGH:
+			continue
+		var rect: Rect2i = plot.get("rect", Rect2i())
+		if rect.has_point(cell):
+			return true
+	return false
 
 func _stamp_plots_into_grid() -> void:
 	for plot in plots:
@@ -1556,13 +1789,15 @@ func _stamp_objective_plot(plot: Dictionary) -> void:
 
 func _build_roads() -> void:
 	road_cells.clear()
+	_frontier_road_debug.clear()
 	if map_type_id == MAP_TYPE_AI_TESTING_GROUND or map_type_id == MAP_TYPE_FORTRESS_AI_ARENA:
 		return
 	if plots.is_empty():
 		return
 	if map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER:
-		_build_frontier_road_network()
+		_build_frontier_road_network_for_mode()
 		_smooth_roads_with_validation()
+		_debug_print_frontier_road_summary()
 		return
 	var hub := nearest_walkable_cell(Vector2i(MAP_W / 2, MAP_H / 2), 24)
 	for plot in plots:
@@ -1573,6 +1808,33 @@ func _build_roads() -> void:
 		var to_anchor: Vector2i = plots[i + 1].get("anchor", hub)
 		_carve_road_between(from_anchor, to_anchor, 1)
 	_smooth_roads_with_validation()
+
+func _build_frontier_road_network_for_mode() -> void:
+	if frontier_road_layout_mode == ROAD_MODE_ORGANIC_SPINE_AND_BRANCHES:
+		var original_grid := grid.duplicate(true)
+		var original_features := feature_grid.duplicate(true)
+		var original_roads := road_cells.duplicate(true)
+		_build_frontier_organic_spine_and_branches()
+		var validation := _validate_frontier_organic_road_network()
+		if bool(validation.get("passed", false)):
+			_frontier_road_debug["mode"] = ROAD_MODE_ORGANIC_SPINE_AND_BRANCHES
+			_frontier_road_debug["fallback"] = false
+			_frontier_road_debug["validation"] = true
+			return
+		push_warning("[MapGenerator] organic_spine_and_branches failed validation: %s. Falling back to grid arteries." % str(validation.get("reason", "unknown")))
+		grid = original_grid
+		feature_grid = original_features
+		road_cells = original_roads
+		_build_frontier_road_network()
+		_frontier_road_debug["mode"] = ROAD_MODE_GRID_ARTERIES
+		_frontier_road_debug["fallback"] = true
+		_frontier_road_debug["fallback_reason"] = validation.get("reason", "unknown")
+		_frontier_road_debug["validation"] = _validate_frontier_organic_road_network().get("passed", false)
+		return
+	_build_frontier_road_network()
+	_frontier_road_debug["mode"] = ROAD_MODE_GRID_ARTERIES
+	_frontier_road_debug["fallback"] = false
+	_frontier_road_debug["validation"] = _validate_frontier_organic_road_network().get("passed", false)
 
 func _build_frontier_road_network() -> void:
 	_carve_frontier_arterial_roads()
@@ -1587,6 +1849,189 @@ func _build_frontier_road_network() -> void:
 			spine_target = Vector2i(FRONTIER_MAIN_ROAD_X, FRONTIER_MAIN_ROAD_Y)
 		_carve_frontier_road(anchor, spine_target)
 
+func _build_frontier_organic_spine_and_branches() -> void:
+	_frontier_road_debug = {
+		"mode": ROAD_MODE_ORGANIC_SPINE_AND_BRANCHES,
+		"main_spine_node_count": 0,
+		"branch_count": 0,
+		"fallback": false,
+		"validation": false,
+	}
+	for plot in plots:
+		_carve_frontier_plot_approach(plot)
+	var spine_nodes := _frontier_main_spine_nodes()
+	_frontier_road_debug["main_spine_node_count"] = spine_nodes.size()
+	var roads_before_spine := road_cells.size()
+	for i in range(spine_nodes.size() - 1):
+		_carve_frontier_organic_road(spine_nodes[i], spine_nodes[i + 1], 2 + i, FRONTIER_MAIN_SPINE_ROAD_WIDTH)
+	_frontier_road_debug["spine_road_cells"] = road_cells.size() - roads_before_spine
+	var branch_count := 0
+	var roads_before_branches := road_cells.size()
+	for plot in plots:
+		var anchor: Vector2i = plot.get("road_anchor", plot.get("anchor", Vector2i.ZERO))
+		anchor = nearest_walkable_cell(anchor, 8)
+		if not is_in_bounds(anchor):
+			continue
+		var connection := _nearest_road_cell(anchor, road_cells, 96)
+		if not is_in_bounds(connection):
+			connection = Vector2i(FRONTIER_MAIN_ROAD_X, FRONTIER_MAIN_ROAD_Y)
+		_carve_frontier_organic_road(anchor, connection, 101 + branch_count, FRONTIER_BRANCH_ROAD_WIDTH)
+		branch_count += 1
+	_connect_frontier_road_components()
+	_frontier_road_debug["branch_count"] = branch_count
+	_frontier_road_debug["branch_road_cells"] = road_cells.size() - roads_before_branches
+	_frontier_road_debug["junction_count"] = _frontier_junction_count()
+	_frontier_road_debug["width_settings"] = "spine=%s branch=%s plot=%s junction_max=%sx%s" % [
+		FRONTIER_MAIN_SPINE_ROAD_WIDTH,
+		FRONTIER_BRANCH_ROAD_WIDTH,
+		FRONTIER_PLOT_APPROACH_ROAD_WIDTH,
+		FRONTIER_MAX_JUNCTION_SIZE,
+		FRONTIER_MAX_JUNCTION_SIZE,
+	]
+
+func _connect_frontier_road_components() -> void:
+	var guard := 0
+	while guard < 12:
+		guard += 1
+		var components := _frontier_road_components()
+		if components.size() <= 1:
+			return
+		components.sort_custom(func(a: Array, b: Array) -> bool:
+			return a.size() > b.size()
+		)
+		var main_component: Array = components[0]
+		var other_component: Array = components[1]
+		var pair := _nearest_road_component_pair(main_component, other_component)
+		if pair.size() != 2:
+			return
+		_carve_frontier_organic_road(pair[0], pair[1], 700 + guard, FRONTIER_BRANCH_ROAD_WIDTH)
+
+func _frontier_road_components() -> Array[Array]:
+	var components: Array[Array] = []
+	var visited := {}
+	for road_cell_value in road_cells.keys():
+		var road_cell: Vector2i = road_cell_value
+		if visited.has(road_cell):
+			continue
+		var component: Array[Vector2i] = []
+		var queue: Array[Vector2i] = [road_cell]
+		visited[road_cell] = true
+		var index := 0
+		while index < queue.size():
+			var cell: Vector2i = queue[index]
+			index += 1
+			component.append(cell)
+			for offset in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+				var next_cell: Vector2i = cell + offset
+				if road_cells.has(next_cell) and not visited.has(next_cell):
+					visited[next_cell] = true
+					queue.append(next_cell)
+		components.append(component)
+	return components
+
+func _nearest_road_component_pair(main_component: Array, other_component: Array) -> Array[Vector2i]:
+	var best: Array[Vector2i] = []
+	var best_distance := INF
+	for a_value in main_component:
+		var a: Vector2i = a_value
+		for b_value in other_component:
+			var b: Vector2i = b_value
+			var distance := Vector2(a).distance_squared_to(Vector2(b))
+			if distance < best_distance:
+				best_distance = distance
+				best = [a, b]
+	return best
+
+func _frontier_main_spine_nodes() -> Array[Vector2i]:
+	var nodes: Array[Vector2i] = []
+	var start := Vector2i(4, FRONTIER_MAIN_ROAD_Y + _seeded_road_offset(19, 8))
+	nodes.append(nearest_walkable_cell(start, 10))
+	var important := _frontier_important_road_anchors()
+	if not important.is_empty():
+		var current := nodes[0]
+		while not important.is_empty():
+			var best_index := 0
+			var best_score := INF
+			for i in important.size():
+				var candidate: Vector2i = important[i]
+				var score := Vector2(current).distance_to(Vector2(candidate)) + float(_hash_cell(candidate, 343) % 100) / 8.0
+				if score < best_score:
+					best_score = score
+					best_index = i
+			current = important.pop_at(best_index)
+			nodes.append(current)
+	nodes.append(nearest_walkable_cell(Vector2i(MAP_W - 5, FRONTIER_MAIN_ROAD_Y + _seeded_road_offset(23, 8)), 10))
+	nodes.append(nearest_walkable_cell(Vector2i(FRONTIER_MAIN_ROAD_X + _seeded_road_offset(29, 8), 4), 10))
+	nodes.append(nearest_walkable_cell(Vector2i(FRONTIER_MAIN_ROAD_X + _seeded_road_offset(31, 8), MAP_H - 5), 10))
+	return _dedupe_valid_cells(nodes)
+
+func _frontier_important_road_anchors() -> Array[Vector2i]:
+	var anchors: Array[Vector2i] = []
+	for plot in plots:
+		var kind := str(plot.get("kind", ""))
+		var content_size := str(plot.get("content_size", ""))
+		if kind == "base" or kind == "enemy_outpost" or kind == "objective" or content_size == "large":
+			var anchor: Vector2i = plot.get("road_anchor", plot.get("anchor", Vector2i.ZERO))
+			anchor = nearest_walkable_cell(anchor, 8)
+			if is_in_bounds(anchor):
+				anchors.append(anchor)
+	return anchors
+
+func _dedupe_valid_cells(cells: Array[Vector2i]) -> Array[Vector2i]:
+	var deduped: Array[Vector2i] = []
+	var seen := {}
+	for cell in cells:
+		if not is_in_bounds(cell) or seen.has(cell):
+			continue
+		seen[cell] = true
+		deduped.append(cell)
+	return deduped
+
+func _carve_frontier_organic_road(from_cell: Vector2i, to_cell: Vector2i, salt: int, road_width: int = FRONTIER_BRANCH_ROAD_WIDTH) -> void:
+	from_cell = nearest_walkable_cell(from_cell, 10)
+	to_cell = nearest_walkable_cell(to_cell, 10)
+	if not is_in_bounds(from_cell) or not is_in_bounds(to_cell):
+		return
+	var midpoint := Vector2i((from_cell.x + to_cell.x) / 2, (from_cell.y + to_cell.y) / 2)
+	var delta := to_cell - from_cell
+	var bend_axis := Vector2i(-clampi(delta.y, -1, 1), clampi(delta.x, -1, 1))
+	if bend_axis == Vector2i.ZERO:
+		bend_axis = Vector2i(1, 0)
+	var bend_amount := _seeded_road_offset(salt, 10)
+	var bend := nearest_walkable_cell(midpoint + bend_axis * bend_amount, 14)
+	if not is_in_bounds(bend):
+		bend = midpoint
+	_carve_frontier_road(from_cell, bend, road_width)
+	_carve_frontier_road(bend, to_cell, road_width)
+
+func _seeded_road_offset(salt: int, magnitude: int) -> int:
+	var value := int((_hash_cell(Vector2i(seed_value & 255, (seed_value >> 8) & 255), salt) % (magnitude * 2 + 1)) - magnitude)
+	if abs(value) < 3:
+		return 3 if value >= 0 else -3
+	return value
+
+func _validate_frontier_organic_road_network() -> Dictionary:
+	if road_cells.is_empty():
+		return {"passed": false, "reason": "no road cells carved"}
+	var start := _road_validation_start_cell(Vector2i(FRONTIER_MAIN_ROAD_X, FRONTIER_MAIN_ROAD_Y))
+	start = nearest_walkable_cell(start, 12)
+	if not is_in_bounds(start):
+		return {"passed": false, "reason": "no reachable spawn/start anchor"}
+	var reachable_walkable := _flood_walkable_cells(start)
+	for plot in plots:
+		var anchor: Vector2i = plot.get("anchor", plot.get("road_anchor", Vector2i(-1, -1)))
+		anchor = nearest_walkable_cell(anchor, 8)
+		if not is_in_bounds(anchor) or not reachable_walkable.has(anchor):
+			return {"passed": false, "reason": "plot unreachable: %s" % plot.get("id", "<unknown>")}
+		var road_anchor: Vector2i = plot.get("road_anchor", anchor)
+		if not is_in_bounds(_nearest_road_cell(road_anchor, road_cells, 8)):
+			return {"passed": false, "reason": "plot road anchor disconnected: %s" % plot.get("id", "<unknown>")}
+	for ramp in ramps:
+		var ramp_center := ramp.position + Vector2i(ramp.size.x / 2, ramp.size.y / 2)
+		if not is_in_bounds(_nearest_road_cell(ramp_center, road_cells, 4)):
+			return {"passed": false, "reason": "ramp disconnected at %s" % ramp_center}
+	return {"passed": true, "reason": "ok"}
+
 func _carve_frontier_arterial_roads() -> void:
 	for spine in FRONTIER_ROAD_SPINES:
 		_carve_frontier_straight_road_segment(Vector2i(4, int(spine)), Vector2i(MAP_W - 5, int(spine)))
@@ -1595,13 +2040,13 @@ func _carve_frontier_arterial_roads() -> void:
 func _carve_frontier_straight_road_segment(from_cell: Vector2i, to_cell: Vector2i) -> void:
 	var current := from_cell
 	var axis := _frontier_road_axis(from_cell, to_cell)
-	_carve_frontier_road_cell(current, axis)
+	_carve_frontier_road_cell(current, axis, FRONTIER_MAIN_SPINE_ROAD_WIDTH)
 	while current != to_cell:
 		if current.x != to_cell.x:
 			current.x += clampi(to_cell.x - current.x, -1, 1)
 		elif current.y != to_cell.y:
 			current.y += clampi(to_cell.y - current.y, -1, 1)
-		_carve_frontier_road_cell(current, axis)
+		_carve_frontier_road_cell(current, axis, FRONTIER_MAIN_SPINE_ROAD_WIDTH)
 
 func _carve_frontier_arterial_path(start: Vector2i, target: Vector2i, horizontal: bool) -> void:
 	var arterial := AStarGrid2D.new()
@@ -1630,7 +2075,7 @@ func _carve_frontier_arterial_path(start: Vector2i, target: Vector2i, horizontal
 		var cell: Vector2i = path[i]
 		var next: Vector2i = path[min(i + 1, path.size() - 1)]
 		var axis := _frontier_road_axis(previous, next)
-		_carve_frontier_road_cell(cell, axis)
+		_carve_frontier_road_cell(cell, axis, FRONTIER_MAIN_SPINE_ROAD_WIDTH)
 		previous = cell
 
 func _nearest_frontier_arterial_cell(origin: Vector2i, arterial: AStarGrid2D) -> Vector2i:
@@ -1677,7 +2122,7 @@ func _nearest_frontier_spine(value: int) -> int:
 			best_distance = distance
 	return best
 
-func _carve_frontier_road(from_cell: Vector2i, to_cell: Vector2i) -> void:
+func _carve_frontier_road(from_cell: Vector2i, to_cell: Vector2i, road_width: int = FRONTIER_MAIN_SPINE_ROAD_WIDTH) -> void:
 	var routed_path := _find_frontier_road_path(from_cell, to_cell)
 	if routed_path.size() >= 2:
 		for i in range(routed_path.size()):
@@ -1685,15 +2130,15 @@ func _carve_frontier_road(from_cell: Vector2i, to_cell: Vector2i) -> void:
 			var current: Vector2i = routed_path[i]
 			var next: Vector2i = routed_path[mini(routed_path.size() - 1, i + 1)]
 			var axis := _frontier_road_axis(previous, next)
-			_carve_frontier_road_cell(current, axis)
+			_carve_frontier_road_cell(current, axis, road_width)
 		return
 	var bend_x_first := Vector2i(to_cell.x, from_cell.y)
 	var bend_y_first := Vector2i(from_cell.x, to_cell.y)
 	var score_x := _frontier_road_route_conflict_score(from_cell, bend_x_first) + _frontier_road_route_conflict_score(bend_x_first, to_cell)
 	var score_y := _frontier_road_route_conflict_score(from_cell, bend_y_first) + _frontier_road_route_conflict_score(bend_y_first, to_cell)
 	var bend := bend_x_first if score_x <= score_y else bend_y_first
-	_carve_frontier_road_segment(from_cell, bend)
-	_carve_frontier_road_segment(bend, to_cell)
+	_carve_frontier_road_segment(from_cell, bend, road_width)
+	_carve_frontier_road_segment(bend, to_cell, road_width)
 
 func _find_frontier_road_path(from_cell: Vector2i, to_cell: Vector2i) -> Array[Vector2i]:
 	var start := _nearest_frontier_road_allowed_cell(from_cell, 8)
@@ -1780,7 +2225,7 @@ func _carve_frontier_plot_approach(plot: Dictionary) -> void:
 					grid[x][y] = E_RAMP
 					feature_grid[x][y] = "ramp"
 				else:
-					_carve_frontier_road_cell(cell, ramp_axis)
+					_carve_frontier_road_cell(cell, ramp_axis, FRONTIER_PLOT_APPROACH_ROAD_WIDTH)
 		return
 	var entrance := Vector2i(rect.position.x + rect.size.x / 2, rect.end.y - 1)
 	for y in range(entrance.y + 1, entrance.y + 5):
@@ -1789,34 +2234,45 @@ func _carve_frontier_plot_approach(plot: Dictionary) -> void:
 			if not is_in_bounds(cell):
 				continue
 			if not rect.has_point(cell):
-				_carve_frontier_road_cell(cell, Vector2i(0, 1))
+				var width := FRONTIER_MAIN_SPINE_ROAD_WIDTH if y == entrance.y + 1 else FRONTIER_PLOT_APPROACH_ROAD_WIDTH
+				_carve_frontier_road_cell(cell, Vector2i(0, 1), width)
 
-func _carve_frontier_road_segment(from_cell: Vector2i, to_cell: Vector2i) -> void:
+func _carve_frontier_road_segment(from_cell: Vector2i, to_cell: Vector2i, road_width: int = FRONTIER_MAIN_SPINE_ROAD_WIDTH) -> void:
 	var current := from_cell
 	var axis := _frontier_road_axis(current, to_cell)
-	_carve_frontier_road_cell(current, axis)
+	_carve_frontier_road_cell(current, axis, road_width)
 	while current != to_cell:
 		if current.x != to_cell.x:
 			current.x += clampi(to_cell.x - current.x, -1, 1)
 		elif current.y != to_cell.y:
 			current.y += clampi(to_cell.y - current.y, -1, 1)
-		_carve_frontier_road_cell(current, axis)
+		_carve_frontier_road_cell(current, axis, road_width)
 
 func _frontier_road_axis(from_cell: Vector2i, to_cell: Vector2i) -> Vector2i:
 	if abs(to_cell.x - from_cell.x) >= abs(to_cell.y - from_cell.y):
 		return Vector2i(1, 0)
 	return Vector2i(0, 1)
 
-func _carve_frontier_road_cell(center: Vector2i, axis: Vector2i) -> void:
-	var offsets: Array[Vector2i] = []
-	if axis == Vector2i(1, 0):
-		offsets = [Vector2i(0, -1), Vector2i.ZERO, Vector2i(0, 1)]
-	elif axis == Vector2i(0, 1):
-		offsets = [Vector2i(-1, 0), Vector2i.ZERO, Vector2i(1, 0)]
-	else:
-		offsets = [Vector2i(0, -1), Vector2i.ZERO, Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
+func _carve_frontier_road_cell(center: Vector2i, axis: Vector2i, road_width: int = FRONTIER_MAIN_SPINE_ROAD_WIDTH) -> void:
+	var offsets := _frontier_road_offsets(center, axis, road_width)
 	for offset in offsets:
 		_carve_frontier_single_road_cell(center + offset)
+
+func _frontier_road_offsets(center: Vector2i, axis: Vector2i, road_width: int) -> Array[Vector2i]:
+	var width: int = clampi(road_width, 1, FRONTIER_MAIN_SPINE_ROAD_WIDTH)
+	var perpendicular := Vector2i.ZERO
+	if axis == Vector2i(1, 0):
+		perpendicular = Vector2i(0, 1)
+	elif axis == Vector2i(0, 1):
+		perpendicular = Vector2i(1, 0)
+	if perpendicular == Vector2i.ZERO:
+		return [Vector2i.ZERO, Vector2i.RIGHT, Vector2i.DOWN]
+	if width <= 1:
+		return [Vector2i.ZERO]
+	if width == 2:
+		var side := 1 if _hash_cell(center, 607) % 2 == 0 else -1
+		return [Vector2i.ZERO, perpendicular * side]
+	return [perpendicular * -1, Vector2i.ZERO, perpendicular]
 
 func _carve_frontier_single_road_cell(cell: Vector2i) -> void:
 	if not is_in_bounds(cell):
@@ -1881,12 +2337,17 @@ func _smooth_roads_with_validation() -> void:
 	var original_count := original_roads.size()
 	var protected_cells := _required_road_cells()
 	var candidate_roads := _copy_cell_dictionary(road_cells)
-	_round_road_corners(candidate_roads, protected_cells)
+	if frontier_road_layout_mode != ROAD_MODE_ORGANIC_SPINE_AND_BRANCHES or bool(_frontier_road_debug.get("fallback", false)):
+		_round_road_corners(candidate_roads, protected_cells)
 	_trim_road_protrusions(candidate_roads, protected_cells)
 	if not _validate_road_smoothing(candidate_roads, protected_cells):
 		_restore_road_cells(original_roads)
 		push_warning("[MapGenerator] Road smoothing failed validation. Reverted to original road grid.")
 		print("[MapGenerator] Road smoothing original=", original_count, " smoothed=", original_count, " added=0 removed=0 validation=false")
+		if map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER:
+			_frontier_road_debug["thinning_before"] = original_count
+			_frontier_road_debug["thinning_after"] = original_count
+			_frontier_road_debug["thinning_validation"] = false
 		return
 	var smoothed_count := candidate_roads.size()
 	var added := 0
@@ -1899,6 +2360,11 @@ func _smooth_roads_with_validation() -> void:
 			removed += 1
 	_restore_road_cells(candidate_roads)
 	print("[MapGenerator] Road smoothing original=", original_count, " smoothed=", smoothed_count, " added=", added, " removed=", removed, " validation=true")
+	if map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER:
+		_frontier_road_debug["thinning_before"] = original_count
+		_frontier_road_debug["thinning_after"] = smoothed_count
+		_frontier_road_debug["thinning_validation"] = true
+		_frontier_road_debug["junction_count"] = _frontier_junction_count()
 
 func _copy_cell_dictionary(source: Dictionary) -> Dictionary:
 	var copy := {}
@@ -1921,11 +2387,12 @@ func _required_road_cells() -> Dictionary:
 					var cell := Vector2i(x, y)
 					if road_cells.has(cell):
 						required[cell] = true
-	for spine in FRONTIER_ROAD_SPINES:
-		for edge_anchor in [Vector2i(4, int(spine)), Vector2i(MAP_W - 5, int(spine)), Vector2i(int(spine), 4), Vector2i(int(spine), MAP_H - 5)]:
-			var road_edge := _nearest_road_cell(edge_anchor, road_cells, 4)
-			if is_in_bounds(road_edge):
-				required[road_edge] = true
+	if frontier_road_layout_mode != ROAD_MODE_ORGANIC_SPINE_AND_BRANCHES or bool(_frontier_road_debug.get("fallback", false)):
+		for spine in FRONTIER_ROAD_SPINES:
+			for edge_anchor in [Vector2i(4, int(spine)), Vector2i(MAP_W - 5, int(spine)), Vector2i(int(spine), 4), Vector2i(int(spine), MAP_H - 5)]:
+				var road_edge := _nearest_road_cell(edge_anchor, road_cells, 4)
+				if is_in_bounds(road_edge):
+					required[road_edge] = true
 	return required
 
 func _nearest_road_cell(origin: Vector2i, roads: Dictionary, max_radius: int) -> Vector2i:
@@ -2021,6 +2488,32 @@ func _road_neighbor_count(cell: Vector2i, roads: Dictionary) -> int:
 				count += 1
 	return count
 
+func _frontier_junction_count() -> int:
+	var junction_cells := {}
+	for cell_value in road_cells.keys():
+		var cell: Vector2i = cell_value
+		if _road_cardinal_neighbor_count(cell, road_cells) >= 3:
+			junction_cells[cell] = true
+	var visited := {}
+	var count := 0
+	for cell_value in junction_cells.keys():
+		var cell: Vector2i = cell_value
+		if visited.has(cell):
+			continue
+		count += 1
+		var queue: Array[Vector2i] = [cell]
+		visited[cell] = true
+		var index := 0
+		while index < queue.size():
+			var current: Vector2i = queue[index]
+			index += 1
+			for offset in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+				var next_cell: Vector2i = current + offset
+				if junction_cells.has(next_cell) and not visited.has(next_cell):
+					visited[next_cell] = true
+					queue.append(next_cell)
+	return count
+
 func _validate_road_smoothing(candidate_roads: Dictionary, protected_cells: Dictionary) -> bool:
 	if candidate_roads.is_empty():
 		print("[MapGenerator] Road smoothing validation failed: no roads remain.")
@@ -2083,6 +2576,37 @@ func _validate_frontier_elevation_layout(verbose: bool = false) -> bool:
 		else:
 			for error in errors:
 				push_warning("[MapGenerator] Elevation validation failed: " + error)
+	return passed
+
+func _validate_frontier_plateau_generation(verbose: bool = false) -> bool:
+	var errors: Array[String] = []
+	for plot in plots:
+		if str(plot.get("elevation", ELEVATION_LOW)) != ELEVATION_HIGH:
+			continue
+		var plateau_id := int(plot.get("plateau_id", -1))
+		var plateau_cells := _plateau_cells_for_plot(plot)
+		if plateau_id < 0 or plateau_cells.is_empty():
+			errors.append("HIGH plot has no plateau: %s" % plot.get("id", "<unknown>"))
+			continue
+		var rect: Rect2i = plot.get("rect", Rect2i())
+		for x in range(rect.position.x, rect.end.x):
+			for y in range(rect.position.y, rect.end.y):
+				if grid[x][y] != E_HIGH:
+					errors.append("HIGH plot interior not fully high: %s" % plot.get("id", "<unknown>"))
+					break
+		if not plot.has("ramp_rect"):
+			errors.append("HIGH plot has no ramp: %s" % plot.get("id", "<unknown>"))
+	for plateau in _frontier_plateaus:
+		var plateau_cells: Array = plateau.get("cells", [])
+		if plateau_cells.size() < 24:
+			errors.append("plateau too small: %s size=%s" % [plateau.get("id", "<unknown>"), plateau_cells.size()])
+	var passed := errors.is_empty()
+	if verbose:
+		if passed:
+			print("[MapGenerator] Plateau generation validation passed.")
+		else:
+			for error in errors:
+				push_warning("[MapGenerator] Plateau generation validation failed: " + error)
 	return passed
 
 func _flatten_tiny_high_fragments() -> void:
@@ -2258,6 +2782,8 @@ func _stamp_frontier_blob(center: Vector2i, radius: Vector2i, elevation: int, fe
 				feature_grid[x][y] = feature
 
 func _is_frontier_reserved(cell: Vector2i, margin: int) -> bool:
+	if is_in_bounds(cell) and (grid[cell.x][cell.y] == E_HIGH or feature_grid[cell.x][cell.y] == "high_zone" or feature_grid[cell.x][cell.y] == "high_access"):
+		return true
 	if road_cells.has(cell):
 		return true
 	for rx in range(cell.x - margin, cell.x + margin + 1):
@@ -2702,6 +3228,36 @@ func _debug_print_elevation_summary() -> void:
 		" plots_high=", high_plots,
 		" plots_low=", low_plots,
 		" validation=", _validate_frontier_elevation_layout(false))
+	var plateau_sizes: Array[int] = []
+	var plateau_ramp_counts: Array[int] = []
+	for plateau in _frontier_plateaus:
+		var cells: Array = plateau.get("cells", [])
+		var ramp_count := 0
+		for ramp in ramps:
+			for cell_value in cells:
+				var cell: Vector2i = cell_value
+				if _expanded_rect(ramp, 1).has_point(cell):
+					ramp_count += 1
+					break
+		plateau_sizes.append(cells.size())
+		plateau_ramp_counts.append(ramp_count)
+	print("[MapGenerator] Plateaus count=", _frontier_plateaus.size(),
+		" sizes=", plateau_sizes,
+		" ramp_counts=", plateau_ramp_counts,
+		" validation=", _validate_frontier_plateau_generation(false))
+
+func _debug_print_frontier_road_summary() -> void:
+	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+		return
+	print("[MapGenerator] Road layout mode=", _frontier_road_debug.get("mode", frontier_road_layout_mode),
+		" main_spine_nodes=", _frontier_road_debug.get("main_spine_node_count", 0),
+		" branches=", _frontier_road_debug.get("branch_count", 0),
+		" widths=", _frontier_road_debug.get("width_settings", "spine=%s branch=%s plot=%s junction_max=%sx%s" % [FRONTIER_MAIN_SPINE_ROAD_WIDTH, FRONTIER_BRANCH_ROAD_WIDTH, FRONTIER_PLOT_APPROACH_ROAD_WIDTH, FRONTIER_MAX_JUNCTION_SIZE, FRONTIER_MAX_JUNCTION_SIZE]),
+		" road_cells=", road_cells.size(),
+		" thinning=", _frontier_road_debug.get("thinning_before", road_cells.size()), "->", _frontier_road_debug.get("thinning_after", road_cells.size()),
+		" junctions=", _frontier_road_debug.get("junction_count", 0),
+		" fallback=", _frontier_road_debug.get("fallback", false),
+		" validation=", _frontier_road_debug.get("validation", false))
 
 func get_path_telemetry() -> Dictionary:
 	return {
