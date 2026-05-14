@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=4]
+
+[ext_resource type="Script" path="res://scripts/map/map_3d_preview.gd" id="1_preview"]
+
+[node name="Map3DPreview" type="Node3D"]
+script = ExtResource("1_preview")

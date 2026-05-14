@@ -20,12 +20,12 @@ func _run() -> void:
 		push_error("Expected Seeded Grid Frontier to create base plots and busy authored content coverage")
 		quit(1)
 		return
-	if int(first["economy_spaces"]) < 4:
-		push_error("Expected one economy space per high-ground base plot")
+	if int(first["economy_spaces"]) < 8:
+		push_error("Expected archetyped base plots to provide varied resource nodes")
 		quit(1)
 		return
-	if not bool(first["base_sizes_valid"]):
-		push_error("Expected all Seeded Grid Frontier base plots to be 15x15")
+	if not bool(first["base_archetypes_valid"]):
+		push_error("Expected Seeded Grid Frontier base plots to include valid fortress, holdfast, and expansion archetypes")
 		quit(1)
 		return
 	if not bool(first["road_spans_map"]):
@@ -54,7 +54,7 @@ func _build_summary(seed_text: String) -> Dictionary:
 	var layout: Dictionary = summary["layout"]
 	var plot_signature := _plot_signature(summary.get("plot_layout", []))
 	var ramp_cells := _ramp_cell_count(layout.get("ramps", []))
-	var base_sizes_valid := _validate_base_sizes(map)
+	var base_archetypes_valid := _validate_base_archetypes(map)
 	var road_spans_map := _road_network_spans_map(map)
 	var signature := "%s|%s|%s|%s|%s|%s|%s|%s" % [
 		summary["seed"],
@@ -75,7 +75,7 @@ func _build_summary(seed_text: String) -> Dictionary:
 		"base_plots": summary["base_plots"],
 		"economy_spaces": summary["economy_spaces"],
 		"ramp_cells": ramp_cells,
-		"base_sizes_valid": base_sizes_valid,
+		"base_archetypes_valid": base_archetypes_valid,
 		"road_spans_map": road_spans_map,
 		"signature": signature,
 	}
@@ -98,12 +98,30 @@ func _ramp_cell_count(ramp_layout: Array) -> int:
 		total += rect.size.x * rect.size.y
 	return total
 
-func _validate_base_sizes(map: Node) -> bool:
+func _validate_base_archetypes(map: Node) -> bool:
+	var seen := {}
 	for plot in map.get_base_plots():
+		var archetype := str(plot.get("base_archetype", ""))
+		seen[archetype] = true
 		var rect: Rect2i = plot.get("rect", Rect2i())
-		if rect.size != Vector2i(15, 15):
+		var size_class := str(plot.get("plot_size_class", ""))
+		var resources := int(plot.get("resource_node_count", 0))
+		var target_ramps := int(plot.get("target_ramp_count", 0))
+		if size_class == "" or resources <= 0 or target_ramps <= 0:
 			return false
-	return true
+		match archetype:
+			"FORTRESS_BASE":
+				if rect.size.x > 13 or resources != 1:
+					return false
+			"HOLDFAST_BASE":
+				if rect.size.x < 14 or rect.size.x > 16 or resources != 2:
+					return false
+			"EXPANSION_BASE":
+				if rect.size.x < 18 or resources != 3:
+					return false
+			_:
+				return false
+	return seen.has("FORTRESS_BASE") and seen.has("HOLDFAST_BASE") and seen.has("EXPANSION_BASE")
 
 func _road_network_spans_map(map: Node) -> bool:
 	var feature_grid: Array = map.get("feature_grid")

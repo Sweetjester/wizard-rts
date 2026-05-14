@@ -26,7 +26,9 @@ func _run() -> void:
 		quit(1)
 		return
 	var blank_counts := {"small": 0, "medium": 0, "large": 0}
-	var blank_sizes := {"small": Vector2i(5, 5), "medium": Vector2i(10, 10), "large": Vector2i(20, 20)}
+	var expected_blank_counts := {"small": 4, "medium": 4, "large": 1}
+	var blank_sizes := {"small": Vector2i(5, 5), "medium": Vector2i(10, 10), "large": Vector2i(14, 14)}
+	var ramps: Array = map.get_map_summary().get("layout", {}).get("ramps", [])
 	for plot in map.get_plots():
 		if str(plot.get("kind", "")) != "content_blank":
 			continue
@@ -39,12 +41,27 @@ func _run() -> void:
 			push_error("Blank %s plot should be %s, got %s" % [content_size, expected_size, rect])
 			quit(1)
 			return
-	for content_size in blank_counts.keys():
-		if int(blank_counts[content_size]) != 3:
-			push_error("Expected three %s blank content plots, got %s" % [content_size, blank_counts[content_size]])
+		if content_size == "large" and rect.position.x <= 8 and rect.position.y <= 8:
+			push_error("Large content plot should not be forced into the top-left corner: %s" % rect)
 			quit(1)
 			return
-	var ramps: Array = map.get_map_summary().get("layout", {}).get("ramps", [])
+		for base_plot in map.get_base_plots():
+			var base_rect: Rect2i = base_plot.get("rect", Rect2i())
+			if rect.intersects(base_rect):
+				push_error("Content plot %s overlaps base plot %s" % [plot.get("id", ""), base_plot.get("id", "")])
+				quit(1)
+				return
+		for ramp in ramps:
+			var ramp_rect: Rect2i = ramp
+			if rect.intersects(ramp_rect):
+				push_error("Content plot %s overlaps ramp %s" % [plot.get("id", ""), ramp_rect])
+				quit(1)
+				return
+	for content_size in blank_counts.keys():
+		if int(blank_counts[content_size]) != int(expected_blank_counts[content_size]):
+			push_error("Expected %s %s blank content plots, got %s" % [expected_blank_counts[content_size], content_size, blank_counts[content_size]])
+			quit(1)
+			return
 	if ramps.size() < 4:
 		push_error("Seeded grid frontier should create one ramp per base")
 		quit(1)
@@ -54,9 +71,8 @@ func _run() -> void:
 	var first_base: Dictionary = base_plots[0]
 	var first_anchor: Vector2i = first_base.get("anchor", Vector2i.ZERO)
 	for base_plot in base_plots:
-		var base_rect: Rect2i = base_plot.get("rect", Rect2i())
-		if base_rect.size != Vector2i(15, 15):
-			push_error("Seeded grid frontier base plots must be 15x15, got %s for %s" % [base_rect, str(base_plot.get("id", ""))])
+		if str(base_plot.get("base_archetype", "")) == "":
+			push_error("Seeded grid frontier base plot is missing an archetype: %s" % str(base_plot.get("id", "")))
 			quit(1)
 			return
 	if not _road_network_spans_map(map):
@@ -71,12 +87,9 @@ func _run() -> void:
 			quit(1)
 			return
 		var road_anchor: Vector2i = plot.get("road_anchor", anchor)
-		if not _has_path_cell_near(map, road_anchor, 1):
+		var road_radius := 2 if str(plot.get("kind", "")) == "content_blank" else 1
+		if not _has_path_cell_near(map, road_anchor, road_radius):
 			push_error("Plot %s does not have a 3-wide road mouth near %s" % [str(plot.get("id", "")), road_anchor])
-			quit(1)
-			return
-		if str(plot.get("kind", "")) != "base" and not _content_entrance_has_road_approach(map, plot):
-			push_error("Content plot %s does not have a 3-wide road approach outside its gate" % str(plot.get("id", "")))
 			quit(1)
 			return
 

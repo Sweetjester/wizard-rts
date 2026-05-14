@@ -1,0 +1,95 @@
+{
+  "pack_id": "tiny_swords",
+  "display_name": "Tiny Swords",
+  "tile_size": [64, 64],
+  "pixel_art": true,
+  "runtime_tileset_path": "res://resources/tilesets/tiny_swords_plot_tileset.tres",
+  "supported_visual_tags": [
+    "LOW_GROUND",
+    "HIGH_GROUND",
+    "ROAD",
+    "RAMP",
+    "WATER",
+    "CLIFF_EDGE",
+    "FOREST_BLOCKER",
+    "ROCK_BLOCKER",
+    "BASE_PLOT_MARKER",
+    "CONTENT_PLOT_MARKER",
+    "TREE",
+    "ROCK",
+    "RUIN",
+    "DECOR"
+  ],
+  "terrain_mappings": {
+    "LOW_GROUND": {
+      "kind": "terrain",
+      "terrain_set_id": 0,
+      "terrain_id": 0,
+      "notes": "Grass terrain used by set_cells_terrain_connect()."
+    },
+    "HIGH_GROUND": {
+      "kind": "terrain",
+      "terrain_set_id": 0,
+      "terrain_id": 0,
+      "notes": "Same grass terrain for now; elevation is rendered by layer/height, not by a separate terrain id."
+    },
+    "ROAD": {
+      "kind": "terrain",
+      "terrain_set_id": 3,
+      "terrain_id": 0,
+      "notes": "Road/path terrain used by set_cells_terrain_connect()."
+    }
+  },
+  "prop_mappings": {
+    "WATER": {
+      "kind": "atlas",
+      "source_id": 0,
+      "atlas_coords": [0, 0],
+      "notes": "Temporary atlas fallback until water has a complete terrain set."
+    },
+    "RAMP": {
+      "kind": "atlas_group",
+      "notes": "Needs final ramp terrain/source mapping once ramp assets are classified."
+    },
+    "CLIFF_EDGE": {
+      "kind": "atlas_group",
+      "notes": "Needs final cliff edge terrain/source mapping once cliff tiles are classified."
+    },
+    "FOREST_BLOCKER": {
+      "kind": "source_pool",
+      "source_ids": [10, 11, 12, 13],
+      "atlas_coords": [0, 0]
+    },
+    "ROCK_BLOCKER": {
+      "kind": "source_pool",
+      "source_ids": [14, 15, 16, 17],
+      "atlas_coords": [0, 0]
+    },
+    "BASE_PLOT_MARKER": {
+      "kind": "debug_color",
+      "color": [1.0, 0.86, 0.12, 0.35]
+    },
+    "CONTENT_PLOT_MARKER": {
+      "kind": "debug_color",
+      "color": [0.67, 0.22, 1.0, 0.35]
+    },
+    "TREE": {
+      "kind": "folder",
+      "path": "res://assets_game/props/trees"
+    },
+    "ROCK": {
+      "kind": "folder",
+      "path": "res://assets_game/props/rocks"
+    },
+    "RUIN": {
+      "kind": "folder",
+      "path": "res://assets_game/props/ruins"
+    },
+    "DECOR": {
+      "kind": "folder",
+      "path": "res://assets_game/props/decor"
+    }
+  },
+  "unit_mappings": {},
+  "building_mappings": {}
+}
