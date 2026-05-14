@@ -14,7 +14,8 @@ const PROP_CATEGORY_FOLDERS := {
 	AssetPackConfigResource.RUIN: "res://assets_game/props/ruins",
 	AssetPackConfigResource.DECOR: "res://assets_game/props/decor",
 }
-const SUPPORTED_TEXTURE_EXTENSIONS := ["png", "webp", "jpg", "jpeg"]
+const SUPPORTED_TEXTURE_EXTENSIONS: Array[String] = ["png", "webp", "jpg", "jpeg"]
+const SUPPORTED_MESH_EXTENSIONS: Array[String] = ["glb", "gltf"]
 
 
 func _ready() -> void:
@@ -72,6 +73,7 @@ func _load_json_config(config_path: String) -> Resource:
 	config.prop_mappings = _string_keys_to_string_names(data.get("prop_mappings", {}))
 	config.unit_mappings = _string_keys_to_string_names(data.get("unit_mappings", {}))
 	config.building_mappings = _string_keys_to_string_names(data.get("building_mappings", {}))
+	config.asset_3d_categories = _string_keys_to_string_names(data.get("asset_3d_categories", {}))
 	return config
 
 
@@ -160,7 +162,115 @@ func list_prop_assets(tag: StringName) -> Array[String]:
 	if folder_path == "":
 		push_warning("[AssetRegistry] Unknown prop category '%s'." % tag)
 		return []
-	return _list_texture_assets(folder_path)
+	var mapping := resolve_visual_tag(tag)
+	if not mapping.is_empty() and str(mapping.get("kind", "")) == "folder":
+		folder_path = str(mapping.get("path", folder_path))
+	return _list_assets(folder_path, SUPPORTED_TEXTURE_EXTENSIONS)
+
+
+func list_mesh_assets(tag: StringName) -> Array[String]:
+	var category := resolve_3d_category(tag)
+	if not category.is_empty():
+		return _asset_paths_for_category(category, SUPPORTED_MESH_EXTENSIONS)
+	var mapping := resolve_visual_tag(tag)
+	if mapping.is_empty():
+		return []
+	var kind := str(mapping.get("kind", ""))
+	if kind == "file":
+		var path := str(mapping.get("path", ""))
+		return [path] if _is_supported_extension(path, SUPPORTED_MESH_EXTENSIONS) else []
+	if kind != "folder":
+		return []
+	var extensions: Array = mapping.get("extensions", SUPPORTED_MESH_EXTENSIONS)
+	return _list_assets(str(mapping.get("path", "")), _string_array(extensions))
+
+
+func resolve_3d_category(tag: StringName) -> Dictionary:
+	if _active_pack == null:
+		push_warning("[AssetRegistry] No active asset pack while resolving 3D category '%s'" % tag)
+		return {}
+	var categories: Dictionary = _active_pack.get("asset_3d_categories")
+	if not categories.has(tag):
+		return {}
+	var category: Dictionary = categories[tag]
+	return category
+
+
+func get_3d_categories() -> Array[StringName]:
+	var result: Array[StringName] = []
+	if _active_pack == null:
+		return result
+	var categories: Dictionary = _active_pack.get("asset_3d_categories")
+	for key in categories.keys():
+		result.append(StringName(str(key)))
+	result.sort()
+	return result
+
+
+func get_3d_category_asset_defs(tag: StringName) -> Array[Dictionary]:
+	var category := resolve_3d_category(tag)
+	if category.is_empty():
+		return []
+	var defs: Array[Dictionary] = []
+	if category.has("assets"):
+		for value in category["assets"]:
+			if value is Dictionary:
+				defs.append(value)
+	elif category.has("path"):
+		defs.append(category)
+	elif category.has("folder"):
+		for path in _list_assets(str(category.get("folder", "")), _string_array(category.get("extensions", SUPPORTED_MESH_EXTENSIONS))):
+			var item := category.duplicate(true)
+			item["path"] = path
+			defs.append(item)
+	return defs
+
+
+func load_3d_category_material(tag: StringName) -> Material:
+	var category := resolve_3d_category(tag)
+	if category.is_empty():
+		return null
+	var material_path := str(category.get("material_path", ""))
+	if material_path == "":
+		return null
+	return load(material_path) as Material
+
+
+func list_visual_assets(tag: StringName, extensions: Array[String] = []) -> Array[String]:
+	var mapping := resolve_visual_tag(tag)
+	if mapping.is_empty():
+		return []
+	var active_extensions := extensions
+	if active_extensions.is_empty():
+		active_extensions = []
+		active_extensions.append_array(SUPPORTED_TEXTURE_EXTENSIONS)
+		active_extensions.append_array(SUPPORTED_MESH_EXTENSIONS)
+	var kind := str(mapping.get("kind", ""))
+	if kind == "file":
+		var path := str(mapping.get("path", ""))
+		return [path] if _is_supported_extension(path, active_extensions) else []
+	if kind == "folder":
+		var mapping_extensions: Array = mapping.get("extensions", active_extensions)
+		return _list_assets(str(mapping.get("path", "")), _string_array(mapping_extensions))
+	return []
+
+
+func _asset_paths_for_category(category: Dictionary, extensions: Array[String]) -> Array[String]:
+	var paths: Array[String] = []
+	if category.has("assets"):
+		for value in category["assets"]:
+			if value is Dictionary:
+				var path := str(value.get("path", ""))
+				if _is_supported_extension(path, extensions):
+					paths.append(path)
+		paths.sort()
+		return paths
+	if category.has("path"):
+		var path := str(category.get("path", ""))
+		return [path] if _is_supported_extension(path, extensions) else []
+	if category.has("folder"):
+		return _list_assets(str(category.get("folder", "")), _string_array(category.get("extensions", extensions)))
+	return paths
 
 
 func list_all_prop_assets() -> Dictionary:
@@ -171,13 +281,17 @@ func list_all_prop_assets() -> Dictionary:
 
 
 func _list_texture_assets(folder_path: String) -> Array[String]:
+	return _list_assets(folder_path, SUPPORTED_TEXTURE_EXTENSIONS)
+
+
+func _list_assets(folder_path: String, extensions: Array[String]) -> Array[String]:
 	var assets: Array[String] = []
-	_collect_texture_assets(folder_path, assets)
+	_collect_assets(folder_path, assets, extensions)
 	assets.sort()
 	return assets
 
 
-func _collect_texture_assets(folder_path: String, assets: Array[String]) -> void:
+func _collect_assets(folder_path: String, assets: Array[String], extensions: Array[String]) -> void:
 	var dir := DirAccess.open(folder_path)
 	if dir == null:
 		push_warning("[AssetRegistry] Prop asset folder missing: %s" % folder_path)
@@ -190,12 +304,23 @@ func _collect_texture_assets(folder_path: String, assets: Array[String]) -> void
 			continue
 		var entry_path := folder_path.path_join(entry)
 		if dir.current_is_dir():
-			_collect_texture_assets(entry_path, assets)
-		elif _is_supported_texture(entry):
+			_collect_assets(entry_path, assets, extensions)
+		elif _is_supported_extension(entry, extensions):
 			assets.append(entry_path)
 		entry = dir.get_next()
 	dir.list_dir_end()
 
 
 func _is_supported_texture(file_name: String) -> bool:
-	return SUPPORTED_TEXTURE_EXTENSIONS.has(file_name.get_extension().to_lower())
+	return _is_supported_extension(file_name, SUPPORTED_TEXTURE_EXTENSIONS)
+
+
+func _is_supported_extension(file_name: String, extensions: Array[String]) -> bool:
+	return extensions.has(file_name.get_extension().to_lower())
+
+
+func _string_array(values: Array) -> Array[String]:
+	var result: Array[String] = []
+	for value in values:
+		result.append(str(value).to_lower())
+	return result

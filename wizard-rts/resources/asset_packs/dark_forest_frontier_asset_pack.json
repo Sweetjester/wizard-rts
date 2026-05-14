@@ -1,0 +1,143 @@
+{
+  "pack_id": "DARK_FOREST_FRONTIER",
+  "display_name": "Dark Forest Frontier",
+  "tile_size": [64, 64],
+  "pixel_art": false,
+  "runtime_tileset_path": "res://resources/tilesets/tiny_swords_plot_tileset.tres",
+  "supported_visual_tags": [
+    "LOW_GROUND", "HIGH_GROUND", "ROAD", "RAMP", "WATER", "CLIFF_EDGE",
+    "FOREST_BLOCKER", "ROCK_BLOCKER", "BASE_PLOT_MARKER", "CONTENT_PLOT_MARKER",
+    "TREE", "ROCK", "RUIN", "DECOR"
+  ],
+  "terrain_mappings": {
+    "LOW_GROUND": {"kind": "terrain", "terrain_set_id": 0, "terrain_id": 0},
+    "HIGH_GROUND": {"kind": "terrain", "terrain_set_id": 0, "terrain_id": 0},
+    "ROAD": {"kind": "terrain", "terrain_set_id": 3, "terrain_id": 0}
+  },
+  "prop_mappings": {
+    "WATER": {"kind": "atlas", "source_id": 0, "atlas_coords": [0, 0]},
+    "RAMP": {"kind": "folder", "path": "res://assets_game/terrain/ramps/dark_forest_frontier", "extensions": ["glb"]},
+    "CLIFF_EDGE": {"kind": "folder", "path": "res://assets_game/terrain/cliffs/dark_forest_frontier", "extensions": ["glb"]},
+    "FOREST_BLOCKER": {"kind": "folder", "path": "res://assets_game/props/trees/dark_forest_frontier", "extensions": ["glb"]},
+    "ROCK_BLOCKER": {"kind": "folder", "path": "res://assets_game/props/rocks/dark_forest_frontier", "extensions": ["glb"]},
+    "BASE_PLOT_MARKER": {"kind": "debug_color", "color": [1.0, 0.86, 0.12, 0.35]},
+    "CONTENT_PLOT_MARKER": {"kind": "debug_color", "color": [0.67, 0.22, 1.0, 0.35]},
+    "TREE": {"kind": "folder", "path": "res://assets_game/props/trees/dark_forest_frontier", "extensions": ["glb"]},
+    "ROCK": {"kind": "folder", "path": "res://assets_game/props/rocks/dark_forest_frontier", "extensions": ["glb"]},
+    "RUIN": {"kind": "folder", "path": "res://assets_game/props/ruins/dark_forest_frontier", "extensions": ["glb"]},
+    "DECOR": {"kind": "folder", "path": "res://assets_game/props/decor/dark_forest_frontier", "extensions": ["glb"]}
+  },
+  "asset_3d_categories": {
+    "LOW_GROUND_TILE": {
+      "biome": "DARK_FOREST_FRONTIER",
+      "material_path": "res://resources/materials/dark_forest_low_ground.tres",
+      "footprint": [1, 1]
+    },
+    "HIGH_GROUND_TILE": {
+      "biome": "DARK_FOREST_FRONTIER",
+      "material_path": "res://resources/materials/dark_forest_high_ground.tres",
+      "footprint": [1, 1]
+    },
+    "ROAD_TILE": {
+      "biome": "DARK_FOREST_FRONTIER",
+      "material_path": "res://resources/materials/dark_forest_muddy_road.tres",
+      "footprint": [1, 1]
+    },
+    "WATER_TILE": {
+      "biome": "DARK_FOREST_FRONTIER",
+      "material_path": "res://resources/materials/dark_forest_water.tres",
+      "footprint": [1, 1],
+      "height_offset": -0.22
+    },
+    "CLIFF_SIDE": {
+      "biome": "DARK_FOREST_FRONTIER",
+      "assets": [
+        {"path": "res://assets_game/terrain/cliffs/dark_forest_frontier/df_cliff_side_a.glb", "footprint": [1, 1], "height_offset": 0.0, "rotation_random": false}
+      ]
+    },
+    "CLIFF_CORNER": {
+      "biome": "DARK_FOREST_FRONTIER",
+      "assets": [
+        {"path": "res://assets_game/terrain/cliffs/dark_forest_frontier/df_cliff_corner_a.glb", "footprint": [1, 1], "height_offset": 0.0, "rotation_random": false}
+      ]
+    },
+    "RAMP_MESH": {
+      "biome": "DARK_FOREST_FRONTIER",
+      "assets": [
+        {"path": "res://assets_game/terrain/ramps/dark_forest_frontier/df_ramp_narrow_a.glb", "footprint": [1, 1], "height_offset": 0.0, "rotation_random": false},
+        {"path": "res://assets_game/terrain/ramps/dark_forest_frontier/df_ramp_wide_a.glb", "footprint": [2, 1], "height_offset": 0.0, "rotation_random": false}
+      ]
+    },
+    "TREE_BLOCKER": {
+      "biome": "DARK_FOREST_FRONTIER",
+      "assets": [
+        {"path": "res://assets_game/props/trees/dark_forest_frontier/df_dead_tree_blocker_a.glb", "footprint": [1, 1], "height_offset": 0.0, "rotation_random": true, "scale_random": [0.88, 1.08]},
+        {"path": "res://assets_game/props/trees/dark_forest_frontier/df_dead_tree_blocker_b.glb", "footprint": [1, 1], "height_offset": 0.0, "rotation_random": true, "scale_random": [0.9, 1.12]}
+      ]
+    },
+    "ROCK_BLOCKER": {
+      "biome": "DARK_FOREST_FRONTIER",
+      "assets": [
+        {"path": "res://assets_game/props/rocks/dark_forest_frontier/df_rock_blocker_a.glb", "footprint": [1, 1], "height_offset": 0.0, "rotation_random": true, "scale_random": [0.9, 1.08]},
+        {"path": "res://assets_game/props/rocks/dark_forest_frontier/df_rock_blocker_b.glb", "footprint": [1, 1], "height_offset": 0.0, "rotation_random": true, "scale_random": [0.9, 1.1]}
+      ]
+    },
+    "MUSHROOM_BLOCKER": {
+      "biome": "DARK_FOREST_FRONTIER",
+      "assets": [
+        {"path": "res://assets_game/props/mushrooms/dark_forest_frontier/df_mushroom_blocker_a.glb", "footprint": [1, 1], "height_offset": 0.0, "rotation_random": true, "scale_random": [0.9, 1.12]},
+        {"path": "res://assets_game/props/mushrooms/dark_forest_frontier/df_mushroom_blocker_b.glb", "footprint": [1, 1], "height_offset": 0.0, "rotation_random": true, "scale_random": [0.9, 1.15]}
+      ]
+    },
+    "ROOT_BLOCKER": {
+      "biome": "DARK_FOREST_FRONTIER",
+      "assets": [
+        {"path": "res://assets_game/props/roots/dark_forest_frontier/df_twisted_root_blocker_a.glb", "footprint": [1, 1], "height_offset": 0.0, "rotation_random": true, "scale_random": [0.92, 1.12]}
+      ]
+    },
+    "RUIN_PROP": {
+      "biome": "DARK_FOREST_FRONTIER",
+      "assets": [
+        {"path": "res://assets_game/props/ruins/dark_forest_frontier/df_ruined_shrine_a.glb", "footprint": [2, 1], "height_offset": 0.0, "rotation_random": true, "scale_random": [0.85, 1.0]}
+      ]
+    },
+    "SHRINE_PROP": {
+      "biome": "DARK_FOREST_FRONTIER",
+      "assets": [
+        {"path": "res://assets_game/props/ruins/dark_forest_frontier/df_ruined_shrine_a.glb", "footprint": [2, 1], "height_offset": 0.0, "rotation_random": true, "scale_random": [1.0, 1.18]}
+      ]
+    },
+    "TORCH_PROP": {
+      "biome": "DARK_FOREST_FRONTIER",
+      "assets": [
+        {"path": "res://assets_game/props/decor/dark_forest_frontier/df_torch_prop_a.glb", "footprint": [1, 1], "height_offset": 0.0, "rotation_random": true, "scale_random": [0.95, 1.05]}
+      ]
+    },
+    "ROAD_DECOR": {
+      "biome": "DARK_FOREST_FRONTIER",
+      "assets": [
+        {"path": "res://assets_game/props/roots/dark_forest_frontier/df_twisted_root_blocker_a.glb", "footprint": [1, 1], "height_offset": 0.02, "rotation_random": true, "scale_random": [0.45, 0.68]}
+      ]
+    },
+    "WATER_EDGE_DECOR": {
+      "biome": "DARK_FOREST_FRONTIER",
+      "assets": [
+        {"path": "res://assets_game/props/rocks/dark_forest_frontier/df_rock_blocker_a.glb", "footprint": [1, 1], "height_offset": 0.0, "rotation_random": true, "scale_random": [0.35, 0.55]}
+      ]
+    },
+    "BASE_PLOT_MARKER": {
+      "biome": "DARK_FOREST_FRONTIER",
+      "material_path": "res://resources/materials/dark_forest_base_plot_marker.tres"
+    },
+    "CONTENT_PLOT_MARKER": {
+      "biome": "DARK_FOREST_FRONTIER",
+      "material_path": "res://resources/materials/dark_forest_content_plot_marker.tres"
+    },
+    "OUTPOST_MARKER": {
+      "biome": "DARK_FOREST_FRONTIER",
+      "material_path": "res://resources/materials/dark_forest_outpost_marker.tres"
+    }
+  },
+  "unit_mappings": {},
+  "building_mappings": {}
+}

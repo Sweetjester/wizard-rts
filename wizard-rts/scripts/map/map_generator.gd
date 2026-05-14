@@ -62,6 +62,14 @@ const BASE_ARCHETYPE_HOLDFAST := "HOLDFAST_BASE"
 const BASE_ARCHETYPE_EXPANSION := "EXPANSION_BASE"
 const ROAD_MODE_GRID_ARTERIES := "grid_arteries"
 const ROAD_MODE_ORGANIC_SPINE_AND_BRANCHES := "organic_spine_and_branches"
+const BIOME_DARK_FOREST_FRONTIER_V2 := "DARK_FOREST_FRONTIER_V2"
+const LANDMARK_GIANT_CORRUPTED_TREE := "giant_corrupted_tree"
+const LANDMARK_ELEVATED_SHRINE_PLATEAU := "elevated_shrine_plateau"
+const LANDMARK_DEAD_ROOT_MAZE := "dead_root_maze"
+const LANDMARK_MUSHROOM_RITUAL_CIRCLE := "mushroom_ritual_circle"
+const LANDMARK_CLIFF_WALL_BARRIER := "cliff_wall_barrier"
+const LANDMARK_BROKEN_RUIN_CLUSTER := "broken_ruin_cluster"
+const LANDMARK_SWAMP_BASIN := "swamp_basin"
 const FRONTIER_MAIN_SPINE_ROAD_WIDTH := 3
 const FRONTIER_BRANCH_ROAD_WIDTH := 2
 const FRONTIER_PLOT_APPROACH_ROAD_WIDTH := 2
@@ -171,9 +179,14 @@ func _ready() -> void:
 	_build_elevation_zones()
 	_stamp_plots_into_grid()
 	_flatten_tiny_high_fragments()
+	if map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER:
+		_build_landmarks()
 	_build_roads()
+	_flatten_tiny_high_fragments()
 	_validate_frontier_elevation_layout(true)
-	_build_landmarks()
+	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+		_build_landmarks()
+	_validate_frontier_landmarks(true)
 	_build_height_and_cost_maps()
 	_build_pathfinder()
 	_paint()
@@ -2426,6 +2439,7 @@ func _build_frontier_road_network() -> void:
 			if not is_in_bounds(spine_target):
 				spine_target = Vector2i(FRONTIER_MAIN_ROAD_X, FRONTIER_MAIN_ROAD_Y)
 			_carve_frontier_road(anchor, spine_target, int(plot.get("ramp_width", FRONTIER_MAIN_SPINE_ROAD_WIDTH)))
+	_carve_frontier_landmark_approaches(false)
 
 func _build_frontier_organic_spine_and_branches() -> void:
 	_frontier_road_debug = {
@@ -2456,6 +2470,7 @@ func _build_frontier_organic_spine_and_branches() -> void:
 			var branch_width: int = int(plot.get("ramp_width", FRONTIER_BRANCH_ROAD_WIDTH)) if str(plot.get("kind", "")) == "base" else FRONTIER_BRANCH_ROAD_WIDTH
 			_carve_frontier_organic_road(anchor, connection, 101 + branch_count, branch_width)
 			branch_count += 1
+	branch_count += _carve_frontier_landmark_approaches(true, branch_count)
 	_connect_frontier_road_components()
 	_frontier_road_debug["branch_count"] = branch_count
 	_frontier_road_debug["branch_road_cells"] = road_cells.size() - roads_before_branches
@@ -2554,7 +2569,39 @@ func _frontier_important_road_anchors() -> Array[Vector2i]:
 				anchor = nearest_walkable_cell(anchor, 8)
 				if is_in_bounds(anchor):
 					anchors.append(anchor)
+	for anchor in _frontier_landmark_road_anchors():
+		anchor = nearest_walkable_cell(anchor, 8)
+		if is_in_bounds(anchor):
+			anchors.append(anchor)
 	return anchors
+
+func _frontier_landmark_road_anchors() -> Array[Vector2i]:
+	var anchors: Array[Vector2i] = []
+	for landmark in landmarks:
+		if not bool(landmark.get("road_interest", false)):
+			continue
+		var anchor: Vector2i = landmark.get("road_anchor", landmark.get("center", Vector2i(-1, -1)))
+		if is_in_bounds(anchor):
+			anchors.append(anchor)
+	return anchors
+
+func _carve_frontier_landmark_approaches(organic: bool, salt_offset: int = 0) -> int:
+	var branch_count := 0
+	for anchor in _frontier_landmark_road_anchors():
+		anchor = nearest_walkable_cell(anchor, 8)
+		if not is_in_bounds(anchor):
+			continue
+		var connection := _nearest_road_cell(anchor, road_cells, 96)
+		if not is_in_bounds(connection):
+			connection = _frontier_spine_target_for_anchor(anchor)
+		if not is_in_bounds(connection):
+			connection = Vector2i(FRONTIER_MAIN_ROAD_X, FRONTIER_MAIN_ROAD_Y)
+		if organic:
+			_carve_frontier_organic_road(anchor, connection, 401 + salt_offset + branch_count, FRONTIER_BRANCH_ROAD_WIDTH)
+		else:
+			_carve_frontier_road(anchor, connection, FRONTIER_BRANCH_ROAD_WIDTH)
+		branch_count += 1
+	return branch_count
 
 func _dedupe_valid_cells(cells: Array[Vector2i]) -> Array[Vector2i]:
 	var deduped: Array[Vector2i] = []
@@ -2635,6 +2682,12 @@ func _validate_frontier_organic_road_network() -> Dictionary:
 		var ramp_center := ramp.position + Vector2i(ramp.size.x / 2, ramp.size.y / 2)
 		if not is_in_bounds(_nearest_road_cell(ramp_center, road_cells, 4)):
 			return {"passed": false, "reason": "ramp disconnected at %s" % ramp_center}
+	for landmark in landmarks:
+		if not bool(landmark.get("road_interest", false)):
+			continue
+		var anchor: Vector2i = landmark.get("road_anchor", landmark.get("center", Vector2i(-1, -1)))
+		if not is_in_bounds(_nearest_road_cell(anchor, road_cells, 8)):
+			return {"passed": false, "reason": "landmark road disconnected: %s" % landmark.get("id", "<unknown>")}
 	return {"passed": true, "reason": "ok"}
 
 func _carve_frontier_arterial_roads() -> void:
@@ -3188,6 +3241,45 @@ func _validate_frontier_elevation_layout(verbose: bool = false) -> bool:
 				push_warning("[MapGenerator] Elevation validation failed: " + error)
 	return passed
 
+func _validate_frontier_landmarks(verbose: bool = false) -> bool:
+	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+		return true
+	var errors: Array[String] = []
+	var start := _road_validation_start_cell(Vector2i(FRONTIER_MAIN_ROAD_X, FRONTIER_MAIN_ROAD_Y))
+	var reachable_walkable := _flood_walkable_cells(start)
+	for landmark in landmarks:
+		var center: Vector2i = landmark.get("center", Vector2i(-1, -1))
+		var rect: Rect2i = landmark.get("rect", Rect2i())
+		if not is_in_bounds(center):
+			errors.append("%s center out of bounds" % landmark.get("id", "<unknown>"))
+		for plot in plots:
+			var plot_rect: Rect2i = plot.get("rect", Rect2i())
+			if rect.size != Vector2i.ZERO and plot_rect.size != Vector2i.ZERO and rect.intersects(plot_rect):
+				errors.append("%s overlaps plot %s" % [landmark.get("id", "<unknown>"), plot.get("id", "<unknown>")])
+			for ramp_rect in _plot_ramp_rects(plot):
+				if rect.size != Vector2i.ZERO and rect.intersects(ramp_rect):
+					errors.append("%s overlaps plot ramp %s" % [landmark.get("id", "<unknown>"), plot.get("id", "<unknown>")])
+		var anchor: Vector2i = landmark.get("road_anchor", center)
+		var reachable_anchor := nearest_walkable_cell(anchor, 10)
+		if bool(landmark.get("road_interest", false)):
+			var nearest_road := _nearest_road_cell(reachable_anchor, road_cells, 8)
+			if not is_in_bounds(nearest_road):
+				errors.append("%s has no nearby road" % landmark.get("id", "<unknown>"))
+		if is_in_bounds(reachable_anchor) and not reachable_walkable.has(reachable_anchor):
+			errors.append("%s anchor unreachable at %s" % [landmark.get("id", "<unknown>"), reachable_anchor])
+		landmark["validation"] = "ok"
+	var passed := errors.is_empty()
+	if not passed:
+		for landmark in landmarks:
+			landmark["validation"] = "check_warnings"
+	if verbose:
+		if passed:
+			print("[MapGenerator] Landmark validation passed. count=", landmarks.size())
+		else:
+			for error in errors:
+				push_warning("[MapGenerator] Landmark validation failed: " + error)
+	return passed
+
 func _validate_frontier_plateau_generation(verbose: bool = false) -> bool:
 	var errors: Array[String] = []
 	for plot in plots:
@@ -3238,9 +3330,22 @@ func _flatten_tiny_high_fragments() -> void:
 			continue
 		for cell_value in zone:
 			var cell: Vector2i = cell_value
-			if is_in_bounds(cell) and feature_grid[cell.x][cell.y] == "high_zone":
+			if is_in_bounds(cell) and not _is_cell_inside_plot_or_ramp(cell):
 				grid[cell.x][cell.y] = E_LOW
 				feature_grid[cell.x][cell.y] = "frontier_canvas"
+
+func _is_cell_inside_plot_or_ramp(cell: Vector2i) -> bool:
+	for plot in plots:
+		var rect: Rect2i = plot.get("rect", Rect2i())
+		if rect.has_point(cell):
+			return true
+		for ramp_rect in _plot_ramp_rects(plot):
+			if ramp_rect.has_point(cell):
+				return true
+	for ramp in ramps:
+		if ramp.has_point(cell):
+			return true
+	return false
 
 func _collect_elevation_zones(elevation: int) -> Array[Array]:
 	var zones: Array[Array] = []
@@ -3339,6 +3444,7 @@ func _restore_road_cells(new_roads: Dictionary) -> void:
 func _build_landmarks() -> void:
 	landmarks.clear()
 	if map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER:
+		_build_frontier_landmarks()
 		_build_frontier_blockers()
 		return
 	if _uses_square_grid_map():
@@ -3364,6 +3470,258 @@ func _build_landmarks() -> void:
 				if is_in_bounds(stem) and feature_grid[x][y] == "":
 					grid[x][y] = E_BLOCKED
 					feature_grid[x][y] = "giant_mushroom"
+
+func _frontier_landmark_archetypes() -> Array[Dictionary]:
+	return [
+		{"kind": LANDMARK_GIANT_CORRUPTED_TREE, "label": "Giant Corrupted Tree", "rarity": "major", "weight": 12, "radius": Vector2i(6, 6), "road_interest": true, "blocker_density": 0.78, "navigation_role": "central blocker and visual anchor"},
+		{"kind": LANDMARK_ELEVATED_SHRINE_PLATEAU, "label": "Elevated Shrine Plateau", "rarity": "major", "weight": 9, "radius": Vector2i(5, 5), "road_interest": true, "blocker_density": 0.36, "navigation_role": "high-ground side objective with ramp choke"},
+		{"kind": LANDMARK_DEAD_ROOT_MAZE, "label": "Dead Root Maze", "rarity": "uncommon", "weight": 14, "radius": Vector2i(7, 5), "road_interest": true, "blocker_density": 0.66, "navigation_role": "maze-like blocker field and soft choke"},
+		{"kind": LANDMARK_MUSHROOM_RITUAL_CIRCLE, "label": "Mushroom Ritual Circle", "rarity": "uncommon", "weight": 15, "radius": Vector2i(5, 5), "road_interest": true, "blocker_density": 0.32, "navigation_role": "open visible ritual clearing"},
+		{"kind": LANDMARK_CLIFF_WALL_BARRIER, "label": "Cliff Wall Barrier", "rarity": "uncommon", "weight": 10, "radius": Vector2i(8, 3), "road_interest": false, "blocker_density": 0.82, "navigation_role": "hard barrier with a readable gap"},
+		{"kind": LANDMARK_BROKEN_RUIN_CLUSTER, "label": "Broken Ruin Cluster", "rarity": "common", "weight": 17, "radius": Vector2i(5, 4), "road_interest": true, "blocker_density": 0.42, "navigation_role": "ruin landmark beside route"},
+		{"kind": LANDMARK_SWAMP_BASIN, "label": "Swamp Basin", "rarity": "common", "weight": 13, "radius": Vector2i(6, 4), "road_interest": false, "blocker_density": 0.28, "navigation_role": "water obstacle that bends roads"},
+	]
+
+func _build_frontier_landmarks() -> void:
+	var target_count := _rng.range_int(3, 5)
+	var used_major := false
+	var attempts := 0
+	while landmarks.size() < target_count and attempts < 360:
+		attempts += 1
+		var archetype := _choose_frontier_landmark_archetype(used_major)
+		var radius: Vector2i = archetype["radius"]
+		var center := Vector2i(_rng.range_int(10 + radius.x, MAP_W - 11 - radius.x), _rng.range_int(10 + radius.y, MAP_H - 11 - radius.y))
+		var rect := Rect2i(center - radius, radius * 2 + Vector2i.ONE)
+		var clear_margin := 3
+		if attempts > 160:
+			clear_margin = 1
+		if attempts > 260:
+			clear_margin = 0
+		if not _frontier_landmark_area_clear(rect, clear_margin):
+			continue
+		var landmark := {
+			"id": "landmark_%02d" % landmarks.size(),
+			"kind": archetype["kind"],
+			"archetype": archetype["kind"],
+			"label": archetype["label"],
+			"biome": BIOME_DARK_FOREST_FRONTIER_V2,
+			"rarity": archetype["rarity"],
+			"center": center,
+			"rect": rect,
+			"radius": radius,
+			"road_interest": bool(archetype["road_interest"]),
+			"blocker_density": float(archetype["blocker_density"]),
+			"navigation_role": archetype["navigation_role"],
+			"footprint_cells": [],
+			"blocked_cells": [],
+			"water_cells": [],
+			"ramp_rects": [],
+			"road_anchor": center,
+			"validation": "pending",
+		}
+		match str(archetype["kind"]):
+			LANDMARK_GIANT_CORRUPTED_TREE:
+				_stamp_giant_corrupted_tree_landmark(landmark)
+			LANDMARK_ELEVATED_SHRINE_PLATEAU:
+				_stamp_elevated_shrine_plateau_landmark(landmark)
+			LANDMARK_DEAD_ROOT_MAZE:
+				_stamp_dead_root_maze_landmark(landmark)
+			LANDMARK_MUSHROOM_RITUAL_CIRCLE:
+				_stamp_mushroom_ritual_circle_landmark(landmark)
+			LANDMARK_CLIFF_WALL_BARRIER:
+				_stamp_cliff_wall_barrier_landmark(landmark)
+			LANDMARK_BROKEN_RUIN_CLUSTER:
+				_stamp_broken_ruin_cluster_landmark(landmark)
+			LANDMARK_SWAMP_BASIN:
+				_stamp_swamp_basin_landmark(landmark)
+		if landmark["footprint_cells"].is_empty():
+			continue
+		landmark["footprint_size"] = landmark["footprint_cells"].size()
+		landmark["blocked_count"] = landmark["blocked_cells"].size()
+		landmark["water_count"] = landmark["water_cells"].size()
+		landmarks.append(landmark)
+		if str(archetype["rarity"]) == "major":
+			used_major = true
+	print("[MapGenerator] Frontier landmarks: count=", landmarks.size(), " target=", target_count, " attempts=", attempts, " biome=", BIOME_DARK_FOREST_FRONTIER_V2)
+	for landmark in landmarks:
+		print("[MapGenerator] Landmark ",
+			landmark.get("id", "?"),
+			" kind=", landmark.get("kind", "?"),
+			" rarity=", landmark.get("rarity", "?"),
+			" center=", landmark.get("center", Vector2i.ZERO),
+			" footprint=", landmark.get("footprint_size", 0),
+			" blockers=", landmark.get("blocked_count", 0),
+			" water=", landmark.get("water_count", 0),
+			" road_anchor=", landmark.get("road_anchor", Vector2i.ZERO),
+			" role=", landmark.get("navigation_role", ""))
+
+func _choose_frontier_landmark_archetype(used_major: bool) -> Dictionary:
+	var choices := _frontier_landmark_archetypes()
+	var total_weight := 0
+	for choice in choices:
+		if used_major and str(choice.get("rarity", "")) == "major":
+			continue
+		total_weight += int(choice.get("weight", 1))
+	var roll := _rng.range_int(1, maxi(1, total_weight))
+	var cursor := 0
+	for choice in choices:
+		if used_major and str(choice.get("rarity", "")) == "major":
+			continue
+		cursor += int(choice.get("weight", 1))
+		if roll <= cursor:
+			return choice
+	return choices[0]
+
+func _frontier_landmark_area_clear(rect: Rect2i, margin: int) -> bool:
+	if rect.position.x < 4 or rect.position.y < 4 or rect.end.x >= MAP_W - 4 or rect.end.y >= MAP_H - 4:
+		return false
+	var expanded := _expanded_rect(rect, margin)
+	for existing in landmarks:
+		var existing_rect: Rect2i = existing.get("rect", Rect2i())
+		if existing_rect.size != Vector2i.ZERO and expanded.intersects(existing_rect):
+			return false
+	for x in range(expanded.position.x, expanded.end.x):
+		for y in range(expanded.position.y, expanded.end.y):
+			var cell := Vector2i(x, y)
+			if not is_in_bounds(cell) or _is_frontier_reserved(cell, 1):
+				return false
+	return true
+
+func _stamp_landmark_cell(landmark: Dictionary, cell: Vector2i, elevation: int, feature: String) -> void:
+	if not is_in_bounds(cell) or _is_frontier_reserved(cell, 0):
+		return
+	grid[cell.x][cell.y] = elevation
+	feature_grid[cell.x][cell.y] = feature
+	landmark["footprint_cells"].append(cell)
+	if elevation == E_BLOCKED:
+		landmark["blocked_cells"].append(cell)
+	elif elevation == E_WATER:
+		landmark["water_cells"].append(cell)
+
+func _stamp_giant_corrupted_tree_landmark(landmark: Dictionary) -> void:
+	var center: Vector2i = landmark["center"]
+	var radius: Vector2i = landmark["radius"]
+	for x in range(center.x - radius.x, center.x + radius.x + 1):
+		for y in range(center.y - radius.y, center.y + radius.y + 1):
+			var cell := Vector2i(x, y)
+			var dist: float = Vector2(cell - center).length()
+			var trunk: bool = abs(cell.x - center.x) <= 1 and abs(cell.y - center.y) <= 1
+			var root_arm: bool = (abs(cell.x - center.x) <= 1 or abs(cell.y - center.y) <= 1) and dist <= float(radius.x)
+			var crooked_root: bool = _hash_cell(cell, 601) % 100 < 22 and dist <= float(radius.x)
+			if trunk or root_arm or crooked_root:
+				_stamp_landmark_cell(landmark, cell, E_BLOCKED, "landmark_giant_tree")
+			elif dist <= float(radius.x) and _hash_cell(cell, 603) % 100 < 12:
+				_stamp_landmark_cell(landmark, cell, E_BLOCKED, "landmark_mushroom_glow")
+	landmark["road_anchor"] = nearest_walkable_cell(center + Vector2i(0, radius.y + 2), 8)
+
+func _stamp_elevated_shrine_plateau_landmark(landmark: Dictionary) -> void:
+	var center: Vector2i = landmark["center"]
+	var radius: Vector2i = landmark["radius"]
+	var rect := Rect2i(center - Vector2i(radius.x - 1, radius.y - 1), (radius - Vector2i.ONE) * 2 + Vector2i.ONE)
+	for x in range(rect.position.x, rect.end.x):
+		for y in range(rect.position.y, rect.end.y):
+			var cell := Vector2i(x, y)
+			var dx := float(x - center.x) / maxf(1.0, float(radius.x))
+			var dy := float(y - center.y) / maxf(1.0, float(radius.y))
+			if dx * dx + dy * dy <= 0.92:
+				_stamp_landmark_cell(landmark, cell, E_HIGH, "landmark_shrine_plateau")
+	var map_center := Vector2i(MAP_W / 2, MAP_H / 2)
+	var delta := map_center - center
+	var dir := Vector2i.RIGHT
+	if abs(delta.x) >= abs(delta.y):
+		dir = Vector2i.RIGHT if delta.x >= 0 else Vector2i.LEFT
+	else:
+		dir = Vector2i.DOWN if delta.y >= 0 else Vector2i.UP
+	var edge_cell := center
+	if dir == Vector2i.RIGHT:
+		edge_cell = Vector2i(rect.end.x - 1, center.y)
+	elif dir == Vector2i.LEFT:
+		edge_cell = Vector2i(rect.position.x, center.y)
+	elif dir == Vector2i.DOWN:
+		edge_cell = Vector2i(center.x, rect.end.y - 1)
+	else:
+		edge_cell = Vector2i(center.x, rect.position.y)
+	var ramp_rect := _ramp_rect_from_edge(edge_cell, dir, 2)
+	landmark["ramp_rects"].append(ramp_rect)
+	if not ramps.has(ramp_rect):
+		ramps.append(ramp_rect)
+	for x in range(ramp_rect.position.x, ramp_rect.end.x):
+		for y in range(ramp_rect.position.y, ramp_rect.end.y):
+			_stamp_landmark_cell(landmark, Vector2i(x, y), E_RAMP, "ramp")
+	landmark["road_anchor"] = nearest_walkable_cell(edge_cell + dir * 4, 8)
+
+func _stamp_dead_root_maze_landmark(landmark: Dictionary) -> void:
+	var center: Vector2i = landmark["center"]
+	var radius: Vector2i = landmark["radius"]
+	for x in range(center.x - radius.x, center.x + radius.x + 1):
+		for y in range(center.y - radius.y, center.y + radius.y + 1):
+			var cell := Vector2i(x, y)
+			var dx: int = abs(x - center.x)
+			var dy: int = abs(y - center.y)
+			var lane_gap: bool = dx <= 1 or dy <= 1 or (dx + dy) % 5 == 0
+			var root_wall: bool = not lane_gap and (dx % 3 == 0 or dy % 3 == 0 or _hash_cell(cell, 607) % 100 < 18)
+			if root_wall:
+				_stamp_landmark_cell(landmark, cell, E_BLOCKED, "landmark_root_wall")
+	landmark["road_anchor"] = nearest_walkable_cell(center, 9)
+
+func _stamp_mushroom_ritual_circle_landmark(landmark: Dictionary) -> void:
+	var center: Vector2i = landmark["center"]
+	var radius: Vector2i = landmark["radius"]
+	for x in range(center.x - radius.x, center.x + radius.x + 1):
+		for y in range(center.y - radius.y, center.y + radius.y + 1):
+			var cell := Vector2i(x, y)
+			var dist := Vector2(cell - center).length()
+			if dist <= float(radius.x):
+				if abs(dist - float(radius.x - 1)) < 0.85 or _hash_cell(cell, 611) % 100 < 8:
+					_stamp_landmark_cell(landmark, cell, E_BLOCKED, "landmark_mushroom_circle")
+				elif _hash_cell(cell, 613) % 100 < 20:
+					_stamp_landmark_cell(landmark, cell, E_LOW, "landmark_mushroom_floor")
+	landmark["road_anchor"] = nearest_walkable_cell(center + Vector2i(radius.x + 1, 0), 8)
+
+func _stamp_cliff_wall_barrier_landmark(landmark: Dictionary) -> void:
+	var center: Vector2i = landmark["center"]
+	var radius: Vector2i = landmark["radius"]
+	var horizontal: bool = _hash_cell(center, 617) % 2 == 0
+	var gap_offset: int = _rng.range_int(-2, 2)
+	for i in range(-radius.x, radius.x + 1):
+		for thickness in range(-1, 2):
+			var cell: Vector2i = Vector2i(center.x + i, center.y + thickness) if horizontal else Vector2i(center.x + thickness, center.y + i)
+			var gap: bool = abs(i - gap_offset) <= 1
+			if gap:
+				continue
+			_stamp_landmark_cell(landmark, cell, E_BLOCKED, "landmark_cliff_wall")
+	landmark["road_anchor"] = nearest_walkable_cell(center + (Vector2i(gap_offset, 0) if horizontal else Vector2i(0, gap_offset)), 5)
+
+func _stamp_broken_ruin_cluster_landmark(landmark: Dictionary) -> void:
+	var center: Vector2i = landmark["center"]
+	var radius: Vector2i = landmark["radius"]
+	for x in range(center.x - radius.x, center.x + radius.x + 1):
+		for y in range(center.y - radius.y, center.y + radius.y + 1):
+			var cell := Vector2i(x, y)
+			var dx: int = abs(x - center.x)
+			var dy: int = abs(y - center.y)
+			var arch: bool = (dx == radius.x - 1 and dy <= 2) or (dy == radius.y - 1 and dx <= 2)
+			var rubble: bool = _hash_cell(cell, 619) % 100 < 18 and dx + dy > 2
+			if arch or rubble:
+				_stamp_landmark_cell(landmark, cell, E_BLOCKED, "landmark_ruin")
+			elif dx <= 1 and dy <= 1:
+				_stamp_landmark_cell(landmark, cell, E_LOW, "landmark_ruin_floor")
+	landmark["road_anchor"] = nearest_walkable_cell(center + Vector2i(0, radius.y + 1), 8)
+
+func _stamp_swamp_basin_landmark(landmark: Dictionary) -> void:
+	var center: Vector2i = landmark["center"]
+	var radius: Vector2i = landmark["radius"]
+	for x in range(center.x - radius.x, center.x + radius.x + 1):
+		for y in range(center.y - radius.y, center.y + radius.y + 1):
+			var cell := Vector2i(x, y)
+			var dx := float(x - center.x) / maxf(1.0, float(radius.x))
+			var dy := float(y - center.y) / maxf(1.0, float(radius.y))
+			var score := dx * dx + dy * dy
+			if score <= 0.58:
+				_stamp_landmark_cell(landmark, cell, E_WATER, "landmark_swamp_basin")
+			elif score <= 0.9 and _hash_cell(cell, 623) % 100 < 24:
+				_stamp_landmark_cell(landmark, cell, E_BLOCKED, "landmark_swamp_root")
+	landmark["road_anchor"] = nearest_walkable_cell(center + Vector2i(radius.x + 2, 0), 8)
 
 func _build_frontier_blockers() -> void:
 	var lake_count := _rng.range_int(4, 7)
@@ -3418,6 +3776,10 @@ func _is_frontier_reserved(cell: Vector2i, margin: int) -> bool:
 		for ramp_rect in _plot_ramp_rects(plot):
 			if _expanded_rect(ramp_rect, margin).has_point(cell):
 				return true
+	for landmark in landmarks:
+		var landmark_rect: Rect2i = landmark.get("rect", Rect2i())
+		if landmark_rect.size != Vector2i.ZERO and _expanded_rect(landmark_rect, margin).has_point(cell):
+			return true
 	return false
 
 func _dominant_elevation_near(cell: Vector2i) -> int:

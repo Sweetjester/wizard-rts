@@ -26,6 +26,7 @@ const DECOR := &"DECOR"
 @export var prop_mappings: Dictionary = {}
 @export var unit_mappings: Dictionary = {}
 @export var building_mappings: Dictionary = {}
+@export var asset_3d_categories: Dictionary = {}
 
 
 func has_visual_tag(tag: StringName) -> bool:
@@ -33,7 +34,8 @@ func has_visual_tag(tag: StringName) -> bool:
 		or terrain_mappings.has(tag) \
 		or prop_mappings.has(tag) \
 		or unit_mappings.has(tag) \
-		or building_mappings.has(tag)
+		or building_mappings.has(tag) \
+		or asset_3d_categories.has(tag)
 
 
 func resolve_mapping(tag: StringName) -> Dictionary:
@@ -45,6 +47,8 @@ func resolve_mapping(tag: StringName) -> Dictionary:
 		return unit_mappings[tag]
 	if building_mappings.has(tag):
 		return building_mappings[tag]
+	if asset_3d_categories.has(tag):
+		return asset_3d_categories[tag]
 	return {}
 
 

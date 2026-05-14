@@ -1,0 +1,97 @@
+{
+  "pack_id": "DARK_FOREST_FRONTIER_V1",
+  "display_name": "Dark Forest Frontier V1",
+  "tile_size": [64, 64],
+  "pixel_art": false,
+  "runtime_tileset_path": "res://resources/tilesets/tiny_swords_plot_tileset.tres",
+  "supported_visual_tags": [
+    "LOW_GROUND",
+    "HIGH_GROUND",
+    "ROAD",
+    "RAMP",
+    "WATER",
+    "CLIFF_EDGE",
+    "FOREST_BLOCKER",
+    "ROCK_BLOCKER",
+    "BASE_PLOT_MARKER",
+    "CONTENT_PLOT_MARKER",
+    "TREE",
+    "ROCK",
+    "RUIN",
+    "DECOR"
+  ],
+  "terrain_mappings": {
+    "LOW_GROUND": {
+      "kind": "terrain",
+      "terrain_set_id": 0,
+      "terrain_id": 0
+    },
+    "HIGH_GROUND": {
+      "kind": "terrain",
+      "terrain_set_id": 0,
+      "terrain_id": 0
+    },
+    "ROAD": {
+      "kind": "terrain",
+      "terrain_set_id": 3,
+      "terrain_id": 0
+    }
+  },
+  "prop_mappings": {
+    "WATER": {
+      "kind": "atlas",
+      "source_id": 0,
+      "atlas_coords": [0, 0]
+    },
+    "RAMP": {
+      "kind": "folder",
+      "path": "res://assets_game/terrain/ramps/dark_forest_frontier_v1",
+      "extensions": ["glb"]
+    },
+    "CLIFF_EDGE": {
+      "kind": "folder",
+      "path": "res://assets_game/terrain/cliffs/dark_forest_frontier_v1",
+      "extensions": ["glb"]
+    },
+    "FOREST_BLOCKER": {
+      "kind": "folder",
+      "path": "res://assets_game/props/trees/dark_forest_frontier_v1",
+      "extensions": ["glb"]
+    },
+    "ROCK_BLOCKER": {
+      "kind": "folder",
+      "path": "res://assets_game/props/rocks/dark_forest_frontier_v1",
+      "extensions": ["glb"]
+    },
+    "BASE_PLOT_MARKER": {
+      "kind": "debug_color",
+      "color": [1.0, 0.86, 0.12, 0.35]
+    },
+    "CONTENT_PLOT_MARKER": {
+      "kind": "debug_color",
+      "color": [0.67, 0.22, 1.0, 0.35]
+    },
+    "TREE": {
+      "kind": "folder",
+      "path": "res://assets_game/props/trees/dark_forest_frontier_v1",
+      "extensions": ["glb"]
+    },
+    "ROCK": {
+      "kind": "folder",
+      "path": "res://assets_game/props/rocks/dark_forest_frontier_v1",
+      "extensions": ["glb"]
+    },
+    "RUIN": {
+      "kind": "folder",
+      "path": "res://assets_game/structures/ruins/dark_forest_frontier_v1",
+      "extensions": ["glb"]
+    },
+    "DECOR": {
+      "kind": "folder",
+      "path": "res://assets_game/props/decor/dark_forest_frontier_v1",
+      "extensions": ["glb"]
+    }
+  },
+  "unit_mappings": {},
+  "building_mappings": {}
+}
