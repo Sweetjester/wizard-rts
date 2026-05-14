@@ -1115,33 +1115,35 @@ func _add_landmark_visuals() -> void:
 		var kind := str(landmark.get("kind", ""))
 		match kind:
 			"giant_corrupted_tree":
-				_add_landmark_category_scene(_first_available_category([CAT_ANCIENT_TREE_BLOCKER, CAT_TREE_BLOCKER]), center, 2.25)
-				_add_landmark_category_scene(_first_available_category([CAT_ROOT_WALL_BLOCKER, CAT_TWISTED_ROOT_BLOCKER, CAT_ROOT_BLOCKER]), center + Vector2i(2, 0), 1.65)
-				_add_landmark_category_scene(_first_available_category([CAT_ROOT_WALL_BLOCKER, CAT_TWISTED_ROOT_BLOCKER, CAT_ROOT_BLOCKER]), center + Vector2i(-2, 1), 1.55)
-				_add_landmark_category_scene(_first_available_category([CAT_MUSHROOM_CLUSTER_LARGE, CAT_GLOWING_MUSHROOM_RING, CAT_MUSHROOM_BLOCKER]), center + Vector2i(1, 3), 1.35)
+				_add_landmark_category_scene(_first_available_category([CAT_ANCIENT_TREE_BLOCKER, CAT_TREE_BLOCKER]), center, 2.9)
+				_add_landmark_category_scene(_first_available_category([CAT_ROOT_WALL_BLOCKER, CAT_TWISTED_ROOT_BLOCKER, CAT_ROOT_BLOCKER]), center + Vector2i(3, 0), 1.9)
+				_add_landmark_category_scene(_first_available_category([CAT_ROOT_WALL_BLOCKER, CAT_TWISTED_ROOT_BLOCKER, CAT_ROOT_BLOCKER]), center + Vector2i(-3, 1), 1.8)
+				_add_landmark_category_scene(_first_available_category([CAT_ROOT_WALL_BLOCKER, CAT_TWISTED_ROOT_BLOCKER, CAT_ROOT_BLOCKER]), center + Vector2i(0, -3), 1.75)
+				_add_landmark_category_scene(_first_available_category([CAT_MUSHROOM_CLUSTER_LARGE, CAT_GLOWING_MUSHROOM_RING, CAT_MUSHROOM_BLOCKER]), center + Vector2i(2, 4), 1.45)
 			"elevated_shrine_plateau":
-				_add_landmark_category_scene(_first_available_category([CAT_RUINED_SHRINE, CAT_SHRINE_PROP]), center, 1.55)
+				_add_landmark_category_scene(_first_available_category([CAT_RUINED_SHRINE, CAT_SHRINE_PROP]), center, 1.8)
 				_add_landmark_category_scene(_first_available_category([CAT_CORRUPTED_ALTAR, CAT_GLOWING_MUSHROOM_RING]), center + Vector2i(1, 0), 1.35)
 				_add_landmark_category_scene(_first_available_category([CAT_TORCH_OR_SOUL_LIGHT, CAT_TORCH_PROP]), center + Vector2i(-2, 1), 1.15)
-			"dead_root_maze":
-				for offset in [Vector2i(-3, 0), Vector2i(0, -2), Vector2i(3, 1), Vector2i(1, 3)]:
-					_add_landmark_category_scene(_first_available_category([CAT_ROOT_WALL_BLOCKER, CAT_TWISTED_ROOT_BLOCKER, CAT_ROOT_BLOCKER]), center + offset, 1.55)
-			"mushroom_ritual_circle":
-				_add_landmark_category_scene(_first_available_category([CAT_GLOWING_MUSHROOM_RING, CAT_MUSHROOM_CLUSTER_LARGE]), center, 1.8)
-				for offset in [Vector2i(3, 0), Vector2i(-3, 0), Vector2i(0, 3), Vector2i(0, -3)]:
-					_add_landmark_category_scene(_first_available_category([CAT_MUSHROOM_CLUSTER_LARGE, CAT_MUSHROOM_BLOCKER]), center + offset, 1.25)
-			"cliff_wall_barrier":
-				for offset in [Vector2i(-4, 0), Vector2i(0, 0), Vector2i(4, 0)]:
-					_add_landmark_category_scene(_first_available_category([CAT_CLIFF_SIDE, CAT_ROCK_MOSS_CLUSTER, CAT_ROCK_BLOCKER]), center + offset, 1.35)
-				_add_landmark_category_scene(_first_available_category([CAT_ROOT_WALL_BLOCKER, CAT_ROOT_BLOCKER]), center + Vector2i(0, 1), 1.35)
-			"broken_ruin_cluster":
-				_add_landmark_category_scene(_first_available_category([CAT_BROKEN_STONE_ARCH, CAT_RUIN_PROP]), center, 1.55)
-				_add_landmark_category_scene(_first_available_category([CAT_RUINED_SHRINE, CAT_RUIN_PROP]), center + Vector2i(2, 1), 1.25)
+			"dead_root_canyon", "dead_root_maze":
+				for offset in [Vector2i(-5, -2), Vector2i(-2, 2), Vector2i(2, -2), Vector2i(5, 2), Vector2i(0, 0)]:
+					_add_landmark_category_scene(_first_available_category([CAT_ROOT_WALL_BLOCKER, CAT_TWISTED_ROOT_BLOCKER, CAT_ROOT_BLOCKER]), center + offset, 1.75)
+			"mushroom_ritual_basin", "mushroom_ritual_circle":
+				_add_landmark_category_scene(_first_available_category([CAT_GLOWING_MUSHROOM_RING, CAT_MUSHROOM_CLUSTER_LARGE]), center, 2.1)
+				for offset in [Vector2i(4, 0), Vector2i(-4, 0), Vector2i(0, 4), Vector2i(0, -4), Vector2i(3, 3), Vector2i(-3, -3)]:
+					_add_landmark_category_scene(_first_available_category([CAT_MUSHROOM_CLUSTER_LARGE, CAT_MUSHROOM_BLOCKER]), center + offset, 1.4)
+			"cliff_ridge_barrier", "cliff_wall_barrier":
+				for offset in [Vector2i(-6, 0), Vector2i(-3, 0), Vector2i(0, 0), Vector2i(3, 0), Vector2i(6, 0)]:
+					_add_landmark_category_scene(_first_available_category([CAT_CLIFF_SIDE, CAT_ROCK_MOSS_CLUSTER, CAT_ROCK_BLOCKER]), center + offset, 1.45)
+				_add_landmark_category_scene(_first_available_category([CAT_ROOT_WALL_BLOCKER, CAT_ROOT_BLOCKER]), center + Vector2i(0, 1), 1.5)
+			"ancient_ruin_cluster", "broken_ruin_cluster":
+				_add_landmark_category_scene(_first_available_category([CAT_BROKEN_STONE_ARCH, CAT_RUIN_PROP]), center, 1.8)
+				_add_landmark_category_scene(_first_available_category([CAT_RUINED_SHRINE, CAT_RUIN_PROP]), center + Vector2i(3, 1), 1.35)
+				_add_landmark_category_scene(_first_available_category([CAT_BROKEN_STONE_ARCH, CAT_RUIN_PROP]), center + Vector2i(-3, -1), 1.3)
 				_add_landmark_category_scene(_first_available_category([CAT_BONE_DECOR, CAT_ROAD_EDGE_ROOTS]), center + Vector2i(-2, -1), 1.2)
-			"swamp_basin":
-				for offset in [Vector2i(4, 0), Vector2i(-4, 1), Vector2i(0, 3), Vector2i(2, -3)]:
-					_add_landmark_category_scene(_first_available_category([CAT_MUSHROOM_CLUSTER_LARGE, CAT_MUSHROOM_BLOCKER, CAT_WATER_EDGE_DECOR]), center + offset, 1.25)
-				_add_landmark_category_scene(_first_available_category([CAT_TWISTED_ROOT_BLOCKER, CAT_ROOT_BLOCKER]), center + Vector2i(-2, 2), 1.3)
+			"swamp_depression", "swamp_basin":
+				for offset in [Vector2i(5, 0), Vector2i(-5, 1), Vector2i(0, 4), Vector2i(2, -4), Vector2i(-3, -3)]:
+					_add_landmark_category_scene(_first_available_category([CAT_MUSHROOM_CLUSTER_LARGE, CAT_MUSHROOM_BLOCKER, CAT_WATER_EDGE_DECOR]), center + offset, 1.35)
+				_add_landmark_category_scene(_first_available_category([CAT_TWISTED_ROOT_BLOCKER, CAT_ROOT_BLOCKER]), center + Vector2i(-2, 2), 1.45)
 			_:
 				_add_landmark_category_scene(_first_available_category([CAT_RUINED_SHRINE, CAT_RUIN_PROP]), center, 1.2)
 		_add_landmark_debug_label(landmark)
@@ -1187,10 +1189,12 @@ func _add_landmark_debug_label(landmark: Dictionary) -> void:
 	label.no_depth_test = true
 	label.font_size = 18
 	label.modulate = Color("#FFD05C")
-	label.text = "%s\n%s | %s cells\n%s" % [
+	label.text = "%s\n%s %s | %s cells | choke %s\n%s" % [
 		str(landmark.get("label", landmark.get("kind", "LANDMARK"))).to_upper(),
 		str(landmark.get("rarity", "")),
+		str(landmark.get("scale_class", "")),
 		str(landmark.get("footprint_size", 0)),
+		str(landmark.get("chokepoint_score", "")),
 		str(landmark.get("navigation_role", "")),
 	]
 	label.position = _cell_to_world(center, _surface_height_for_cell(center) + 2.8)
@@ -1210,7 +1214,18 @@ func _add_content_plot_decor(center: Vector2i) -> void:
 
 
 func _blocker_category_for_cell(cell: Vector2i) -> StringName:
-	if str(_feature_grid[cell.x][cell.y]) != "forest_blocker":
+	var feature := str(_feature_grid[cell.x][cell.y])
+	if feature == "landmark_giant_tree":
+		return _first_available_category([CAT_ANCIENT_TREE_BLOCKER, CAT_TREE_BLOCKER])
+	if feature == "landmark_root_wall" or feature == "landmark_swamp_root":
+		return _first_available_category([CAT_ROOT_WALL_BLOCKER, CAT_TWISTED_ROOT_BLOCKER, CAT_ROOT_BLOCKER])
+	if feature == "landmark_mushroom_circle" or feature == "landmark_mushroom_glow":
+		return _first_available_category([CAT_MUSHROOM_CLUSTER_LARGE, CAT_GLOWING_MUSHROOM_RING, CAT_MUSHROOM_BLOCKER])
+	if feature == "landmark_ruin":
+		return _first_available_category([CAT_BROKEN_STONE_ARCH, CAT_RUIN_PROP])
+	if feature == "landmark_cliff_wall":
+		return _first_available_category([CAT_CLIFF_SIDE, CAT_ROCK_MOSS_CLUSTER, CAT_ROCK_BLOCKER])
+	if feature != "forest_blocker":
 		return _first_available_category([CAT_ROCK_MOSS_CLUSTER, CAT_ROCK_BLOCKER])
 	var roll := _hash_cell(cell, 133) % 10
 	if roll < 3:
@@ -2059,14 +2074,18 @@ func _print_biome_debug(cliff_edge_count: int) -> void:
 func _landmark_debug_summary() -> Array[String]:
 	var summary: Array[String] = []
 	for landmark in _landmarks:
-		summary.append("%s:%s@%s footprint=%s blockers=%s water=%s road_anchor=%s validation=%s" % [
+		summary.append("%s:%s@%s rarity=%s scale=%s hierarchy=%s footprint=%s blockers=%s water=%s road_anchor=%s road_behavior=%s validation=%s" % [
 			str(landmark.get("id", "?")),
 			str(landmark.get("kind", "?")),
 			str(landmark.get("center", Vector2i.ZERO)),
+			str(landmark.get("rarity", "?")),
+			str(landmark.get("scale_class", "?")),
+			str(landmark.get("terrain_hierarchy", "?")),
 			str(landmark.get("footprint_size", 0)),
 			str(landmark.get("blocked_count", 0)),
 			str(landmark.get("water_count", 0)),
 			str(landmark.get("road_anchor", Vector2i.ZERO)),
+			str(landmark.get("road_behavior", "")),
 			str(landmark.get("validation", "")),
 		])
 	return summary

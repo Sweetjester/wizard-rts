@@ -64,11 +64,16 @@ const ROAD_MODE_GRID_ARTERIES := "grid_arteries"
 const ROAD_MODE_ORGANIC_SPINE_AND_BRANCHES := "organic_spine_and_branches"
 const BIOME_DARK_FOREST_FRONTIER_V2 := "DARK_FOREST_FRONTIER_V2"
 const LANDMARK_GIANT_CORRUPTED_TREE := "giant_corrupted_tree"
+const LANDMARK_DEAD_ROOT_CANYON := "dead_root_canyon"
 const LANDMARK_ELEVATED_SHRINE_PLATEAU := "elevated_shrine_plateau"
 const LANDMARK_DEAD_ROOT_MAZE := "dead_root_maze"
+const LANDMARK_MUSHROOM_RITUAL_BASIN := "mushroom_ritual_basin"
 const LANDMARK_MUSHROOM_RITUAL_CIRCLE := "mushroom_ritual_circle"
+const LANDMARK_CLIFF_RIDGE_BARRIER := "cliff_ridge_barrier"
 const LANDMARK_CLIFF_WALL_BARRIER := "cliff_wall_barrier"
+const LANDMARK_ANCIENT_RUIN_CLUSTER := "ancient_ruin_cluster"
 const LANDMARK_BROKEN_RUIN_CLUSTER := "broken_ruin_cluster"
+const LANDMARK_SWAMP_DEPRESSION := "swamp_depression"
 const LANDMARK_SWAMP_BASIN := "swamp_basin"
 const FRONTIER_MAIN_SPINE_ROAD_WIDTH := 3
 const FRONTIER_BRANCH_ROAD_WIDTH := 2
@@ -3473,22 +3478,22 @@ func _build_landmarks() -> void:
 
 func _frontier_landmark_archetypes() -> Array[Dictionary]:
 	return [
-		{"kind": LANDMARK_GIANT_CORRUPTED_TREE, "label": "Giant Corrupted Tree", "rarity": "major", "weight": 12, "radius": Vector2i(6, 6), "road_interest": true, "blocker_density": 0.78, "navigation_role": "central blocker and visual anchor"},
-		{"kind": LANDMARK_ELEVATED_SHRINE_PLATEAU, "label": "Elevated Shrine Plateau", "rarity": "major", "weight": 9, "radius": Vector2i(5, 5), "road_interest": true, "blocker_density": 0.36, "navigation_role": "high-ground side objective with ramp choke"},
-		{"kind": LANDMARK_DEAD_ROOT_MAZE, "label": "Dead Root Maze", "rarity": "uncommon", "weight": 14, "radius": Vector2i(7, 5), "road_interest": true, "blocker_density": 0.66, "navigation_role": "maze-like blocker field and soft choke"},
-		{"kind": LANDMARK_MUSHROOM_RITUAL_CIRCLE, "label": "Mushroom Ritual Circle", "rarity": "uncommon", "weight": 15, "radius": Vector2i(5, 5), "road_interest": true, "blocker_density": 0.32, "navigation_role": "open visible ritual clearing"},
-		{"kind": LANDMARK_CLIFF_WALL_BARRIER, "label": "Cliff Wall Barrier", "rarity": "uncommon", "weight": 10, "radius": Vector2i(8, 3), "road_interest": false, "blocker_density": 0.82, "navigation_role": "hard barrier with a readable gap"},
-		{"kind": LANDMARK_BROKEN_RUIN_CLUSTER, "label": "Broken Ruin Cluster", "rarity": "common", "weight": 17, "radius": Vector2i(5, 4), "road_interest": true, "blocker_density": 0.42, "navigation_role": "ruin landmark beside route"},
-		{"kind": LANDMARK_SWAMP_BASIN, "label": "Swamp Basin", "rarity": "common", "weight": 13, "radius": Vector2i(6, 4), "road_interest": false, "blocker_density": 0.28, "navigation_role": "water obstacle that bends roads"},
+		{"kind": LANDMARK_GIANT_CORRUPTED_TREE, "label": "Giant Corrupted Tree", "rarity": "major", "scale_class": "huge", "weight": 10, "radius": Vector2i(8, 7), "road_interest": true, "blocker_density": 0.82, "chokepoint_score": 0.8, "road_behavior": "toward_and_around", "navigation_role": "dominant central silhouette with root chokes"},
+		{"kind": LANDMARK_ELEVATED_SHRINE_PLATEAU, "label": "Elevated Shrine Plateau", "rarity": "major", "scale_class": "large", "weight": 9, "radius": Vector2i(7, 6), "road_interest": true, "blocker_density": 0.36, "chokepoint_score": 0.9, "road_behavior": "toward_ramp", "navigation_role": "high-ground shrine plateau with a readable ramp choke"},
+		{"kind": LANDMARK_DEAD_ROOT_CANYON, "label": "Dead Root Canyon", "rarity": "secondary", "scale_class": "large", "weight": 15, "radius": Vector2i(10, 5), "road_interest": true, "blocker_density": 0.72, "chokepoint_score": 0.75, "road_behavior": "through_gap_or_around", "navigation_role": "parallel root walls forming canyon lanes"},
+		{"kind": LANDMARK_MUSHROOM_RITUAL_BASIN, "label": "Mushroom Ritual Basin", "rarity": "secondary", "scale_class": "large", "weight": 15, "radius": Vector2i(7, 6), "road_interest": true, "blocker_density": 0.34, "chokepoint_score": 0.45, "road_behavior": "toward_edge", "navigation_role": "glowing basin clearing with ring blockers"},
+		{"kind": LANDMARK_CLIFF_RIDGE_BARRIER, "label": "Cliff Ridge Barrier", "rarity": "secondary", "scale_class": "large", "weight": 12, "radius": Vector2i(12, 4), "road_interest": false, "blocker_density": 0.84, "chokepoint_score": 0.88, "road_behavior": "around_gap", "navigation_role": "long hard ridge barrier with narrow gap"},
+		{"kind": LANDMARK_ANCIENT_RUIN_CLUSTER, "label": "Ancient Ruin Cluster", "rarity": "common", "scale_class": "medium", "weight": 17, "radius": Vector2i(7, 5), "road_interest": true, "blocker_density": 0.46, "chokepoint_score": 0.55, "road_behavior": "toward", "navigation_role": "large ruin mass beside or around a route"},
+		{"kind": LANDMARK_SWAMP_DEPRESSION, "label": "Swamp Depression", "rarity": "common", "scale_class": "medium", "weight": 13, "radius": Vector2i(8, 5), "road_interest": false, "blocker_density": 0.3, "chokepoint_score": 0.65, "road_behavior": "around", "navigation_role": "dark water depression that bends traversal"},
 	]
 
 func _build_frontier_landmarks() -> void:
-	var target_count := _rng.range_int(3, 5)
+	var target_count := _rng.range_int(3, 4)
 	var used_major := false
 	var attempts := 0
-	while landmarks.size() < target_count and attempts < 360:
+	while landmarks.size() < target_count and attempts < 420:
 		attempts += 1
-		var archetype := _choose_frontier_landmark_archetype(used_major)
+		var archetype := _choose_frontier_landmark_archetype(used_major, landmarks.is_empty())
 		var radius: Vector2i = archetype["radius"]
 		var center := Vector2i(_rng.range_int(10 + radius.x, MAP_W - 11 - radius.x), _rng.range_int(10 + radius.y, MAP_H - 11 - radius.y))
 		var rect := Rect2i(center - radius, radius * 2 + Vector2i.ONE)
@@ -3505,12 +3510,17 @@ func _build_frontier_landmarks() -> void:
 			"archetype": archetype["kind"],
 			"label": archetype["label"],
 			"biome": BIOME_DARK_FOREST_FRONTIER_V2,
+			"biome_pool": BIOME_DARK_FOREST_FRONTIER_V2,
 			"rarity": archetype["rarity"],
+			"scale_class": archetype["scale_class"],
+			"terrain_hierarchy": _frontier_landmark_hierarchy(archetype),
 			"center": center,
 			"rect": rect,
 			"radius": radius,
 			"road_interest": bool(archetype["road_interest"]),
 			"blocker_density": float(archetype["blocker_density"]),
+			"chokepoint_score": float(archetype["chokepoint_score"]),
+			"road_behavior": archetype["road_behavior"],
 			"navigation_role": archetype["navigation_role"],
 			"footprint_cells": [],
 			"blocked_cells": [],
@@ -3524,15 +3534,15 @@ func _build_frontier_landmarks() -> void:
 				_stamp_giant_corrupted_tree_landmark(landmark)
 			LANDMARK_ELEVATED_SHRINE_PLATEAU:
 				_stamp_elevated_shrine_plateau_landmark(landmark)
-			LANDMARK_DEAD_ROOT_MAZE:
+			LANDMARK_DEAD_ROOT_CANYON, LANDMARK_DEAD_ROOT_MAZE:
 				_stamp_dead_root_maze_landmark(landmark)
-			LANDMARK_MUSHROOM_RITUAL_CIRCLE:
+			LANDMARK_MUSHROOM_RITUAL_BASIN, LANDMARK_MUSHROOM_RITUAL_CIRCLE:
 				_stamp_mushroom_ritual_circle_landmark(landmark)
-			LANDMARK_CLIFF_WALL_BARRIER:
+			LANDMARK_CLIFF_RIDGE_BARRIER, LANDMARK_CLIFF_WALL_BARRIER:
 				_stamp_cliff_wall_barrier_landmark(landmark)
-			LANDMARK_BROKEN_RUIN_CLUSTER:
+			LANDMARK_ANCIENT_RUIN_CLUSTER, LANDMARK_BROKEN_RUIN_CLUSTER:
 				_stamp_broken_ruin_cluster_landmark(landmark)
-			LANDMARK_SWAMP_BASIN:
+			LANDMARK_SWAMP_DEPRESSION, LANDMARK_SWAMP_BASIN:
 				_stamp_swamp_basin_landmark(landmark)
 		if landmark["footprint_cells"].is_empty():
 			continue
@@ -3548,6 +3558,8 @@ func _build_frontier_landmarks() -> void:
 			landmark.get("id", "?"),
 			" kind=", landmark.get("kind", "?"),
 			" rarity=", landmark.get("rarity", "?"),
+			" scale=", landmark.get("scale_class", "?"),
+			" hierarchy=", landmark.get("terrain_hierarchy", "?"),
 			" center=", landmark.get("center", Vector2i.ZERO),
 			" footprint=", landmark.get("footprint_size", 0),
 			" blockers=", landmark.get("blocked_count", 0),
@@ -3555,22 +3567,34 @@ func _build_frontier_landmarks() -> void:
 			" road_anchor=", landmark.get("road_anchor", Vector2i.ZERO),
 			" role=", landmark.get("navigation_role", ""))
 
-func _choose_frontier_landmark_archetype(used_major: bool) -> Dictionary:
+func _choose_frontier_landmark_archetype(used_major: bool, force_major: bool = false) -> Dictionary:
 	var choices := _frontier_landmark_archetypes()
 	var total_weight := 0
 	for choice in choices:
+		if force_major and str(choice.get("rarity", "")) != "major":
+			continue
 		if used_major and str(choice.get("rarity", "")) == "major":
 			continue
 		total_weight += int(choice.get("weight", 1))
 	var roll := _rng.range_int(1, maxi(1, total_weight))
 	var cursor := 0
 	for choice in choices:
+		if force_major and str(choice.get("rarity", "")) != "major":
+			continue
 		if used_major and str(choice.get("rarity", "")) == "major":
 			continue
 		cursor += int(choice.get("weight", 1))
 		if roll <= cursor:
 			return choice
 	return choices[0]
+
+func _frontier_landmark_hierarchy(archetype: Dictionary) -> String:
+	var rarity := str(archetype.get("rarity", "common"))
+	if rarity == "major":
+		return "primary"
+	if rarity == "secondary":
+		return "secondary"
+	return "local"
 
 func _frontier_landmark_area_clear(rect: Rect2i, margin: int) -> bool:
 	if rect.position.x < 4 or rect.position.y < 4 or rect.end.x >= MAP_W - 4 or rect.end.y >= MAP_H - 4:
@@ -3604,10 +3628,11 @@ func _stamp_giant_corrupted_tree_landmark(landmark: Dictionary) -> void:
 	for x in range(center.x - radius.x, center.x + radius.x + 1):
 		for y in range(center.y - radius.y, center.y + radius.y + 1):
 			var cell := Vector2i(x, y)
-			var dist: float = Vector2(cell - center).length()
-			var trunk: bool = abs(cell.x - center.x) <= 1 and abs(cell.y - center.y) <= 1
-			var root_arm: bool = (abs(cell.x - center.x) <= 1 or abs(cell.y - center.y) <= 1) and dist <= float(radius.x)
-			var crooked_root: bool = _hash_cell(cell, 601) % 100 < 22 and dist <= float(radius.x)
+			var delta := cell - center
+			var dist: float = Vector2(delta).length()
+			var trunk: bool = abs(delta.x) <= 2 and abs(delta.y) <= 2
+			var root_arm: bool = (abs(delta.x) <= 1 or abs(delta.y) <= 1 or abs(abs(delta.x) - abs(delta.y)) <= 1) and dist <= float(radius.x)
+			var crooked_root: bool = _hash_cell(cell, 601) % 100 < 28 and dist <= float(radius.x)
 			if trunk or root_arm or crooked_root:
 				_stamp_landmark_cell(landmark, cell, E_BLOCKED, "landmark_giant_tree")
 			elif dist <= float(radius.x) and _hash_cell(cell, 603) % 100 < 12:
@@ -3653,16 +3678,21 @@ func _stamp_elevated_shrine_plateau_landmark(landmark: Dictionary) -> void:
 func _stamp_dead_root_maze_landmark(landmark: Dictionary) -> void:
 	var center: Vector2i = landmark["center"]
 	var radius: Vector2i = landmark["radius"]
+	var horizontal: bool = _hash_cell(center, 607) % 2 == 0
+	landmark["orientation"] = "horizontal" if horizontal else "vertical"
+	var gap_offset: int = _rng.range_int(-2, 2)
 	for x in range(center.x - radius.x, center.x + radius.x + 1):
 		for y in range(center.y - radius.y, center.y + radius.y + 1):
 			var cell := Vector2i(x, y)
-			var dx: int = abs(x - center.x)
-			var dy: int = abs(y - center.y)
-			var lane_gap: bool = dx <= 1 or dy <= 1 or (dx + dy) % 5 == 0
-			var root_wall: bool = not lane_gap and (dx % 3 == 0 or dy % 3 == 0 or _hash_cell(cell, 607) % 100 < 18)
+			var along: int = x - center.x if horizontal else y - center.y
+			var across: int = y - center.y if horizontal else x - center.x
+			var in_canyon: bool = abs(along) <= radius.x and abs(across) <= radius.y
+			var lane_gap: bool = abs(across - gap_offset) <= 1 or abs(along) <= 1
+			var canyon_wall: bool = abs(across) >= radius.y - 1 and abs(along) <= radius.x
+			var root_wall: bool = in_canyon and not lane_gap and (canyon_wall or abs(across) == 3 or _hash_cell(cell, 607) % 100 < 18)
 			if root_wall:
 				_stamp_landmark_cell(landmark, cell, E_BLOCKED, "landmark_root_wall")
-	landmark["road_anchor"] = nearest_walkable_cell(center, 9)
+	landmark["road_anchor"] = nearest_walkable_cell(center + (Vector2i(radius.x + 1, gap_offset) if horizontal else Vector2i(gap_offset, radius.x + 1)), 10)
 
 func _stamp_mushroom_ritual_circle_landmark(landmark: Dictionary) -> void:
 	var center: Vector2i = landmark["center"]
@@ -3670,23 +3700,28 @@ func _stamp_mushroom_ritual_circle_landmark(landmark: Dictionary) -> void:
 	for x in range(center.x - radius.x, center.x + radius.x + 1):
 		for y in range(center.y - radius.y, center.y + radius.y + 1):
 			var cell := Vector2i(x, y)
-			var dist := Vector2(cell - center).length()
-			if dist <= float(radius.x):
-				if abs(dist - float(radius.x - 1)) < 0.85 or _hash_cell(cell, 611) % 100 < 8:
+			var dx := float(x - center.x) / maxf(1.0, float(radius.x))
+			var dy := float(y - center.y) / maxf(1.0, float(radius.y))
+			var score := dx * dx + dy * dy
+			if score <= 1.0:
+				if score <= 0.38:
+					_stamp_landmark_cell(landmark, cell, E_LOW, "landmark_mushroom_basin_floor")
+				elif abs(score - 0.72) < 0.16 or _hash_cell(cell, 611) % 100 < 10:
 					_stamp_landmark_cell(landmark, cell, E_BLOCKED, "landmark_mushroom_circle")
 				elif _hash_cell(cell, 613) % 100 < 20:
 					_stamp_landmark_cell(landmark, cell, E_LOW, "landmark_mushroom_floor")
-	landmark["road_anchor"] = nearest_walkable_cell(center + Vector2i(radius.x + 1, 0), 8)
+	landmark["road_anchor"] = nearest_walkable_cell(center + Vector2i(radius.x + 2, 0), 8)
 
 func _stamp_cliff_wall_barrier_landmark(landmark: Dictionary) -> void:
 	var center: Vector2i = landmark["center"]
 	var radius: Vector2i = landmark["radius"]
 	var horizontal: bool = _hash_cell(center, 617) % 2 == 0
+	landmark["orientation"] = "horizontal" if horizontal else "vertical"
 	var gap_offset: int = _rng.range_int(-2, 2)
 	for i in range(-radius.x, radius.x + 1):
-		for thickness in range(-1, 2):
+		for thickness in range(-2, 3):
 			var cell: Vector2i = Vector2i(center.x + i, center.y + thickness) if horizontal else Vector2i(center.x + thickness, center.y + i)
-			var gap: bool = abs(i - gap_offset) <= 1
+			var gap: bool = abs(i - gap_offset) <= 2
 			if gap:
 				continue
 			_stamp_landmark_cell(landmark, cell, E_BLOCKED, "landmark_cliff_wall")
@@ -3700,11 +3735,12 @@ func _stamp_broken_ruin_cluster_landmark(landmark: Dictionary) -> void:
 			var cell := Vector2i(x, y)
 			var dx: int = abs(x - center.x)
 			var dy: int = abs(y - center.y)
-			var arch: bool = (dx == radius.x - 1 and dy <= 2) or (dy == radius.y - 1 and dx <= 2)
-			var rubble: bool = _hash_cell(cell, 619) % 100 < 18 and dx + dy > 2
+			var arch: bool = (dx == radius.x - 1 and dy <= 3) or (dy == radius.y - 1 and dx <= 3)
+			var courtyard: bool = dx <= 2 and dy <= 2
+			var rubble: bool = _hash_cell(cell, 619) % 100 < 22 and dx + dy > 2
 			if arch or rubble:
 				_stamp_landmark_cell(landmark, cell, E_BLOCKED, "landmark_ruin")
-			elif dx <= 1 and dy <= 1:
+			elif courtyard:
 				_stamp_landmark_cell(landmark, cell, E_LOW, "landmark_ruin_floor")
 	landmark["road_anchor"] = nearest_walkable_cell(center + Vector2i(0, radius.y + 1), 8)
 
@@ -3717,9 +3753,9 @@ func _stamp_swamp_basin_landmark(landmark: Dictionary) -> void:
 			var dx := float(x - center.x) / maxf(1.0, float(radius.x))
 			var dy := float(y - center.y) / maxf(1.0, float(radius.y))
 			var score := dx * dx + dy * dy
-			if score <= 0.58:
+			if score <= 0.62:
 				_stamp_landmark_cell(landmark, cell, E_WATER, "landmark_swamp_basin")
-			elif score <= 0.9 and _hash_cell(cell, 623) % 100 < 24:
+			elif score <= 0.96 and _hash_cell(cell, 623) % 100 < 30:
 				_stamp_landmark_cell(landmark, cell, E_BLOCKED, "landmark_swamp_root")
 	landmark["road_anchor"] = nearest_walkable_cell(center + Vector2i(radius.x + 2, 0), 8)
 
