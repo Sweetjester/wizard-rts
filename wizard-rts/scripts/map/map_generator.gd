@@ -45,6 +45,7 @@ const FRONTIER_MAIN_ROAD_Y := 48
 const FRONTIER_ROAD_SPINES := [12, 48, 84]
 const AssetRegistryScript := preload("res://scripts/assets/asset_registry.gd")
 const AssetPackConfigScript := preload("res://scripts/assets/asset_pack_config.gd")
+const ContentStructureGeneratorScript := preload("res://scripts/map/content_structures/ContentStructureGenerator.gd")
 const MapPlotConfigResource := preload("res://scripts/map/plots/MapPlotConfig.gd")
 const PlotGeneratorResource := preload("res://scripts/map/plots/PlotGenerator.gd")
 const ACTIVE_ASSET_PACK_CONFIG_PATH := "res://resources/asset_packs/tiny_swords_asset_pack.json"
@@ -192,6 +193,7 @@ func _ready() -> void:
 	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
 		_build_landmarks()
 	_validate_frontier_landmarks(true)
+	_validate_content_structures(true)
 	_build_height_and_cost_maps()
 	_build_pathfinder()
 	_paint()
@@ -1365,8 +1367,53 @@ func _build_blank_frontier_content_plots(reserved_rects: Array[Rect2i]) -> void:
 			"defensibility": 0.35,
 			"story": "Blank %sx%s content reservation. Future generation will stamp authored content here from the branch road." % [rect.size.x, rect.size.y],
 		}
+		if size_label == "large" and serial == 1:
+			_attach_abandoned_wizard_monolith(plot)
 		_register_plot(plot)
 		_log_content_plot_debug(plot)
+
+func _attach_abandoned_wizard_monolith(plot: Dictionary) -> void:
+	var plot_rect: Rect2i = plot.get("rect", Rect2i())
+	var footprint := Vector2i(16, 16)
+	var structure_rect := Rect2i(
+		plot_rect.position + Vector2i(maxi(0, (plot_rect.size.x - footprint.x) / 2), maxi(0, (plot_rect.size.y - footprint.y) / 2)),
+		footprint
+	)
+	var generator = ContentStructureGeneratorScript.new()
+	var structure: Dictionary = generator.generate_abandoned_wizard_monolith(
+		"%s_monolith" % str(plot.get("id", "content")),
+		structure_rect,
+		seed_value + int(_hash_cell(plot_rect.position, 1107)),
+		{
+			"footprint_size": footprint.x,
+			"floor_count": 3,
+			"floor_height": 1.8,
+			"room_density": 0.45,
+			"gap_density": 0.035,
+			"decor_density": 0.35,
+		}
+	)
+	plot["has_interior"] = true
+	plot["structure_type"] = "ABANDONED_WIZARD_MONOLITH"
+	plot["structure_id"] = structure["id"]
+	plot["structure_rect"] = structure_rect
+	plot["footprint_size"] = structure["footprint_size"]
+	plot["floor_count"] = int(structure["floor_count"])
+	plot["entrance_cells"] = structure["entrance_cells"]
+	plot["stair_links"] = structure["stair_links"]
+	plot["discovered_floors"] = structure["discovered_floors"]
+	plot["occupied_floors"] = structure["occupied_floors"]
+	plot["content_structure"] = structure
+	var entrance: Vector2i = structure["entrance_cells"][0]
+	plot["anchor"] = entrance
+	plot["road_anchor"] = entrance + Vector2i(0, 2)
+	print("[MapGenerator] Content structure id=", structure["id"],
+		" type=", structure["structure_type"],
+		" rect=", structure_rect,
+		" floors=", structure["floor_count"],
+		" walkable_counts=", structure["validation"].get("walkable_counts", []),
+		" stairs=", structure["validation"].get("stair_count", 0),
+		" validation=", structure["validation"])
 
 func _frontier_content_specs() -> Array[Dictionary]:
 	var large_targets: Array[Vector2] = [
@@ -2146,9 +2193,42 @@ func _stamp_blank_content_plot(plot: Dictionary) -> void:
 				continue
 			grid[x][y] = floor_elevation
 			feature_grid[x][y] = "content_plot_blank"
+	if bool(plot.get("has_interior", false)):
+		_stamp_content_structure_exterior(plot, floor_elevation)
 	if floor_elevation == E_HIGH and plot.has("ramp_rect"):
 		_stamp_frontier_ramp(plot)
 		plot["anchor"] = Vector2i(rect.position.x + rect.size.x / 2, rect.end.y - 2)
+
+func _stamp_content_structure_exterior(plot: Dictionary, floor_elevation: int) -> void:
+	var structure_rect: Rect2i = plot.get("structure_rect", plot.get("rect", Rect2i()))
+	var entrance_cells: Array = plot.get("entrance_cells", [])
+	var entrance_lookup := {}
+	for entrance_value in entrance_cells:
+		entrance_lookup[entrance_value] = true
+	for x in range(structure_rect.position.x, structure_rect.end.x):
+		for y in range(structure_rect.position.y, structure_rect.end.y):
+			var cell := Vector2i(x, y)
+			if not is_in_bounds(cell):
+				continue
+			var edge := x == structure_rect.position.x or x == structure_rect.end.x - 1 or y == structure_rect.position.y or y == structure_rect.end.y - 1
+			grid[x][y] = floor_elevation
+			if entrance_lookup.has(cell):
+				feature_grid[x][y] = "content_structure_entrance"
+				continue
+			if edge and _hash_cell(cell, 1211) % 100 > 22:
+				grid[x][y] = E_BLOCKED
+				feature_grid[x][y] = "content_structure_wall"
+			elif edge:
+				feature_grid[x][y] = "content_structure_broken_wall"
+			else:
+				feature_grid[x][y] = "content_structure_exterior"
+	var road_anchor: Vector2i = plot.get("road_anchor", Vector2i(structure_rect.position.x + structure_rect.size.x / 2, structure_rect.end.y + 1))
+	for y in range(structure_rect.end.y - 1, mini(MAP_H, road_anchor.y + 1)):
+		for x in range(structure_rect.position.x + structure_rect.size.x / 2 - 1, structure_rect.position.x + structure_rect.size.x / 2 + 2):
+			var approach := Vector2i(x, y)
+			if is_in_bounds(approach):
+				grid[x][y] = floor_elevation
+				feature_grid[x][y] = "content_structure_entrance"
 
 func _stamp_base_plot(plot: Dictionary) -> void:
 	var rect: Rect2i = plot["rect"]
@@ -3283,6 +3363,45 @@ func _validate_frontier_landmarks(verbose: bool = false) -> bool:
 		else:
 			for error in errors:
 				push_warning("[MapGenerator] Landmark validation failed: " + error)
+	return passed
+
+func _validate_content_structures(verbose: bool = false) -> bool:
+	var errors: Array[String] = []
+	var generator = ContentStructureGeneratorScript.new()
+	for plot in plots:
+		if not bool(plot.get("has_interior", false)):
+			continue
+		var structure: Dictionary = plot.get("content_structure", {})
+		var validation: Dictionary = generator.validate_structure(structure)
+		structure["validation"] = validation
+		plot["content_structure"] = structure
+		var entrance_cells: Array = plot.get("entrance_cells", [])
+		if entrance_cells.is_empty():
+			errors.append("%s missing entrance cells" % plot.get("id", "<unknown>"))
+		else:
+			var entrance: Vector2i = entrance_cells[0]
+			if not is_walkable_cell(entrance):
+				errors.append("%s entrance not walkable on exterior map: %s" % [plot.get("id", "<unknown>"), entrance])
+			var road_near := _nearest_road_cell(entrance, road_cells, 6)
+			if not is_in_bounds(road_near):
+				errors.append("%s entrance has no road access: %s" % [plot.get("id", "<unknown>"), entrance])
+		if not bool(validation.get("passed", false)):
+			errors.append("%s interior invalid: %s" % [plot.get("id", "<unknown>"), validation.get("errors", [])])
+		var floors: Array = structure.get("floors", [])
+		var stair_links: Array = structure.get("stair_links", [])
+		if floors.size() > 0 and stair_links.size() < maxi(0, floors.size() - 1):
+			errors.append("%s floor chain not fully connected" % plot.get("id", "<unknown>"))
+		if verbose:
+			print("[MapGenerator] Content structure validation id=", structure.get("id", "?"),
+				" type=", structure.get("structure_type", "?"),
+				" floors=", floors.size(),
+				" walkable_counts=", validation.get("walkable_counts", []),
+				" stairs=", validation.get("stair_count", 0),
+				" passed=", validation.get("passed", false))
+	var passed := errors.is_empty()
+	if verbose and not passed:
+		for error in errors:
+			push_warning("[MapGenerator] Content structure validation failed: " + error)
 	return passed
 
 func _validate_frontier_plateau_generation(verbose: bool = false) -> bool:

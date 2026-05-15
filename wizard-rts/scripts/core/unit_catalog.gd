@@ -500,6 +500,16 @@ const DEFINITIONS := {
 		"population": 6,
 		"ignores_terrain": true,
 	},
+	&"enemy_outpost": {
+		"display_name": "Enemy Outpost",
+		"max_hp": 720,
+		"armor": 2,
+		"magic_armor": 1,
+		"attack_damage": 0,
+		"attack_range_cells": 0,
+		"footprint": Vector2i(4, 4),
+		"role": "Vertical-slice objective structure. Destroying required outposts unlocks the boss gate.",
+	},
 	&"deom_scout": {
 		"display_name": "Deom Scout",
 		"faction": &"deom_legion",

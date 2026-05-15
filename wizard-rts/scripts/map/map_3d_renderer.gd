@@ -30,15 +30,18 @@ const CAMERA_MIN_DISTANCE := 16.0
 const CAMERA_MAX_DISTANCE := 112.0
 const CAMERA_PITCH_DEGREES := -52.0
 const UNIT_SPEED := 5.4
-const UNIT_RADIUS := 0.72
-const UNIT_HEIGHT := 1.8
-const UNIT_SURFACE_OFFSET := 0.06
+const UNIT_RADIUS := 1.05
+const UNIT_HEIGHT := 2.6
+const UNIT_SURFACE_OFFSET := 0.16
 const PATH_DEBUG_HEIGHT := 0.18
 const DRAG_SELECT_THRESHOLD := 6.0
-const UNIT_SCREEN_SELECT_PADDING := 32.0
+const UNIT_SCREEN_SELECT_PADDING := 64.0
 const PRESENTATION_DEBUG := "DEBUG"
 const PRESENTATION_BIOME := "BIOME"
 const PRESENTATION_READABILITY := "READABILITY"
+const STRUCTURE_VIEW_EXTERIOR := "EXTERIOR"
+const STRUCTURE_VIEW_INTERIOR_CUTAWAY := "INTERIOR_CUTAWAY"
+const STRUCTURE_VIEW_DEBUG_FLOORS := "DEBUG_FLOORS"
 
 const CAT_LOW_GROUND_TILE := &"LOW_GROUND_TILE"
 const CAT_HIGH_GROUND_TILE := &"HIGH_GROUND_TILE"
@@ -80,6 +83,13 @@ const CAT_ROAD_EDGE_ROOTS := &"ROAD_EDGE_ROOTS"
 @export var use_biome_mesh_assets := false
 @export var use_biome_fog_and_lighting := false
 @export var show_gameplay_probe := true
+@export var use_monolith_test_map := false
+@export_range(12, 20, 4) var monolith_footprint_size := 16
+@export_range(1, 3, 1) var monolith_floor_count := 3
+@export var monolith_floor_height := 1.8
+@export_range(0.0, 1.0, 0.05) var monolith_room_density := 0.45
+@export_range(0.0, 0.14, 0.005) var monolith_gap_density := 0.035
+@export_range(0.0, 1.0, 0.05) var monolith_decor_density := 0.35
 @export_enum("DEBUG", "BIOME", "READABILITY") var presentation_mode := PRESENTATION_DEBUG
 
 var _map_generator: Node
@@ -90,6 +100,13 @@ var _feature_grid: Array = []
 var _road_cells: Dictionary = {}
 var _plots: Array = []
 var _landmarks: Array = []
+var _content_structures: Array = []
+var _current_floor_focus := 0
+var _visible_floors := {}
+var _show_structure_debug := true
+var _structure_view_mode := STRUCTURE_VIEW_EXTERIOR
+var _structure_helpers_visible := true
+var _rendered_floor_cell_count := 0
 
 var _data_root: Node
 var _visual_root: Node3D
@@ -99,6 +116,7 @@ var _ramp_root: Node3D
 var _blocker_root: Node3D
 var _plot_root: Node3D
 var _readability_root: Node3D
+var _structure_root: Node3D
 var _gameplay_root: Node3D
 var _path_root: Node3D
 var _camera_rig: Node3D
@@ -108,6 +126,7 @@ var _input_capture: Control
 var _selection_rect: ColorRect
 var _probe_screen_marker: Control
 var _status_label: Label
+var _floor_status_label: Label
 
 var _show_plots := true
 var _show_roads := true
@@ -152,6 +171,17 @@ var _drag_current := Vector2.ZERO
 var _unit_cell := Vector2i(-1, -1)
 var _unit_path: Array[Vector2i] = []
 var _unit_path_index := 0
+var _unit_structure_id := ""
+var _unit_floor := -1
+var _unit_local_cell := Vector2i(-1, -1)
+var _unit_interior_path: Array[Dictionary] = []
+var _pending_enter_structure_id := ""
+var _pending_enter_local_cell := Vector2i(-1, -1)
+var _pending_stair_link: Dictionary = {}
+var _probe_debug_visible := true
+var _probe_missing_error_printed := false
+var _probe_hidden_warning_printed := false
+var _probe_invalid_position_warning_printed := false
 
 
 func _ready() -> void:
@@ -168,6 +198,7 @@ func _process(delta: float) -> void:
 	_update_camera_motion(delta)
 	_update_probe_unit(delta)
 	_update_probe_screen_marker()
+	_validate_probe_runtime()
 
 
 func _input(event: InputEvent) -> void:
@@ -188,15 +219,37 @@ func _input(event: InputEvent) -> void:
 				_set_path_debug_visible(not _show_path_debug)
 			KEY_M:
 				_toggle_presentation_mode()
+			KEY_F:
+				_focus_camera_on_probe()
 			KEY_T:
-				_set_presentation_mode(PRESENTATION_READABILITY)
+				_teleport_probe_to_camera_center()
+			KEY_V:
+				_toggle_structure_helpers_visible()
+			KEY_G:
+				_spawn_or_reposition_probe_at_camera_center()
+			KEY_C:
+				_toggle_structure_cutaway_mode()
+			KEY_BRACKETLEFT:
+				_adjust_monolith_footprint(-1)
+			KEY_BRACKETRIGHT:
+				_adjust_monolith_footprint(1)
+			KEY_PAGEUP:
+				_cycle_floor_focus(1)
+			KEY_PAGEDOWN:
+				_cycle_floor_focus(-1)
+			KEY_TAB:
+				_cycle_occupied_floor_focus()
 	if event is InputEventMouseButton and event.pressed:
 		match event.button_index:
 			MOUSE_BUTTON_WHEEL_UP:
 				_camera_distance = maxf(CAMERA_MIN_DISTANCE, _camera_distance - CAMERA_ZOOM_STEP)
+				if _unit_floor >= 0:
+					_set_floor_focus(_unit_floor)
 				_update_camera_transform()
 			MOUSE_BUTTON_WHEEL_DOWN:
 				_camera_distance = minf(CAMERA_MAX_DISTANCE, _camera_distance + CAMERA_ZOOM_STEP)
+				if _content_structures.size() > 0 and _camera_distance > 62.0:
+					_set_floor_focus(maxi(0, _current_floor_focus - 1))
 				_update_camera_transform()
 
 
@@ -232,10 +285,28 @@ func _create_materials() -> void:
 	_materials["content_reservation_outline"] = _material(Color(0.15, 0.95, 1.0, 0.82))
 	_materials["content_debug_outline"] = _material(Color(1.0, 0.35, 1.0, 0.9))
 	_materials["content_fallback_outline"] = _material(Color(1.0, 0.2, 0.08, 0.95))
-	_materials["probe_unit"] = _material(Color("#58B6FF"))
-	_materials["probe_unit_selected"] = _material(Color(1.0, 0.94, 0.18, 0.78))
+	_materials["probe_unit"] = _material(Color("#00DFFF"))
+	_materials["probe_unit_selected"] = _material(Color(1.0, 1.0, 1.0, 0.96))
 	_materials["probe_path"] = _material(Color(0.2, 0.8, 1.0, 0.95))
-	_materials["probe_beacon"] = _material(Color(0.1, 0.85, 1.0, 0.48))
+	_materials["probe_beacon"] = _material(Color(1.0, 0.1, 0.78, 0.72))
+	_materials["structure_floor"] = _material(Color(0.22, 0.25, 0.26, 0.88))
+	_materials["structure_floor_active"] = _material(Color(0.42, 0.46, 0.48, 0.96))
+	_materials["structure_floor_faint"] = _material(Color(0.22, 0.25, 0.26, 0.22))
+	_materials["structure_wall"] = _material(Color(0.06, 0.075, 0.085, 0.96))
+	_materials["structure_tower"] = _material(Color(0.06, 0.075, 0.085, 0.94 if _uses_biome_presentation() else 0.28))
+	_materials["structure_tower_cutaway"] = _material(Color(0.06, 0.075, 0.085, 0.16))
+	_materials["structure_blocker"] = _material(Color(0.11, 0.08, 0.12, 0.9))
+	_materials["structure_gap"] = _material(Color(0.0, 0.0, 0.0, 0.48))
+	_materials["structure_stair"] = _material(Color(0.95, 0.55, 0.18, 0.92))
+	_materials["structure_room"] = _material(Color(0.7, 0.25, 1.0, 0.22))
+	_materials["structure_rune"] = _material(Color(1.0, 0.08, 0.62, 0.95))
+	_make_material_emissive(_materials["probe_unit"], Color("#00DFFF"), 0.8)
+	_make_material_emissive(_materials["probe_beacon"], Color("#FF28B7"), 1.15)
+	_make_material_emissive(_materials["structure_rune"], Color("#FF1A9E"), 1.35)
+	_make_material_no_depth(_materials["probe_unit"])
+	_make_material_no_depth(_materials["probe_unit_selected"])
+	_make_material_no_depth(_materials["probe_beacon"])
+	_make_material_no_depth(_materials["probe_path"])
 
 
 func _is_readability_mode() -> bool:
@@ -257,12 +328,14 @@ func _apply_presentation_defaults() -> void:
 		_show_ramps = true
 		_show_blockers = true
 		_show_path_debug = false
+		_show_structure_debug = false
 	else:
 		_show_plots = true
 		_show_roads = true
 		_show_ramps = true
 		_show_blockers = true
 		_show_path_debug = true
+		_show_structure_debug = true
 
 
 func _material(color: Color) -> StandardMaterial3D:
@@ -273,6 +346,23 @@ func _material(color: Color) -> StandardMaterial3D:
 		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return material
+
+
+func _make_material_emissive(material: Material, color: Color, energy: float) -> void:
+	var standard := material as StandardMaterial3D
+	if standard == null:
+		return
+	standard.emission_enabled = true
+	standard.emission = color
+	standard.emission_energy_multiplier = energy
+
+
+func _make_material_no_depth(material: Material) -> void:
+	var standard := material as StandardMaterial3D
+	if standard == null:
+		return
+	standard.no_depth_test = true
+	standard.render_priority = 8
 
 
 func _load_registry_assets() -> void:
@@ -535,7 +625,7 @@ func _create_ui() -> void:
 	controls.add_child(_make_toggle("Biome", _uses_biome_presentation(), _on_biome_mode_toggled))
 	var readability := Button.new()
 	readability.text = "Readability"
-	readability.tooltip_text = "Highlight terrain language without full debug colors (T)"
+	readability.tooltip_text = "Highlight terrain language without full debug colors"
 	readability.pressed.connect(func(): _set_presentation_mode(PRESENTATION_READABILITY))
 	controls.add_child(readability)
 	controls.add_child(_make_toggle("Plots", _show_plots, _set_plots_visible))
@@ -545,8 +635,20 @@ func _create_ui() -> void:
 	controls.add_child(_make_toggle("Path", _show_path_debug, _set_path_debug_visible))
 
 	_status_label = Label.new()
-	_status_label.text = "Mode %s | M cycle | T readability | WASD pan | QE rotate | wheel zoom" % presentation_mode
+	_status_label.text = "Mode %s | C cutaway | PageUp/PageDown floors | Tab probe floor | F focus probe | V floor helpers | [ ] monolith size" % presentation_mode
 	controls.add_child(_status_label)
+
+	_floor_status_label = Label.new()
+	_floor_status_label.name = "FloorStatus"
+	_floor_status_label.offset_left = 16
+	_floor_status_label.offset_top = 52
+	_floor_status_label.add_theme_font_size_override("font_size", 18)
+	_floor_status_label.add_theme_color_override("font_color", Color("#FFFFFF"))
+	_floor_status_label.add_theme_color_override("font_shadow_color", Color("#000000"))
+	_floor_status_label.add_theme_constant_override("shadow_offset_x", 2)
+	_floor_status_label.add_theme_constant_override("shadow_offset_y", 2)
+	canvas.add_child(_floor_status_label)
+	_update_floor_status_ui()
 
 
 func _make_probe_screen_marker() -> Control:
@@ -630,6 +732,10 @@ func _regenerate_map() -> void:
 	if _gameplay_root != null and is_instance_valid(_gameplay_root):
 		_gameplay_root.queue_free()
 
+	if use_monolith_test_map:
+		_regenerate_monolith_test_map()
+		return
+
 	_data_root = Node.new()
 	_data_root.name = "GeneratedLogicalMapData"
 	add_child(_data_root)
@@ -660,6 +766,120 @@ func _regenerate_map() -> void:
 		_create_gameplay_probe()
 
 
+func _regenerate_monolith_test_map() -> void:
+	_data_root = Node.new()
+	_data_root.name = "MonolithTestLogicalData"
+	add_child(_data_root)
+	_map_generator = null
+	_map_width = 32
+	_map_height = 32
+	_grid.clear()
+	_feature_grid.clear()
+	_road_cells.clear()
+	_plots.clear()
+	_landmarks.clear()
+	_content_structures.clear()
+	for x in range(_map_width):
+		var grid_col: Array[int] = []
+		var feature_col: Array[String] = []
+		for y in range(_map_height):
+			grid_col.append(MapGenerator.E_LOW)
+			feature_col.append("frontier_canvas")
+		_grid.append(grid_col)
+		_feature_grid.append(feature_col)
+	var footprint := _allowed_monolith_footprint(monolith_footprint_size)
+	monolith_footprint_size = footprint
+	monolith_floor_count = clampi(monolith_floor_count, 1, 3)
+	monolith_floor_height = maxf(1.0, monolith_floor_height)
+	var structure_rect := Rect2i(Vector2i((_map_width - footprint) / 2, (_map_height - footprint) / 2 - 1), Vector2i(footprint, footprint))
+	var generator = preload("res://scripts/map/content_structures/ContentStructureGenerator.gd").new()
+	var structure: Dictionary = generator.generate_abandoned_wizard_monolith(
+		"test_abandoned_wizard_monolith",
+		structure_rect,
+		seed,
+		_monolith_generation_options()
+	)
+	var plot_rect := _expanded_rect_local(structure_rect, 1)
+	var plot := {
+		"id": "test_monolith_plot",
+		"name": "Abandoned Wizard Monolith Test Plot",
+		"kind": "content_blank",
+		"content_size": "large",
+		"content_archetype": "abandoned_wizard_monolith",
+		"rect": plot_rect,
+		"debug_render_rect": plot_rect,
+		"reservation_rect": _expanded_rect_local(plot_rect, 2),
+		"has_interior": true,
+		"structure_type": "ABANDONED_WIZARD_MONOLITH",
+		"structure_id": structure["id"],
+		"structure_rect": structure_rect,
+		"footprint_size": structure["footprint_size"],
+		"floor_count": structure["floor_count"],
+		"entrance_cells": structure["entrance_cells"],
+		"stair_links": structure["stair_links"],
+		"discovered_floors": structure["discovered_floors"],
+		"occupied_floors": structure["occupied_floors"],
+		"content_structure": structure,
+		"anchor": structure["entrance_cells"][0],
+		"road_anchor": structure["entrance_cells"][0] + Vector2i(0, 3),
+	}
+	_plots.append(plot)
+	_content_structures.append(structure)
+	for x in range(structure_rect.position.x, structure_rect.end.x):
+		for y in range(structure_rect.position.y, structure_rect.end.y):
+			_grid[x][y] = MapGenerator.E_LOW
+			_feature_grid[x][y] = "content_structure_exterior"
+			var edge := x == structure_rect.position.x or x == structure_rect.end.x - 1 or y == structure_rect.position.y or y == structure_rect.end.y - 1
+			if edge:
+				_grid[x][y] = MapGenerator.E_BLOCKED
+				_feature_grid[x][y] = "content_structure_wall"
+	var entrance: Vector2i = structure["entrance_cells"][0]
+	for cell in [entrance, entrance + Vector2i(-1, 0), entrance + Vector2i(1, 0), entrance + Vector2i(0, 1), entrance + Vector2i(0, 2), entrance + Vector2i(0, 3)]:
+		if _is_in_generated_bounds(cell):
+			_grid[cell.x][cell.y] = MapGenerator.E_LOW
+			_feature_grid[cell.x][cell.y] = "content_structure_entrance"
+			_road_cells[cell] = true
+	print("[Map3DPrototype] Monolith test map generated structure=", structure.get("id", ""),
+		" footprint=", structure.get("footprint_size", Vector2i.ZERO),
+		" floor_count=", structure.get("floor_count", 0),
+		" floor_height=", structure.get("floor_height", 0.0),
+		" room_density=", structure.get("room_density", 0.0),
+		" gap_density=", structure.get("gap_density", 0.0),
+		" decor_density=", structure.get("decor_density", 0.0),
+		" validation=", structure.get("validation", {}),
+		" entrance=", entrance)
+	_render_map()
+	if show_gameplay_probe:
+		_create_gameplay_probe()
+
+
+func _expanded_rect_local(rect: Rect2i, margin: int) -> Rect2i:
+	return Rect2i(rect.position - Vector2i(margin, margin), rect.size + Vector2i(margin * 2, margin * 2))
+
+
+func _monolith_generation_options() -> Dictionary:
+	return {
+		"footprint_size": _allowed_monolith_footprint(monolith_footprint_size),
+		"floor_count": clampi(monolith_floor_count, 1, 3),
+		"floor_height": maxf(1.0, monolith_floor_height),
+		"room_density": clampf(monolith_room_density, 0.0, 1.0),
+		"gap_density": clampf(monolith_gap_density, 0.0, 0.14),
+		"decor_density": clampf(monolith_decor_density, 0.0, 1.0),
+	}
+
+
+func _allowed_monolith_footprint(value: int) -> int:
+	var allowed: Array[int] = [12, 16, 20]
+	var best: int = allowed[0]
+	var best_distance := absi(value - best)
+	for candidate: int in allowed:
+		var distance := absi(value - candidate)
+		if distance < best_distance:
+			best = candidate
+			best_distance = distance
+	return best
+
+
 func _add_hidden_tile_layers(parent: Node) -> void:
 	for layer_name in ["TileMapLow", "TileMapMid", "TileMapHigh"]:
 		var layer := TileMapLayer.new()
@@ -675,18 +895,23 @@ func _read_map_data(generator: Node) -> void:
 	_road_cells = generator.get("road_cells")
 	_plots = generator.get("plots")
 	_landmarks = generator.get("landmarks")
+	_content_structures.clear()
+	for plot in _plots:
+		if bool(plot.get("has_interior", false)):
+			var structure: Dictionary = plot.get("content_structure", {})
+			if not structure.is_empty():
+				_content_structures.append(structure)
 	_map_width = _grid.size()
 	_map_height = _grid[0].size() if _map_width > 0 else 0
 	if _status_label != null:
-		_status_label.text = "Mode %s | Seed %s | %sx%s | plots %s | roads %s | M mode | 1-5 toggles" % [
+		_status_label.text = "Mode %s | Structure %s | Floor %s | Seed %s | C cutaway | PageUp/PageDown | F probe" % [
 			presentation_mode,
+			_structure_view_mode,
+			_current_floor_focus,
 			str(generator.call("get_seed_value")),
-			_map_width,
-			_map_height,
-			_plots.size(),
-			_road_cells.size()
 		]
-	print("[Map3DPrototype] seed=", generator.call("get_seed_value"), " size=", _map_width, "x", _map_height, " plots=", _plots.size(), " roads=", _road_cells.size(), " landmarks=", _landmarks.size())
+	_update_floor_status_ui()
+	print("[Map3DPrototype] seed=", generator.call("get_seed_value"), " size=", _map_width, "x", _map_height, " plots=", _plots.size(), " roads=", _road_cells.size(), " landmarks=", _landmarks.size(), " structures=", _content_structures.size())
 
 
 func _render_map() -> void:
@@ -698,6 +923,7 @@ func _render_map() -> void:
 	_ramp_debug_records.clear()
 	_ramp_opening_carve_count = 0
 	_ramps_missing_high_ground = 0
+	_rendered_floor_cell_count = 0
 	_scene_instance_counts.clear()
 	_prop_scale_total = 0.0
 	_prop_scale_count = 0
@@ -711,6 +937,7 @@ func _render_map() -> void:
 	_blocker_root = _add_root("Blockers", _show_blockers)
 	_plot_root = _add_root("PlotMarkers", _show_plots)
 	_readability_root = _add_root("TerrainReadability", _uses_biome_presentation())
+	_structure_root = _add_root("ContentStructures", true)
 
 	var low_cells: Array[Vector2i] = []
 	var high_cells: Array[Vector2i] = []
@@ -762,6 +989,7 @@ func _render_map() -> void:
 	_add_blockers(blocker_cells)
 	_add_biome_decor()
 	_add_landmark_visuals()
+	_add_content_structures()
 	_add_plot_markers()
 	_center_camera()
 	_print_biome_debug(cliff_edge_cells.size())
@@ -1202,6 +1430,380 @@ func _add_landmark_debug_label(landmark: Dictionary) -> void:
 	_debug_overlay_count += 1
 
 
+func _add_content_structures() -> void:
+	if _structure_root == null:
+		return
+	for child in _structure_root.get_children():
+		child.queue_free()
+	_visible_floors.clear()
+	for structure in _content_structures:
+		_add_content_structure(structure)
+	_print_structure_debug()
+	_update_floor_status_ui()
+
+
+func _add_content_structure(structure: Dictionary) -> void:
+	if not _validate_structure_for_render(structure):
+		return
+	_add_monolith_tower_exterior(structure)
+	var floors: Array = structure.get("floors", [])
+	var discovered: Array = structure.get("discovered_floors", [0])
+	for floor_value in floors:
+		var floor_data: Dictionary = floor_value
+		var floor_index := int(floor_data.get("floor_index", 0))
+		var visibility := _floor_visibility_state(floor_index, discovered)
+		_visible_floors[floor_index] = visibility
+		if visibility == "hidden":
+			continue
+		var floor_root := Node3D.new()
+		floor_root.name = "%s_Floor_%s_%s" % [str(structure.get("id", "structure")), floor_index, visibility]
+		_structure_root.add_child(floor_root)
+		var y := _structure_floor_y(structure, floor_index)
+		var floor_material: Material = _materials["structure_floor_active"] if visibility == "active" else _materials["structure_floor_faint"]
+		var floor_size := Vector3(0.96, 0.075, 0.96) if visibility == "active" else Vector3(0.86, 0.04, 0.86)
+		_rendered_floor_cell_count += _add_structure_cells(floor_root, structure, floor_data.get("walkable_cells", []), y, floor_size, floor_material, "Walkable")
+		_rendered_floor_cell_count += _add_structure_cells(floor_root, structure, floor_data.get("wall_cells", []), y + 0.36, Vector3(0.94, 0.72, 0.94), _materials["structure_wall"], "Walls")
+		_rendered_floor_cell_count += _add_structure_cells(floor_root, structure, floor_data.get("blocker_cells", []), y + 0.25, Vector3(0.66, 0.52, 0.66), _materials["structure_blocker"], "Blockers")
+		_rendered_floor_cell_count += _add_structure_cells(floor_root, structure, floor_data.get("gap_cells", []), y - 0.04, Vector3(0.82, 0.04, 0.82), _materials["structure_gap"], "Gaps")
+		_rendered_floor_cell_count += _add_structure_cells(floor_root, structure, floor_data.get("stair_cells", []), y + 0.14, Vector3(0.9, 0.22, 0.9), _materials["structure_stair"], "Stairs")
+		if _structure_helpers_visible:
+			_add_structure_room_overlays(floor_root, structure, floor_data, y + 0.075)
+			_add_structure_floor_label(floor_root, structure, floor_data, y + 1.1, visibility)
+		if visibility == "active":
+			_add_active_floor_banner(floor_root, structure, floor_data, y + 2.0)
+
+
+func _validate_structure_for_render(structure: Dictionary) -> bool:
+	if structure.is_empty():
+		print("[Map3DPrototype][ERROR] Structure render skipped: empty structure data.")
+		return false
+	var floors: Array = structure.get("floors", [])
+	var floor_count := int(structure.get("floor_count", floors.size()))
+	if floor_count <= 0 or floors.size() != floor_count:
+		print("[Map3DPrototype][ERROR] Structure render skipped id=", structure.get("id", "?"), " invalid floor count floors=", floors.size(), " declared=", floor_count)
+		return false
+	var entrances: Array = structure.get("entrance_cells", [])
+	if entrances.is_empty():
+		print("[Map3DPrototype][ERROR] Structure render skipped id=", structure.get("id", "?"), " missing entrance cells.")
+		return false
+	for entrance_value in entrances:
+		var entrance: Vector2i = entrance_value
+		if not _is_in_generated_bounds(entrance):
+			print("[Map3DPrototype][ERROR] Structure render skipped id=", structure.get("id", "?"), " entrance outside map=", entrance)
+			return false
+		if not _is_walkable_cell(entrance):
+			print("[Map3DPrototype][ERROR] Structure render skipped id=", structure.get("id", "?"), " entrance is not exterior-walkable=", entrance)
+			return false
+	for link_value in structure.get("stair_links", []):
+		var link: Dictionary = link_value
+		var from_floor := int(link.get("from_floor", -1))
+		var to_floor := int(link.get("to_floor", -1))
+		if from_floor < 0 or from_floor >= floor_count or to_floor < 0 or to_floor >= floor_count:
+			print("[Map3DPrototype][ERROR] Structure render skipped id=", structure.get("id", "?"), " invalid stair link=", link)
+			return false
+		if not _is_structure_walkable(structure, from_floor, link.get("from_cell", Vector2i(-1, -1))):
+			print("[Map3DPrototype][ERROR] Structure render skipped id=", structure.get("id", "?"), " stair from cell invalid=", link)
+			return false
+		if not _is_structure_walkable(structure, to_floor, link.get("to_cell", Vector2i(-1, -1))):
+			print("[Map3DPrototype][ERROR] Structure render skipped id=", structure.get("id", "?"), " stair to cell invalid=", link)
+	return true
+
+
+func _add_monolith_tower_exterior(structure: Dictionary) -> void:
+	var rect: Rect2i = structure.get("exterior_rect", Rect2i())
+	if rect.size == Vector2i.ZERO:
+		return
+	var center_cell := rect.position + Vector2i(rect.size.x / 2, rect.size.y / 2)
+	var base_y := _surface_height_for_cell(_clamp_cell(center_cell))
+	var tower_height := 7.2
+	if _structure_view_mode == STRUCTURE_VIEW_INTERIOR_CUTAWAY:
+		tower_height = _structure_floor_y(structure, _current_floor_focus) + 1.2
+	elif _structure_view_mode == STRUCTURE_VIEW_DEBUG_FLOORS:
+		tower_height = 1.1
+	var tower := MeshInstance3D.new()
+	tower.name = "AbandonedWizardMonolithTower_%s" % str(structure.get("id", "structure"))
+	tower.mesh = _box_mesh(Vector3(float(rect.size.x) * 0.72, tower_height, float(rect.size.y) * 0.72))
+	tower.material_override = _materials["structure_tower_cutaway"] if _structure_view_mode != STRUCTURE_VIEW_EXTERIOR else _materials["structure_tower"]
+	tower.position = _cell_to_world(center_cell, base_y + tower_height * 0.5)
+	_structure_root.add_child(tower)
+	if _structure_view_mode == STRUCTURE_VIEW_INTERIOR_CUTAWAY:
+		_add_cutaway_wall_outline(structure, _structure_floor_y(structure, _current_floor_focus) + 0.62)
+	for offset in [Vector2i(0, -4), Vector2i(0, 4), Vector2i(-4, 0), Vector2i(4, 0)]:
+		if _structure_view_mode != STRUCTURE_VIEW_EXTERIOR:
+			continue
+		var slit := MeshInstance3D.new()
+		slit.name = "MonolithWindowSlit"
+		slit.mesh = _box_mesh(Vector3(0.18 if offset.x == 0 else 0.58, 1.25, 0.58 if offset.x == 0 else 0.18))
+		slit.material_override = _materials["structure_gap"]
+		slit.position = _cell_to_world(center_cell + offset, base_y + 4.2)
+		_structure_root.add_child(slit)
+	for rune_offset in [Vector2i(-2, -3), Vector2i(2, -2), Vector2i(3, 2), Vector2i(-3, 3)]:
+		if _structure_view_mode != STRUCTURE_VIEW_EXTERIOR:
+			continue
+		var rune := MeshInstance3D.new()
+		rune.name = "MonolithPinkRune"
+		rune.mesh = _box_mesh(Vector3(0.16, 2.4, 0.16))
+		rune.material_override = _materials["structure_rune"]
+		rune.position = _cell_to_world(center_cell + rune_offset, base_y + 4.0)
+		_structure_root.add_child(rune)
+	var entrance_cells: Array = structure.get("entrance_cells", [])
+	if not entrance_cells.is_empty():
+		var entrance: Vector2i = entrance_cells[0]
+		var marker := MeshInstance3D.new()
+		marker.name = "MonolithEntranceMarker"
+		marker.mesh = _box_mesh(Vector3(2.4, 0.12, 1.15))
+		marker.material_override = _materials["structure_stair"]
+		marker.position = _cell_to_world(entrance, base_y + 0.12)
+		_structure_root.add_child(marker)
+
+
+func _add_cutaway_wall_outline(structure: Dictionary, y: float) -> void:
+	var rect: Rect2i = structure.get("exterior_rect", Rect2i())
+	var center := rect.position + Vector2i(rect.size.x / 2, rect.size.y / 2)
+	var wall_thickness := 0.18
+	var wall_height := 0.72
+	var w := float(rect.size.x) * 0.98
+	var d := float(rect.size.y) * 0.98
+	for item in [
+		{"offset": Vector2i(0, -rect.size.y / 2), "size": Vector3(w, wall_height, wall_thickness)},
+		{"offset": Vector2i(0, rect.size.y / 2), "size": Vector3(w, wall_height, wall_thickness)},
+		{"offset": Vector2i(-rect.size.x / 2, 0), "size": Vector3(wall_thickness, wall_height, d)},
+		{"offset": Vector2i(rect.size.x / 2, 0), "size": Vector3(wall_thickness, wall_height, d)},
+	]:
+		var wall := MeshInstance3D.new()
+		wall.name = "CutawayWallOutline"
+		wall.mesh = _box_mesh(item["size"])
+		wall.material_override = _materials["structure_wall"]
+		wall.position = _cell_to_world(center + item["offset"], y)
+		_structure_root.add_child(wall)
+
+
+func _floor_visibility_state(floor_index: int, discovered: Array) -> String:
+	match _structure_view_mode:
+		STRUCTURE_VIEW_EXTERIOR:
+			return "hidden"
+		STRUCTURE_VIEW_DEBUG_FLOORS:
+			return "active" if floor_index == _current_floor_focus else "faint"
+	if floor_index == _current_floor_focus:
+		return "active"
+	if not discovered.has(floor_index):
+		return "hidden"
+	if floor_index < _current_floor_focus:
+		return "faint"
+	return "hidden"
+
+
+func _structure_floor_y(structure: Dictionary, floor_index: int) -> float:
+	return float(floor_index) * float(structure.get("floor_height", 1.5)) + 0.12
+
+
+func _add_structure_cells(parent: Node3D, structure: Dictionary, cells: Array, y: float, size: Vector3, material: Material, label: String) -> int:
+	if cells.is_empty():
+		return 0
+	var mesh := _box_mesh(size)
+	for cell_value in cells:
+		var local_cell: Vector2i = cell_value
+		var instance := MeshInstance3D.new()
+		instance.name = "%s_%s_%s" % [label, local_cell.x, local_cell.y]
+		instance.mesh = mesh
+		instance.material_override = material
+		instance.position = _structure_cell_to_world(structure, local_cell, y)
+		parent.add_child(instance)
+	return cells.size()
+
+
+func _add_structure_room_overlays(parent: Node3D, structure: Dictionary, floor_data: Dictionary, y: float) -> void:
+	for room_value in floor_data.get("rooms", []):
+		var room: Dictionary = room_value
+		var rect: Rect2i = room.get("rect", Rect2i())
+		if rect.size == Vector2i.ZERO:
+			continue
+		var instance := MeshInstance3D.new()
+		instance.name = "Room_%s" % str(room.get("id", "room"))
+		instance.mesh = _box_mesh(Vector3(float(rect.size.x) * 0.92, 0.035, float(rect.size.y) * 0.92))
+		instance.material_override = _materials["structure_room"]
+		instance.position = _structure_local_rect_center_to_world(structure, rect, y)
+		parent.add_child(instance)
+
+
+func _add_structure_floor_label(parent: Node3D, structure: Dictionary, floor_data: Dictionary, y: float, visibility: String) -> void:
+	var label := Label3D.new()
+	label.name = "FloorLabel"
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.font_size = 24 if visibility == "active" else 16
+	label.modulate = Color("#FFFFFF") if visibility == "active" else Color(0.8, 0.82, 0.86, 0.45)
+	label.text = "F%s %s" % [int(floor_data.get("floor_index", 0)), str(floor_data.get("label", ""))]
+	var rect: Rect2i = structure.get("exterior_rect", Rect2i())
+	label.position = _cell_to_world(rect.position + Vector2i(rect.size.x / 2, rect.size.y / 2), y)
+	parent.add_child(label)
+
+
+func _add_active_floor_banner(parent: Node3D, structure: Dictionary, floor_data: Dictionary, y: float) -> void:
+	if not _structure_helpers_visible:
+		return
+	var label := Label3D.new()
+	label.name = "ActiveFloorBanner"
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.font_size = 34
+	label.modulate = Color.WHITE
+	label.outline_modulate = Color.BLACK
+	label.outline_size = 8
+	label.text = "MONOLITH FLOOR %s" % int(floor_data.get("floor_index", 0))
+	var rect: Rect2i = structure.get("exterior_rect", Rect2i())
+	label.position = _cell_to_world(rect.position + Vector2i(rect.size.x / 2, rect.size.y / 2), y)
+	parent.add_child(label)
+
+
+func _structure_cell_to_world(structure: Dictionary, local_cell: Vector2i, y: float) -> Vector3:
+	var rect: Rect2i = structure.get("exterior_rect", Rect2i())
+	return _cell_to_world(rect.position + local_cell, y)
+
+
+func _structure_local_rect_center_to_world(structure: Dictionary, rect: Rect2i, y: float) -> Vector3:
+	var exterior: Rect2i = structure.get("exterior_rect", Rect2i())
+	var center := exterior.position + rect.position + Vector2i(rect.size.x / 2, rect.size.y / 2)
+	return _cell_to_world(center, y)
+
+
+func _set_floor_focus(floor_index: int) -> void:
+	var clamped := clampi(floor_index, 0, _max_structure_floor())
+	if clamped == _current_floor_focus:
+		_print_floor_focus_debug()
+		return
+	_current_floor_focus = clamped
+	if _structure_view_mode == STRUCTURE_VIEW_EXTERIOR:
+		_structure_view_mode = STRUCTURE_VIEW_INTERIOR_CUTAWAY
+	_add_content_structures()
+	_snap_camera_to_focused_structure()
+	_update_floor_status_ui()
+	_print_floor_focus_debug()
+
+
+func _cycle_floor_focus(delta: int) -> void:
+	_set_floor_focus(_current_floor_focus + delta)
+
+
+func _cycle_occupied_floor_focus() -> void:
+	var occupied := _occupied_floors()
+	if occupied.is_empty():
+		print("[Map3DPrototype] No occupied interior floors to cycle.")
+		return
+	var next_index := 0
+	for i in range(occupied.size()):
+		if int(occupied[i]) == _current_floor_focus:
+			next_index = (i + 1) % occupied.size()
+			break
+	_set_floor_focus(int(occupied[next_index]))
+
+
+func _toggle_structure_cutaway_mode() -> void:
+	if _structure_view_mode == STRUCTURE_VIEW_EXTERIOR:
+		_structure_view_mode = STRUCTURE_VIEW_INTERIOR_CUTAWAY
+	else:
+		_structure_view_mode = STRUCTURE_VIEW_EXTERIOR
+	_add_content_structures()
+	_snap_camera_to_focused_structure()
+	_update_floor_status_ui()
+	_print_floor_focus_debug()
+
+
+func _toggle_structure_helpers_visible() -> void:
+	if _structure_view_mode == STRUCTURE_VIEW_DEBUG_FLOORS:
+		_structure_view_mode = STRUCTURE_VIEW_INTERIOR_CUTAWAY
+	elif _structure_view_mode == STRUCTURE_VIEW_EXTERIOR:
+		_structure_view_mode = STRUCTURE_VIEW_INTERIOR_CUTAWAY
+		_structure_helpers_visible = true
+	else:
+		_structure_view_mode = STRUCTURE_VIEW_DEBUG_FLOORS
+		_structure_helpers_visible = true
+	_add_content_structures()
+	_snap_camera_to_focused_structure()
+	_update_floor_status_ui()
+	print("[Map3DPrototype] Floor helpers visible=", _structure_helpers_visible, " view_mode=", _structure_view_mode)
+
+
+func _set_structure_view_debug_floors() -> void:
+	_structure_view_mode = STRUCTURE_VIEW_DEBUG_FLOORS
+	_structure_helpers_visible = true
+	_add_content_structures()
+	_snap_camera_to_focused_structure()
+	_update_floor_status_ui()
+	_print_floor_focus_debug()
+
+
+func _snap_camera_to_focused_structure() -> void:
+	if _camera_rig == null or _content_structures.is_empty():
+		return
+	var structure: Dictionary = _content_structures[0]
+	var rect: Rect2i = structure.get("exterior_rect", Rect2i())
+	if rect.size == Vector2i.ZERO:
+		return
+	var center := rect.position + Vector2i(rect.size.x / 2, rect.size.y / 2)
+	_camera_rig.position = _cell_to_world(center, _structure_floor_y(structure, _current_floor_focus))
+	_camera_distance = clampf(34.0 + float(rect.size.x) * 0.9, CAMERA_MIN_DISTANCE, CAMERA_MAX_DISTANCE)
+	_update_camera_transform()
+
+
+func _print_floor_focus_debug() -> void:
+	var structure: Dictionary = _content_structures[0] if not _content_structures.is_empty() else {}
+	print("[Map3DPrototype] Floor focus current_floor_focus=", _current_floor_focus,
+		" visible_floors=", _visible_floors,
+		" probe_floor=", _unit_floor,
+		" discovered_floors=", structure.get("discovered_floors", []),
+		" current_mode=", _structure_view_mode,
+		" rendered_floor_cells=", _rendered_floor_cell_count)
+
+
+func _update_floor_status_ui() -> void:
+	if _floor_status_label == null:
+		return
+	var structure: Dictionary = _content_structures[0] if not _content_structures.is_empty() else {}
+	var structure_id := str(structure.get("id", "none"))
+	var discovered: Array = structure.get("discovered_floors", [])
+	_floor_status_label.text = "Structure: %s\nView: %s | Floor: %s | Probe floor: %s | Discovered: %s\nC cutaway/exterior | PageUp/PageDown floor | Tab probe floor | V debug floors | F focus probe" % [
+		structure_id,
+		_structure_view_mode,
+		_current_floor_focus,
+		_unit_floor,
+		str(discovered),
+	]
+
+
+func _max_structure_floor() -> int:
+	var max_floor := 0
+	for structure in _content_structures:
+		max_floor = maxi(max_floor, int(structure.get("floor_count", 1)) - 1)
+	return max_floor
+
+
+func _occupied_floors() -> Array[int]:
+	var floors: Array[int] = []
+	if _unit_floor >= 0:
+		floors.append(_unit_floor)
+	return floors
+
+
+func _print_structure_debug() -> void:
+	for structure in _content_structures:
+		var validation: Dictionary = structure.get("validation", {})
+		print("[Map3DPrototype] Structure id=", structure.get("id", "?"),
+			" type=", structure.get("structure_type", "?"),
+			" footprint=", structure.get("footprint_size", Vector2i.ZERO),
+			" floors=", structure.get("floor_count", 0),
+			" floor_height=", structure.get("floor_height", 0.0),
+			" room_density=", structure.get("room_density", 0.0),
+			" gap_density=", structure.get("gap_density", 0.0),
+			" decor_density=", structure.get("decor_density", 0.0),
+			" walkable_counts=", validation.get("walkable_counts", []),
+			" stair_count=", validation.get("stair_count", 0),
+			" current_floor_focus=", _current_floor_focus,
+			" visible_floors=", _visible_floors,
+			" occupied_floors=", _occupied_floors(),
+			" validation=", validation)
+
+
 func _add_content_plot_decor(center: Vector2i) -> void:
 	var offsets: Array[Vector2i] = [Vector2i(2, 2), Vector2i(-2, 1), Vector2i(1, -2), Vector2i(-1, -2)]
 	for offset in offsets:
@@ -1532,6 +2134,8 @@ func _set_path_debug_visible(visible: bool) -> void:
 
 
 func _create_gameplay_probe() -> void:
+	if _gameplay_root != null and is_instance_valid(_gameplay_root):
+		_gameplay_root.queue_free()
 	_gameplay_root = Node3D.new()
 	_gameplay_root.name = "GameplayProbe"
 	add_child(_gameplay_root)
@@ -1542,9 +2146,22 @@ func _create_gameplay_probe() -> void:
 	_gameplay_root.add_child(_path_root)
 
 	var spawn_cell := _probe_spawn_cell()
+	if not _is_walkable_cell(spawn_cell):
+		print("[Map3DPrototype][ERROR] Probe spawn invalid; no walkable spawn found near monolith/base. Requested=", spawn_cell)
+		return
+	_probe_missing_error_printed = false
+	_probe_hidden_warning_printed = false
+	_probe_invalid_position_warning_printed = false
 	_unit_cell = spawn_cell
 	_unit_path.clear()
 	_unit_path_index = 0
+	_unit_structure_id = ""
+	_unit_floor = -1
+	_unit_local_cell = Vector2i(-1, -1)
+	_unit_interior_path.clear()
+	_pending_enter_structure_id = ""
+	_pending_enter_local_cell = Vector2i(-1, -1)
+	_pending_stair_link.clear()
 	_unit_selected = false
 
 	_probe_unit = Node3D.new()
@@ -1554,9 +2171,9 @@ func _create_gameplay_probe() -> void:
 
 	_unit_beacon = MeshInstance3D.new()
 	_unit_beacon.name = "Beacon"
-	_unit_beacon.mesh = _box_mesh(Vector3(0.18, 5.2, 0.18))
+	_unit_beacon.mesh = _box_mesh(Vector3(0.62, 9.5, 0.62))
 	_unit_beacon.material_override = _materials["probe_beacon"]
-	_unit_beacon.position = Vector3(0.0, 2.6, 0.0)
+	_unit_beacon.position = Vector3(0.0, 4.85, 0.0)
 	_probe_unit.add_child(_unit_beacon)
 
 	var body := MeshInstance3D.new()
@@ -1571,7 +2188,7 @@ func _create_gameplay_probe() -> void:
 
 	_selection_ring = MeshInstance3D.new()
 	_selection_ring.name = "SelectionRing"
-	_selection_ring.mesh = _box_mesh(Vector3(UNIT_RADIUS * 3.2, 0.045, UNIT_RADIUS * 3.2))
+	_selection_ring.mesh = _box_mesh(Vector3(UNIT_RADIUS * 4.4, 0.065, UNIT_RADIUS * 4.4))
 	_selection_ring.material_override = _materials["probe_unit_selected"]
 	_selection_ring.position = Vector3(0.0, 0.035, 0.0)
 	_selection_ring.visible = true
@@ -1582,21 +2199,61 @@ func _create_gameplay_probe() -> void:
 	_unit_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_unit_label.no_depth_test = true
 	_unit_label.font_size = 36
-	_unit_label.modulate = Color("#DFF4FF")
-	_unit_label.outline_modulate = Color("#082032")
-	_unit_label.outline_size = 8
-	_unit_label.text = "PROBE UNIT"
-	_unit_label.position = Vector3(0.0, UNIT_HEIGHT + 1.05, 0.0)
+	_unit_label.modulate = Color.WHITE
+	_unit_label.outline_modulate = Color("#00131A")
+	_unit_label.outline_size = 10
+	_unit_label.text = "PROBE"
+	_unit_label.position = Vector3(0.0, UNIT_HEIGHT + 1.4, 0.0)
 	_probe_unit.add_child(_unit_label)
 
 	_set_probe_selected(true)
+	_set_probe_debug_visible(_probe_debug_visible)
 	_camera_rig.position = _probe_unit.position
 	_update_camera_transform()
 	_update_probe_screen_marker()
-	print("[Map3DPrototype] Probe unit spawned cell=", spawn_cell, " walkable=", _is_walkable_cell(spawn_cell))
+	_print_probe_spawn_info("spawn")
+
+
+func _print_probe_spawn_info(reason: String) -> void:
+	var node_path := NodePath("")
+	if _probe_unit != null and is_instance_valid(_probe_unit):
+		node_path = _probe_unit.get_path()
+	print("[Map3DPrototype] Probe ", reason,
+		" scene=", name,
+		" node_path=", node_path,
+		" world_position=", _probe_unit.global_position if _probe_unit != null else Vector3.ZERO,
+		" grid_cell=", _unit_cell,
+		" floor=", _unit_floor,
+		" structure_id=", _unit_structure_id,
+		" visible=", _probe_unit.visible if _probe_unit != null else false,
+		" collision_layer=none",
+		" collision_mask=none",
+		" selectable=", _probe_unit != null and is_instance_valid(_probe_unit),
+		" movement_state=", "moving" if _unit_path_index < _unit_path.size() or not _unit_interior_path.is_empty() else "idle")
 
 
 func _probe_spawn_cell() -> Vector2i:
+	for structure in _content_structures:
+		if not _validate_structure_for_probe(structure):
+			continue
+		var entrance: Vector2i = structure.get("entrance_cells", [Vector2i(_map_width / 2, _map_height / 2)])[0]
+		var candidates: Array[Vector2i] = [
+			entrance + Vector2i(0, 2),
+			entrance + Vector2i(0, 3),
+			entrance + Vector2i(-1, 2),
+			entrance + Vector2i(1, 2),
+			entrance + Vector2i(-2, 2),
+			entrance + Vector2i(2, 2),
+			entrance,
+		]
+		for candidate in candidates:
+			if _is_walkable_cell(candidate):
+				print("[Map3DPrototype] Probe spawn selected near structure=", structure.get("id", ""), " entrance=", entrance, " spawn=", candidate)
+				return candidate
+		var nearest := _nearest_local_walkable_cell(entrance + Vector2i(0, 2), 12)
+		if _is_walkable_cell(nearest):
+			print("[Map3DPrototype] Probe spawn nearest fallback near structure=", structure.get("id", ""), " entrance=", entrance, " spawn=", nearest)
+			return nearest
 	if _map_generator == null:
 		return _nearest_local_walkable_cell(Vector2i(_map_width / 2, _map_height / 2), 32)
 	var center_spawn: Vector2i = _map_generator.call("nearest_walkable_cell", Vector2i(_map_width / 2, _map_height / 2), 36)
@@ -1613,6 +2270,19 @@ func _probe_spawn_cell() -> Vector2i:
 	return _nearest_local_walkable_cell(Vector2i(_map_width / 2, _map_height / 2), 48)
 
 
+func _validate_structure_for_probe(structure: Dictionary) -> bool:
+	if not _validate_structure_for_render(structure):
+		return false
+	var entrance_local_cells: Array = structure.get("entrance_local_cells", [])
+	if entrance_local_cells.is_empty():
+		print("[Map3DPrototype][ERROR] Probe structure invalid id=", structure.get("id", "?"), " missing entrance local cell.")
+		return false
+	if not _is_structure_walkable(structure, 0, entrance_local_cells[0]):
+		print("[Map3DPrototype][ERROR] Probe structure invalid id=", structure.get("id", "?"), " entrance local cell not walkable=", entrance_local_cells[0])
+		return false
+	return true
+
+
 func _nearest_local_walkable_cell(origin: Vector2i, max_radius: int) -> Vector2i:
 	if _is_walkable_cell(origin):
 		return origin
@@ -1626,8 +2296,23 @@ func _nearest_local_walkable_cell(origin: Vector2i, max_radius: int) -> Vector2i
 
 
 func _handle_left_click(screen_position: Vector2) -> void:
+	if _screen_selects_probe(screen_position):
+		_set_probe_selected(true)
+		print("[Map3DPrototype] Probe selected by direct click screen=", screen_position, " unit_cell=", _unit_cell)
+		return
 	var pick := _pick_map_cell(screen_position)
 	if pick.is_empty():
+		print("[Map3DPrototype] Selection failed screen=", screen_position, " reason=no_map_pick probe_under_cursor=", _screen_selects_probe(screen_position))
+		return
+	if pick.has("structure"):
+		print("[Map3DPrototype] Structure pick id=", pick.get("structure_id", ""),
+			" floor=", pick.get("floor", -1),
+			" local_cell=", pick.get("local_cell", Vector2i.ZERO),
+			" walkable=", _is_structure_walkable(pick["structure"], int(pick["floor"]), pick["local_cell"]))
+		if _screen_selects_probe(screen_position):
+			_set_probe_selected(true)
+		else:
+			print("[Map3DPrototype] Probe selection failed screen=", screen_position, " reason=structure_pick_not_probe")
 		return
 	var cell: Vector2i = pick["cell"]
 	_print_pick_debug(cell)
@@ -1636,16 +2321,26 @@ func _handle_left_click(screen_position: Vector2) -> void:
 		print("[Map3DPrototype] Probe selected cell=", _unit_cell)
 	else:
 		_set_probe_selected(false)
+		print("[Map3DPrototype] Probe selection failed screen=", screen_position,
+			" reason=terrain_click_not_probe picked_cell=", cell,
+			" unit_cell=", _unit_cell,
+			" screen_rect=", _probe_unit_screen_rect())
 
 
 func _handle_right_click(screen_position: Vector2) -> void:
 	var pick := _pick_map_cell(screen_position)
 	if pick.is_empty():
 		return
+	if pick.has("structure"):
+		_handle_structure_right_click(pick)
+		return
 	var target_cell: Vector2i = pick["cell"]
 	_print_pick_debug(target_cell)
 	if not _unit_selected:
 		print("[Map3DPrototype] Move ignored; probe unit is not selected.")
+		return
+	if _unit_floor >= 0:
+		print("[Map3DPrototype] Exterior move ignored; probe is inside structure=", _unit_structure_id, " floor=", _unit_floor)
 		return
 	if not _is_walkable_cell(target_cell):
 		_unit_path.clear()
@@ -1698,7 +2393,10 @@ func _end_drag_select(screen_position: Vector2) -> void:
 	var rect := _drag_rect()
 	var selected := _probe_unit_inside_screen_rect(rect)
 	_set_probe_selected(selected)
-	print("[Map3DPrototype] Drag select rect=", rect, " selected_probe=", selected, " unit_cell=", _unit_cell)
+	print("[Map3DPrototype] Drag select rect=", rect,
+		" selected_probe=", selected,
+		" unit_cell=", _unit_cell,
+		" reason=", "intersects_probe_screen_rect" if selected else _probe_drag_selection_failure_reason(rect))
 
 
 func _update_selection_rect() -> void:
@@ -1723,8 +2421,28 @@ func _probe_unit_inside_screen_rect(rect: Rect2) -> bool:
 	return rect.intersects(unit_rect) or rect.encloses(unit_rect) or unit_rect.encloses(rect)
 
 
+func _screen_selects_probe(screen_position: Vector2) -> bool:
+	if _camera == null or _probe_unit == null or not is_instance_valid(_probe_unit):
+		return false
+	if _camera.is_position_behind(_probe_unit.global_position):
+		return false
+	return _probe_unit_screen_rect().has_point(screen_position)
+
+
+func _probe_drag_selection_failure_reason(rect: Rect2) -> String:
+	if _probe_unit == null or not is_instance_valid(_probe_unit):
+		return "probe_missing"
+	if _camera == null:
+		return "camera_missing"
+	if _camera.is_position_behind(_probe_unit.global_position):
+		return "probe_behind_camera"
+	return "drag_rect_missed_probe probe_screen_rect=%s" % [_probe_unit_screen_rect()]
+
+
 func _probe_unit_screen_rect() -> Rect2:
 	if _camera == null or _probe_unit == null:
+		return Rect2()
+	if _camera.is_position_behind(_probe_unit.global_position):
 		return Rect2()
 	var points: Array[Vector3] = [
 		Vector3(0.0, 0.0, 0.0),
@@ -1733,6 +2451,7 @@ func _probe_unit_screen_rect() -> Rect2:
 		Vector3(UNIT_RADIUS, UNIT_HEIGHT * 0.5, 0.0),
 		Vector3(0.0, UNIT_HEIGHT * 0.5, -UNIT_RADIUS),
 		Vector3(0.0, UNIT_HEIGHT * 0.5, UNIT_RADIUS),
+		Vector3(0.0, UNIT_HEIGHT + 3.2, 0.0),
 	]
 	var min_point := Vector2(INF, INF)
 	var max_point := Vector2(-INF, -INF)
@@ -1752,6 +2471,11 @@ func _set_probe_selected(selected: bool) -> void:
 		_selection_ring.visible = selected
 	if _probe_screen_marker != null:
 		_probe_screen_marker.modulate = Color(1.0, 0.94, 0.18, 1.0) if selected else Color.WHITE
+	print("[Map3DPrototype] Probe selected=", _unit_selected,
+		" current_cell=", _unit_cell,
+		" current_floor=", _unit_floor,
+		" current_structure=", _unit_structure_id,
+		" movement_state=", "moving" if _unit_path_index < _unit_path.size() or not _unit_interior_path.is_empty() else "idle")
 
 
 func _update_probe_screen_marker() -> void:
@@ -1759,7 +2483,7 @@ func _update_probe_screen_marker() -> void:
 		return
 	var screen_position := _camera.unproject_position(_probe_unit.global_position + Vector3(0.0, UNIT_HEIGHT + 0.35, 0.0))
 	_probe_screen_marker.position = screen_position - _probe_screen_marker.size * 0.5
-	_probe_screen_marker.visible = not _camera.is_position_behind(_probe_unit.global_position)
+	_probe_screen_marker.visible = _probe_debug_visible and not _camera.is_position_behind(_probe_unit.global_position)
 
 
 func _click_selects_probe(cell: Vector2i, world: Vector3) -> bool:
@@ -1773,24 +2497,137 @@ func _click_selects_probe(cell: Vector2i, world: Vector3) -> bool:
 
 
 func _issue_probe_move(target_cell: Vector2i) -> void:
+	if _probe_unit == null:
+		print("[Map3DPrototype][ERROR] Move failed; probe unit node is missing.")
+		return
+	if not _is_in_generated_bounds(target_cell):
+		print("[Map3DPrototype] Move rejected target=", target_cell, " reason=outside_map selected=", _unit_selected)
+		return
+	if not _is_walkable_cell(target_cell):
+		print("[Map3DPrototype] Move rejected target=", target_cell, " reason=blocked_or_water selected=", _unit_selected)
+		return
 	if not _is_walkable_cell(_unit_cell):
 		_unit_cell = _world_to_cell(_probe_unit.position)
+	if not _is_walkable_cell(_unit_cell):
+		print("[Map3DPrototype] Move failed start=", _unit_cell, " reason=current_cell_not_walkable")
+		return
 	var path: Array = []
 	if _map_generator != null and _map_generator.has_method("find_path_cells"):
 		path = _map_generator.call("find_path_cells", _unit_cell, target_cell)
 	else:
-		path = _make_straight_probe_path(_unit_cell, target_cell)
+		path = _find_local_grid_path(_unit_cell, target_cell)
 	_unit_path.clear()
 	for path_cell in path:
 		var cell: Vector2i = path_cell
 		if _is_walkable_cell(cell):
 			_unit_path.append(cell)
 	_unit_path_index = 0
+	_set_path_debug_visible(true)
 	_redraw_path_debug()
+	if _unit_path.is_empty() and _unit_cell != target_cell:
+		print("[Map3DPrototype] Move failed start=", _unit_cell,
+			" target=", target_cell,
+			" target_walkable=", _is_walkable_cell(target_cell),
+			" path_length=0 movement_state=failed_no_path")
+		return
 	print("[Map3DPrototype] Move command start=", _unit_cell,
 		" target=", target_cell,
-		" path_cells=", _unit_path.size(),
-		" target_walkable=", _is_walkable_cell(target_cell))
+		" target_cell=", target_cell,
+		" path_length=", _unit_path.size(),
+		" current_floor=", _unit_floor,
+		" target_walkable=", _is_walkable_cell(target_cell),
+		" movement_state=", "idle_already_there" if _unit_path.is_empty() else "moving")
+
+
+func _find_local_grid_path(start: Vector2i, target: Vector2i) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	if start == target:
+		return result
+	if not _is_walkable_cell(start) or not _is_walkable_cell(target):
+		return result
+	var visited := {}
+	var came_from := {}
+	var queue: Array[Vector2i] = [start]
+	visited[start] = true
+	var index := 0
+	while index < queue.size():
+		var cell := queue[index]
+		index += 1
+		if cell == target:
+			break
+		for offset in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+			var next_cell: Vector2i = cell + offset
+			if visited.has(next_cell) or not _is_walkable_cell(next_cell):
+				continue
+			visited[next_cell] = true
+			came_from[next_cell] = cell
+			queue.append(next_cell)
+	if not visited.has(target):
+		return result
+	var current := target
+	while current != start:
+		result.push_front(current)
+		current = came_from[current]
+	return result
+
+
+func _handle_structure_right_click(pick: Dictionary) -> void:
+	if not _unit_selected:
+		print("[Map3DPrototype] Interior move ignored; probe unit is not selected.")
+		return
+	if not pick.has("structure") or not pick.has("floor") or not pick.has("local_cell"):
+		print("[Map3DPrototype][ERROR] Interior move ignored; malformed structure pick=", pick)
+		return
+	var structure: Dictionary = pick["structure"]
+	if not _validate_structure_for_probe(structure):
+		print("[Map3DPrototype][ERROR] Interior move ignored; structure validation failed.")
+		return
+	var structure_id := str(structure.get("id", ""))
+	var floor_index := int(pick["floor"])
+	var local_cell: Vector2i = pick["local_cell"]
+	print("[Map3DPrototype] Interior click structure=", structure_id, " floor=", floor_index, " local=", local_cell, " walkable=", _is_structure_walkable(structure, floor_index, local_cell))
+	if _unit_floor < 0:
+		var entrance: Vector2i = structure.get("entrance_cells", [pick["cell"]])[0]
+		if not _is_walkable_cell(entrance):
+			print("[Map3DPrototype] Structure entry failed structure=", structure_id, " entrance=", entrance, " reason=entrance_not_walkable")
+			return
+		_pending_enter_structure_id = structure_id
+		_pending_enter_local_cell = structure.get("entrance_local_cells", [local_cell])[0]
+		_issue_probe_move(entrance)
+		print("[Map3DPrototype] Probe moving to structure entrance for ", structure_id, " entrance=", entrance)
+		return
+	if _unit_structure_id != structure_id:
+		print("[Map3DPrototype] Probe is inside ", _unit_structure_id, "; exit traversal is not implemented yet.")
+		return
+	if _unit_floor != floor_index:
+		print("[Map3DPrototype] Clicked floor ", floor_index, " but probe is on floor ", _unit_floor, ". Use stairs/PageUp/PageDown focus.")
+		return
+	if not _is_structure_walkable(structure, floor_index, local_cell):
+		_unit_interior_path.clear()
+		_pending_stair_link.clear()
+		_redraw_path_debug()
+		print("[Map3DPrototype] Interior move rejected; target is blocked/gap/wall.")
+		return
+	_unit_interior_path = _find_structure_path(structure, floor_index, _unit_local_cell, local_cell)
+	_pending_stair_link = _stair_link_from_cell(structure, floor_index, local_cell)
+	_set_path_debug_visible(true)
+	_redraw_path_debug()
+	if _unit_interior_path.is_empty() and _unit_local_cell != local_cell:
+		print("[Map3DPrototype] Interior move failed structure=", structure_id,
+			" floor=", floor_index,
+			" from=", _unit_local_cell,
+			" target=", local_cell,
+			" path_length=0 movement_state=failed_no_path")
+		return
+	print("[Map3DPrototype] Interior move command structure=", structure_id,
+		" floor=", floor_index,
+		" from=", _unit_local_cell,
+		" target=", local_cell,
+		" target_cell=", local_cell,
+		" path_length=", _unit_interior_path.size(),
+		" current_floor=", _unit_floor,
+		" movement_state=", "idle_already_there" if _unit_interior_path.is_empty() else "moving",
+		" stair_link=", _pending_stair_link)
 
 
 func _make_straight_probe_path(start: Vector2i, target: Vector2i) -> Array[Vector2i]:
@@ -1816,6 +2653,9 @@ func _step_sign(value: int) -> int:
 
 
 func _update_probe_unit(delta: float) -> void:
+	if _probe_unit != null and not _unit_interior_path.is_empty():
+		_update_probe_interior(delta)
+		return
 	if _probe_unit == null or _unit_path_index >= _unit_path.size():
 		return
 	var target_cell: Vector2i = _unit_path[_unit_path_index]
@@ -1831,9 +2671,182 @@ func _update_probe_unit(delta: float) -> void:
 			_unit_path.clear()
 			_unit_path_index = 0
 			_redraw_path_debug()
-			print("[Map3DPrototype] Probe move complete cell=", _unit_cell)
+			print("[Map3DPrototype] Probe move complete selected=", _unit_selected,
+				" current_cell=", _unit_cell,
+				" current_floor=", _unit_floor,
+				" target_cell=", target_cell,
+				" path_length=0 movement_state=idle")
+			if _pending_enter_structure_id != "":
+				_enter_pending_structure()
 		return
 	_probe_unit.position = current + to_target.normalized() * step
+
+
+func _update_probe_interior(delta: float) -> void:
+	if _probe_unit == null or _unit_interior_path.is_empty():
+		return
+	var target: Dictionary = _unit_interior_path[0]
+	var structure := _structure_by_id(str(target.get("structure_id", _unit_structure_id)))
+	if structure.is_empty():
+		_unit_interior_path.clear()
+		print("[Map3DPrototype][ERROR] Probe interior move aborted; structure missing id=", target.get("structure_id", _unit_structure_id))
+		return
+	var target_floor := int(target.get("floor", _unit_floor))
+	var target_cell: Vector2i = target.get("local_cell", _unit_local_cell)
+	var target_position := _structure_cell_to_world(structure, target_cell, _structure_floor_y(structure, target_floor) + UNIT_SURFACE_OFFSET)
+	var current := _probe_unit.position
+	var to_target := target_position - current
+	var step := UNIT_SPEED * delta
+	if to_target.length() <= step:
+		_probe_unit.position = target_position
+		_unit_floor = target_floor
+		_unit_local_cell = target_cell
+		_unit_interior_path.pop_front()
+		if _unit_interior_path.is_empty():
+			if not _pending_stair_link.is_empty():
+				_traverse_pending_stair(structure)
+			_redraw_path_debug()
+			print("[Map3DPrototype] Probe interior move complete structure=", _unit_structure_id,
+				" floor=", _unit_floor,
+				" cell=", _unit_local_cell,
+				" current_grid_cell=", _unit_cell,
+				" path_length=0 movement_state=idle")
+		return
+	_probe_unit.position = current + to_target.normalized() * step
+
+
+func _enter_pending_structure() -> void:
+	var structure := _structure_by_id(_pending_enter_structure_id)
+	if structure.is_empty():
+		print("[Map3DPrototype][ERROR] Probe entry failed; pending structure missing id=", _pending_enter_structure_id)
+		_pending_enter_structure_id = ""
+		return
+	if not _validate_structure_for_probe(structure):
+		print("[Map3DPrototype][ERROR] Probe entry failed; invalid structure id=", _pending_enter_structure_id)
+		_pending_enter_structure_id = ""
+		_pending_enter_local_cell = Vector2i(-1, -1)
+		return
+	_unit_structure_id = _pending_enter_structure_id
+	_unit_floor = 0
+	_unit_local_cell = _pending_enter_local_cell
+	_structure_view_mode = STRUCTURE_VIEW_INTERIOR_CUTAWAY
+	_pending_enter_structure_id = ""
+	_pending_enter_local_cell = Vector2i(-1, -1)
+	_mark_floor_discovered(structure, 0)
+	_set_floor_focus(0)
+	_probe_unit.position = _structure_cell_to_world(structure, _unit_local_cell, _structure_floor_y(structure, 0) + UNIT_SURFACE_OFFSET)
+	_redraw_path_debug()
+	print("[Map3DPrototype] Probe entered structure=", _unit_structure_id,
+		" current_floor=", _unit_floor,
+		" current_cell=", _unit_cell,
+		" local_cell=", _unit_local_cell,
+		" movement_state=idle")
+
+
+func _traverse_pending_stair(structure: Dictionary) -> void:
+	if not _validate_structure_for_probe(structure):
+		print("[Map3DPrototype][ERROR] Stair traversal failed; invalid structure id=", structure.get("id", "?"))
+		_pending_stair_link.clear()
+		return
+	var to_floor := int(_pending_stair_link.get("to_floor", _unit_floor))
+	var to_cell: Vector2i = _pending_stair_link.get("to_cell", _unit_local_cell)
+	if not _is_structure_walkable(structure, to_floor, to_cell):
+		print("[Map3DPrototype][ERROR] Stair traversal failed; destination blocked floor=", to_floor, " cell=", to_cell)
+		_pending_stair_link.clear()
+		return
+	_unit_floor = to_floor
+	_unit_local_cell = to_cell
+	_structure_view_mode = STRUCTURE_VIEW_INTERIOR_CUTAWAY
+	_mark_floor_discovered(structure, to_floor)
+	_set_floor_focus(to_floor)
+	_probe_unit.position = _structure_cell_to_world(structure, _unit_local_cell, _structure_floor_y(structure, to_floor) + UNIT_SURFACE_OFFSET)
+	print("[Map3DPrototype] Probe used stairs structure=", _unit_structure_id,
+		" current_floor=", _unit_floor,
+		" local_cell=", _unit_local_cell,
+		" movement_state=idle")
+	_pending_stair_link.clear()
+
+
+func _structure_by_id(structure_id: String) -> Dictionary:
+	for structure in _content_structures:
+		if str(structure.get("id", "")) == structure_id:
+			return structure
+	return {}
+
+
+func _mark_floor_discovered(structure: Dictionary, floor_index: int) -> void:
+	var discovered: Array = structure.get("discovered_floors", [])
+	if not discovered.has(floor_index):
+		discovered.append(floor_index)
+	structure["discovered_floors"] = discovered
+
+
+func _floor_data(structure: Dictionary, floor_index: int) -> Dictionary:
+	for floor_value in structure.get("floors", []):
+		var floor: Dictionary = floor_value
+		if int(floor.get("floor_index", -1)) == floor_index:
+			return floor
+	return {}
+
+
+func _is_structure_walkable(structure: Dictionary, floor_index: int, local_cell: Vector2i) -> bool:
+	var floor := _floor_data(structure, floor_index)
+	if floor.is_empty():
+		return false
+	return floor.get("walkable_cells", []).has(local_cell) \
+		and not floor.get("wall_cells", []).has(local_cell) \
+		and not floor.get("gap_cells", []).has(local_cell) \
+		and not floor.get("blocker_cells", []).has(local_cell)
+
+
+func _find_structure_path(structure: Dictionary, floor_index: int, start: Vector2i, target: Vector2i) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if not _is_structure_walkable(structure, floor_index, start) or not _is_structure_walkable(structure, floor_index, target):
+		return result
+	var visited := {}
+	var came_from := {}
+	var queue: Array[Vector2i] = [start]
+	visited[start] = true
+	var index := 0
+	while index < queue.size():
+		var cell := queue[index]
+		index += 1
+		if cell == target:
+			break
+		for offset in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+			var next_cell: Vector2i = cell + offset
+			if visited.has(next_cell) or not _is_structure_walkable(structure, floor_index, next_cell):
+				continue
+			visited[next_cell] = true
+			came_from[next_cell] = cell
+			queue.append(next_cell)
+	if not visited.has(target):
+		return result
+	var cells: Array[Vector2i] = []
+	var current: Vector2i = target
+	while current != start:
+		cells.push_front(current)
+		current = came_from[current]
+	for cell in cells:
+		result.append({"structure_id": structure.get("id", ""), "floor": floor_index, "local_cell": cell})
+	return result
+
+
+func _stair_link_from_cell(structure: Dictionary, floor_index: int, local_cell: Vector2i) -> Dictionary:
+	for link_value in structure.get("stair_links", []):
+		var link: Dictionary = link_value
+		var from_cell: Vector2i = link.get("from_cell", Vector2i(-1, -1))
+		var to_cell: Vector2i = link.get("to_cell", Vector2i(-1, -1))
+		if int(link.get("from_floor", -1)) == floor_index and from_cell == local_cell:
+			return link
+		if int(link.get("to_floor", -1)) == floor_index and to_cell == local_cell:
+			return {
+				"from_floor": floor_index,
+				"from_cell": local_cell,
+				"to_floor": int(link.get("from_floor", floor_index)),
+				"to_cell": from_cell,
+			}
+	return {}
 
 
 func _redraw_path_debug() -> void:
@@ -1841,6 +2854,25 @@ func _redraw_path_debug() -> void:
 		return
 	for child in _path_root.get_children():
 		child.queue_free()
+	if not _unit_interior_path.is_empty():
+		var structure := _structure_by_id(_unit_structure_id)
+		if structure.is_empty():
+			return
+		var mesh := ImmediateMesh.new()
+		mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
+		mesh.surface_set_color(Color(1.0, 0.62, 0.16, 0.95))
+		mesh.surface_add_vertex(_structure_cell_to_world(structure, _unit_local_cell, _structure_floor_y(structure, _unit_floor) + PATH_DEBUG_HEIGHT))
+		for point in _unit_interior_path:
+			var floor_index := int(point.get("floor", _unit_floor))
+			var local_cell: Vector2i = point.get("local_cell", _unit_local_cell)
+			mesh.surface_add_vertex(_structure_cell_to_world(structure, local_cell, _structure_floor_y(structure, floor_index) + PATH_DEBUG_HEIGHT))
+		mesh.surface_end()
+		var instance := MeshInstance3D.new()
+		instance.name = "ProbeInteriorPath"
+		instance.mesh = mesh
+		instance.material_override = _materials["probe_path"]
+		_path_root.add_child(instance)
+		return
 	if _unit_path.is_empty():
 		return
 	var mesh := ImmediateMesh.new()
@@ -1881,6 +2913,9 @@ func _pick_map_cell(screen_position: Vector2) -> Dictionary:
 	var direction := _camera.project_ray_normal(screen_position)
 	if absf(direction.y) < 0.001:
 		return {}
+	var structure_pick := _pick_structure_floor(origin, direction)
+	if not structure_pick.is_empty():
+		return structure_pick
 	var t := (LOW_HEIGHT - origin.y) / direction.y
 	if t < 0.0:
 		return {}
@@ -1893,6 +2928,39 @@ func _pick_map_cell(screen_position: Vector2) -> Dictionary:
 		"cell": cell,
 		"world": world,
 	}
+
+
+func _pick_structure_floor(origin: Vector3, direction: Vector3) -> Dictionary:
+	if _content_structures.is_empty() or not _visible_floors.has(_current_floor_focus):
+		return {}
+	if str(_visible_floors.get(_current_floor_focus, "hidden")) == "hidden":
+		return {}
+	for structure in _content_structures:
+		if not _validate_structure_for_render(structure):
+			continue
+		var y := _structure_floor_y(structure, _current_floor_focus)
+		if absf(direction.y) < 0.001:
+			continue
+		var t := (y - origin.y) / direction.y
+		if t < 0.0:
+			continue
+		var world := origin + direction * t
+		var cell := _world_to_cell(world)
+		var rect: Rect2i = structure.get("exterior_rect", Rect2i())
+		if rect.size == Vector2i.ZERO:
+			continue
+		if not rect.has_point(cell):
+			continue
+		var local_cell := cell - rect.position
+		return {
+			"cell": cell,
+			"world": world,
+			"structure": structure,
+			"structure_id": structure.get("id", ""),
+			"floor": _current_floor_focus,
+			"local_cell": local_cell,
+		}
+	return {}
 
 
 func _print_pick_debug(cell: Vector2i) -> void:
@@ -1915,6 +2983,142 @@ func _center_camera() -> void:
 		return
 	_camera_rig.position = Vector3.ZERO
 	_update_camera_transform()
+
+
+func _focus_camera_on_probe() -> void:
+	if _probe_unit == null or not is_instance_valid(_probe_unit):
+		print("[Map3DPrototype] Probe focus failed reason=probe_missing")
+		return
+	if _camera_rig == null:
+		print("[Map3DPrototype] Probe focus failed reason=camera_rig_missing")
+		return
+	_camera_rig.position = _probe_unit.global_position
+	_update_camera_transform()
+	print("[Map3DPrototype] Probe focus camera world_position=", _probe_unit.global_position, " grid_cell=", _unit_cell, " floor=", _unit_floor)
+
+
+func _teleport_probe_to_camera_center() -> void:
+	var target := _nearest_walkable_cell_to_camera_center()
+	if not _is_walkable_cell(target):
+		print("[Map3DPrototype] Probe teleport failed reason=no_walkable_cell_near_camera target=", target)
+		return
+	_teleport_probe_to_cell(target, "keyboard_T")
+
+
+func _spawn_or_reposition_probe_at_camera_center() -> void:
+	if _probe_unit == null or not is_instance_valid(_probe_unit):
+		print("[Map3DPrototype] Probe respawn requested with missing probe; recreating.")
+		_create_gameplay_probe()
+	var target := _nearest_walkable_cell_to_camera_center()
+	if not _is_walkable_cell(target):
+		print("[Map3DPrototype] Probe respawn failed reason=no_walkable_cell_near_camera target=", target)
+		return
+	_teleport_probe_to_cell(target, "keyboard_G")
+
+
+func _nearest_walkable_cell_to_camera_center() -> Vector2i:
+	if _camera_rig == null:
+		return _probe_spawn_cell()
+	var center_cell := _world_to_cell(_camera_rig.global_position)
+	if _map_generator != null and _map_generator.has_method("nearest_walkable_cell"):
+		var generated: Vector2i = _map_generator.call("nearest_walkable_cell", center_cell, 48)
+		if _is_walkable_cell(generated):
+			return generated
+	return _nearest_local_walkable_cell(center_cell, 48)
+
+
+func _teleport_probe_to_cell(target: Vector2i, reason: String) -> void:
+	if _probe_unit == null or not is_instance_valid(_probe_unit):
+		_create_gameplay_probe()
+	if _probe_unit == null or not is_instance_valid(_probe_unit):
+		print("[Map3DPrototype] Probe teleport failed reason=probe_create_failed")
+		return
+	if not _is_walkable_cell(target):
+		print("[Map3DPrototype] Probe teleport failed reason=target_not_walkable target=", target)
+		return
+	_unit_cell = target
+	_unit_path.clear()
+	_unit_path_index = 0
+	_unit_structure_id = ""
+	_unit_floor = -1
+	_unit_local_cell = Vector2i(-1, -1)
+	_unit_interior_path.clear()
+	_pending_enter_structure_id = ""
+	_pending_enter_local_cell = Vector2i(-1, -1)
+	_pending_stair_link.clear()
+	_probe_unit.position = _cell_to_unit_world(target)
+	_set_probe_selected(true)
+	_set_probe_debug_visible(true)
+	_redraw_path_debug()
+	_update_probe_screen_marker()
+	print("[Map3DPrototype] Probe teleported reason=", reason,
+		" world_position=", _probe_unit.global_position,
+		" grid_cell=", _unit_cell,
+		" floor=", _unit_floor,
+		" walkable=", _is_walkable_cell(_unit_cell))
+
+
+func _set_probe_debug_visible(visible: bool) -> void:
+	_probe_debug_visible = visible
+	if _probe_unit != null and is_instance_valid(_probe_unit):
+		_probe_unit.visible = visible
+	if _probe_screen_marker != null:
+		_probe_screen_marker.visible = visible
+	print("[Map3DPrototype] Probe debug visible=", visible,
+		" node_path=", _probe_unit.get_path() if _probe_unit != null and is_instance_valid(_probe_unit) else NodePath(""),
+		" selectable=", visible and _probe_unit != null and is_instance_valid(_probe_unit))
+
+
+func _validate_probe_runtime() -> void:
+	if not show_gameplay_probe:
+		return
+	if _probe_unit == null or not is_instance_valid(_probe_unit):
+		if not _probe_missing_error_printed:
+			_probe_missing_error_printed = true
+			print("[Map3DPrototype][ERROR] Probe runtime validation failed reason=probe_missing scene=", name)
+		return
+	if not _probe_unit.visible:
+		if not _probe_hidden_warning_printed:
+			_probe_hidden_warning_printed = true
+			print("[Map3DPrototype][WARN] Probe runtime validation warning reason=probe_hidden scene=", name, " toggle_with_V=true")
+	else:
+		_probe_hidden_warning_printed = false
+	if _unit_floor >= 0:
+		return
+	var world_cell := _world_to_cell(_probe_unit.global_position)
+	var moving := _unit_path_index < _unit_path.size() or not _unit_interior_path.is_empty()
+	if not moving and world_cell != _unit_cell and _is_walkable_cell(world_cell):
+		_unit_cell = world_cell
+	if not moving and not _is_walkable_cell(_unit_cell):
+		var repaired := _nearest_local_walkable_cell(_unit_cell, 24)
+		if _is_walkable_cell(repaired):
+			if not _probe_invalid_position_warning_printed:
+				print("[Map3DPrototype][WARN] Probe repaired invalid cell old=", _unit_cell, " new=", repaired, " reason=inside_blocker_water_or_wall")
+				_probe_invalid_position_warning_printed = true
+			_teleport_probe_to_cell(repaired, "runtime_repair")
+		return
+	var terrain_y := _surface_height_for_cell(_unit_cell) + UNIT_SURFACE_OFFSET
+	if _probe_unit.global_position.y < terrain_y - 0.2:
+		_probe_unit.global_position.y = terrain_y
+		if not _probe_invalid_position_warning_printed:
+			print("[Map3DPrototype][WARN] Probe lifted above terrain cell=", _unit_cell, " y=", terrain_y)
+			_probe_invalid_position_warning_printed = true
+
+
+func _adjust_monolith_footprint(delta: int) -> void:
+	if not use_monolith_test_map:
+		print("[Map3DPrototype] Monolith footprint shortcut ignored; use monolith_structure_test.tscn for live footprint resizing.")
+		return
+	var allowed: Array[int] = [12, 16, 20]
+	var current := _allowed_monolith_footprint(monolith_footprint_size)
+	var index := allowed.find(current)
+	if index < 0:
+		index = 1
+	index = clampi(index + delta, 0, allowed.size() - 1)
+	monolith_footprint_size = allowed[index]
+	_current_floor_focus = 0
+	print("[Map3DPrototype] Monolith footprint changed to ", monolith_footprint_size, " regenerating test scene.")
+	_regenerate_map()
 
 
 func _cell_to_world(cell: Vector2i, y: float) -> Vector3:

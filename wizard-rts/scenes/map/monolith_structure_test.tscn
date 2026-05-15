@@ -1,0 +1,18 @@
+[gd_scene load_steps=2 format=4]
+
+[ext_resource type="Script" path="res://scripts/map/map_3d_renderer.gd" id="1_renderer"]
+
+[node name="MonolithStructureTest" type="Node3D"]
+script = ExtResource("1_renderer")
+seed = 20260425
+use_biome_mesh_assets = false
+use_biome_fog_and_lighting = false
+show_gameplay_probe = true
+use_monolith_test_map = true
+monolith_footprint_size = 16
+monolith_floor_count = 3
+monolith_floor_height = 1.8
+monolith_room_density = 0.45
+monolith_gap_density = 0.035
+monolith_decor_density = 0.35
+presentation_mode = "DEBUG"

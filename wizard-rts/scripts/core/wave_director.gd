@@ -109,6 +109,8 @@ func _spawn_wave() -> void:
 func _spawn_boss() -> void:
 	if map_generator == null or enemy_scene == null:
 		return
+	if boss_has_spawned:
+		return
 	boss_has_spawned = true
 	var spawns: Array = map_generator.get("enemy_spawns")
 	if spawns.is_empty():
@@ -117,6 +119,13 @@ func _spawn_boss() -> void:
 	var spawn_cell: Vector2i = _pathable_spawn_cell(spawns, target, wave_index * 19 + 5)
 	boss_node = _spawn_enemy(&"mycelium_boss", spawn_cell, get_parent(), target)
 	boss_spawned.emit()
+
+func trigger_boss_now(reason: String = "manual") -> bool:
+	if boss_has_spawned or boss_has_been_defeated:
+		return false
+	print("[WaveDirector] Boss triggered now. reason=", reason)
+	_spawn_boss()
+	return boss_has_spawned
 
 func is_ai_testing_ground() -> bool:
 	return map_generator != null and str(map_generator.get("map_type_id")) in ["ai_testing_ground", "fortress_ai_arena"]

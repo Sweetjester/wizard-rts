@@ -8,5 +8,5 @@ asset_pack_config_path = "res://resources/asset_packs/dark_forest_frontier_v2_as
 biome_name = "DARK_FOREST_FRONTIER_V2"
 use_biome_mesh_assets = true
 use_biome_fog_and_lighting = true
-show_gameplay_probe = false
+show_gameplay_probe = true
 presentation_mode = "BIOME"

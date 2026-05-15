@@ -177,6 +177,8 @@ func _draw() -> void:
 					_draw_vinewall(draw_color)
 				&"bio_launcher":
 					_draw_launcher(draw_color)
+				&"enemy_outpost":
+					_draw_enemy_outpost(draw_color)
 				_:
 					_draw_barracks(draw_color)
 	if not complete:
@@ -289,6 +291,8 @@ func _placeholder_label() -> String:
 			return "W"
 		&"bio_launcher":
 			return "BL"
+		&"enemy_outpost":
+			return "OUT"
 	return "B"
 
 func _footprint_local_cells() -> Array[Vector2i]:
@@ -389,6 +393,16 @@ func _draw_launcher(color: Color) -> void:
 	draw_line(Vector2(-18, 16), Vector2(-36, 34), Color("#5C4838"), 5)
 	draw_line(Vector2(18, 16), Vector2(36, 34), Color("#5C4838"), 5)
 
+func _draw_enemy_outpost(color: Color) -> void:
+	draw_rect(Rect2(Vector2(-58, -46), Vector2(116, 74)), Color("#1A0E10"))
+	draw_rect(Rect2(Vector2(-46, -62), Vector2(92, 22)), color.darkened(0.18))
+	draw_rect(Rect2(Vector2(-16, -16), Vector2(32, 44)), Color("#090605"))
+	for offset in [Vector2(-54, -42), Vector2(54, -42), Vector2(-54, 18), Vector2(54, 18)]:
+		draw_circle(offset, 10, Color("#C13030"))
+		draw_line(offset + Vector2(0, 8), offset + Vector2(0, -30), Color("#332820"), 4)
+	draw_line(Vector2(-66, -4), Vector2(66, -4), Color("#C13030", 0.8), 4)
+	draw_string(ThemeDB.fallback_font, Vector2(-24, -72), "OUTPOST", HORIZONTAL_ALIGNMENT_CENTER, 48.0, 12, Color("#F0E7D0"))
+
 func _draw_level_badge() -> void:
 	draw_circle(Vector2(31, -44), 9, Color("#1A1410"))
 	draw_string(ThemeDB.fallback_font, Vector2(25, -38), str(level), HORIZONTAL_ALIGNMENT_CENTER, 12.0, 12, Color("#D6C7AE"))
@@ -407,6 +421,8 @@ func _main_color() -> Color:
 			return Color("#2D5A3E")
 		&"bio_launcher":
 			return Color("#C13030")
+		&"enemy_outpost":
+			return Color("#5C0F14")
 	return Color("#D6C7AE")
 
 func _art_position(texture: Texture2D, scale: Vector2) -> Vector2:
