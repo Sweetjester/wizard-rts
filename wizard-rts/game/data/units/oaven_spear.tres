@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="GeneratedUnitData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/units/generated_unit_data.gd" id="1_data"]
+
+[resource]
+script = ExtResource("1_data")
+unit_id = "oaven_spear"
+display_name = "Oaven Spear"
+faction = "oaven"
+role = "melee_frontline_skirmisher"
+hp = 120
+armor = 1
+sight_range = 8
+speed = 3.4
+attack_type = "melee"
+weapon = "spear"
+damage = 18
+attack_range = 1.8
+cooldown = 1.2
+processed_model = "art/processed_models/oaven_spear/oaven_spear.glb"

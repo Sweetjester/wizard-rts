@@ -1,0 +1,27 @@
+{
+	"animation_status": {
+		"attack": "placeholder requested",
+		"death": "placeholder requested",
+		"idle": "placeholder requested",
+		"move": "placeholder requested"
+	},
+	"errors": [],
+	"generated": [
+		"res://game/units/generated/oaven_spear/oaven_spear.tscn",
+		"res://game/units/generated/oaven_spear/oaven_spear.gd",
+		"res://game/data/units/oaven_spear.tres",
+		"res://game/data/units/generated_unit_data.gd",
+		"res://game/units/generated/oaven_spear/IMPORT_REPORT.md"
+	],
+	"godot_scene_path": "game/units/generated/oaven_spear/oaven_spear.tscn",
+	"manual_todos": [
+		"Review Meshy topology and silhouette in Blender.",
+		"Replace placeholder animations with authored locomotion/combat/death clips.",
+		"Hook generated Node3D unit into the active 2D RTS runtime if/when the project moves to 3D unit actors."
+	],
+	"meshy_called": false,
+	"processed_glb_path": "art/processed_models/oaven_spear/oaven_spear.glb",
+	"raw_model_path": "art/generated_models/oaven_spear/oaven_spear_raw.glb",
+	"unit_id": "oaven_spear",
+	"warnings": []
+}

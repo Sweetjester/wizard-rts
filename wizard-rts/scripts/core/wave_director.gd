@@ -10,6 +10,7 @@ signal boss_defeated()
 @export var rts_world_path: NodePath = NodePath("../RTSWorld")
 @export var enemy_scene: PackedScene = preload("res://scenes/units/deom_legion_unit.tscn")
 @export var terrible_thing_scene: PackedScene = preload("res://scenes/units/terrible_thing.tscn")
+@export var oaven_spear_scene: PackedScene = preload("res://scenes/units/oaven_spear.tscn")
 @export var horror_scene: PackedScene = preload("res://scenes/units/horror.tscn")
 @export var apex_scene: PackedScene = preload("res://scenes/units/apex.tscn")
 @export var spawner_scene: PackedScene = preload("res://scenes/units/spawner.tscn")
@@ -32,6 +33,7 @@ signal boss_defeated()
 @export var ai_test_live_unit_soft_cap: int = 3200
 @export var ai_test_spawn_pause_fps: float = 28.0
 @export var ai_test_spawn_slow_fps: float = 45.0
+@export var combat_debug_logging: bool = false
 
 var map_generator: Node
 var rts_world: RTSWorld
@@ -347,7 +349,7 @@ func _spawn_ai_test_east_unit(index: int, spawn_cell: Vector2i, parent: Node, ta
 func _ai_test_kon_mix() -> Array[StringName]:
 	return [
 		&"terrible_thing", &"horror", &"terrible_thing", &"apex",
-		&"terrible_thing", &"horror", &"terrible_thing", &"terrible_thing",
+		&"oaven_spear", &"horror", &"terrible_thing", &"terrible_thing",
 		&"apex", &"horror", &"terrible_thing", &"terrible_thing",
 		&"horror", &"terrible_thing", &"apex", &"spawner",
 		&"stone_face_serpent",
@@ -363,7 +365,7 @@ func _ai_test_deom_mix() -> Array[StringName]:
 func _ai_test_kon_mix_scenes() -> Array[PackedScene]:
 	return [
 		terrible_thing_scene, horror_scene, terrible_thing_scene, apex_scene,
-		terrible_thing_scene, horror_scene, terrible_thing_scene, terrible_thing_scene,
+		oaven_spear_scene, horror_scene, terrible_thing_scene, terrible_thing_scene,
 		apex_scene, horror_scene, terrible_thing_scene, terrible_thing_scene,
 		horror_scene, terrible_thing_scene, apex_scene, spawner_scene,
 		stone_face_serpent_scene,
@@ -406,6 +408,8 @@ func _scene_for_kon_unit(archetype: StringName) -> PackedScene:
 	match archetype:
 		&"terrible_thing", &"awful_thing":
 			return terrible_thing_scene
+		&"oaven_spear", &"oaven_jumper":
+			return oaven_spear_scene
 		&"horror":
 			return horror_scene
 		&"apex", &"apex_predator":
@@ -435,18 +439,28 @@ func _has_property(node: Node, property_name: String) -> bool:
 
 func _spawn_enemy(archetype: StringName, spawn_cell: Vector2i, parent: Node, preferred_target: Vector2 = Vector2.ZERO) -> Node:
 	var enemy := enemy_scene.instantiate()
-	parent.add_child(enemy)
+	enemy.set("owner_player_id", 2)
+	enemy.set("unit_archetype", archetype)
+	if _has_property(enemy, "enemy_archetype"):
+		enemy.set("enemy_archetype", archetype)
 	if enemy.has_method("configure_enemy"):
 		enemy.call("configure_enemy", archetype)
+	parent.add_child(enemy)
+	enemy.set("owner_player_id", 2)
 	enemy.global_position = map_generator.cell_to_world(map_generator.nearest_walkable_cell(spawn_cell, 10))
+	_log_combat_entity("spawn_enemy", enemy)
 	call_deferred("_send_enemy_to_player_target", enemy, preferred_target)
 	return enemy
 
 func _send_enemy_to_player_target(enemy: Node, preferred_target: Vector2 = Vector2.ZERO) -> void:
 	if enemy == null or not is_instance_valid(enemy) or not enemy.has_method("issue_attack_move_order"):
+		if combat_debug_logging:
+			print("[WaveDirector] Enemy aggression failed: invalid enemy or missing issue_attack_move_order enemy=", enemy)
 		return
 	var target := preferred_target if preferred_target != Vector2.ZERO else _player_target_world()
 	if target == Vector2.ZERO:
+		if combat_debug_logging:
+			print("[WaveDirector] Enemy aggression failed: no player target enemy=", enemy.name)
 		return
 	if not bool(enemy.get("ignores_terrain")):
 		target = _pathable_target_for_enemy(enemy as Node2D, target)
@@ -455,6 +469,12 @@ func _send_enemy_to_player_target(enemy: Node, preferred_target: Vector2 = Vecto
 		target = _nearest_walkable_player_target(enemy as Node2D)
 		if target != Vector2.ZERO:
 			enemy.issue_attack_move_order(target)
+	if combat_debug_logging:
+		print("[WaveDirector] Enemy attack-move enemy=", enemy.name,
+			" owner=", enemy.get("owner_player_id"),
+			" target=", target,
+			" path_length=", enemy.get("path").size() if _has_property(enemy, "path") else "<unknown>",
+			" registered=", _is_registered_unit(enemy))
 
 func get_boss_seconds_remaining() -> int:
 	if boss_has_spawned:
@@ -616,3 +636,41 @@ func _player_units_fallback() -> Array[Node2D]:
 		if is_instance_valid(unit) and unit is Node2D and int(unit.get("owner_player_id")) == 1:
 			players.append(unit)
 	return players
+
+func _log_combat_entity(context: String, node: Node) -> void:
+	if not combat_debug_logging:
+		return
+	if node == null or not is_instance_valid(node):
+		print("[CombatValidation] ", context, " node=<invalid>")
+		return
+	var groups := PackedStringArray()
+	for group in node.get_groups():
+		groups.append(str(group))
+	var script_path := "<none>"
+	var script: Variant = node.get_script()
+	if script != null and script is Resource:
+		script_path = str((script as Resource).resource_path)
+	var group_text := ",".join(groups)
+	print("[CombatValidation] ", context,
+		" node=", node.name,
+		" class=", node.get_class(),
+		" script=", script_path,
+		" owner=", node.get("owner_player_id") if _has_property(node, "owner_player_id") else "<missing>",
+		" take_damage=", node.has_method("take_damage"),
+		" rts_unit_registered=", _is_registered_unit(node),
+		" rts_structure_registered=", _is_registered_structure(node),
+		" groups=", group_text,
+		" attack_damage=", node.get("attack_damage") if _has_property(node, "attack_damage") else "<missing>",
+		" attack_range=", node.get("attack_range") if _has_property(node, "attack_range") else "<missing>",
+		" health=", node.get("health") if _has_property(node, "health") else "<missing>",
+		" max_health=", node.get("max_health") if _has_property(node, "max_health") else "<missing>")
+
+func _is_registered_unit(node: Node) -> bool:
+	if rts_world == null or not is_instance_valid(rts_world) or not (node is Node2D):
+		return false
+	return rts_world.all_units().has(node)
+
+func _is_registered_structure(node: Node) -> bool:
+	if rts_world == null or not is_instance_valid(rts_world) or not (node is Node2D):
+		return false
+	return rts_world.all_structures().has(node)

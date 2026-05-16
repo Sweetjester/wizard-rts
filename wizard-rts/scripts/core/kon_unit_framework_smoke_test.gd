@@ -16,14 +16,15 @@ const REQUIRED_FIELDS := [
 
 func _init() -> void:
 	var ok := true
-	for archetype in [&"life_wizard", &"terrible_thing", &"gripper", &"horror", &"hunter", &"apex", &"champion", &"spawner", &"winged_spawner", &"stone_face_serpent"]:
+	for archetype in [&"life_wizard", &"terrible_thing", &"gripper", &"oaven_spear", &"oaven_jumper", &"horror", &"hunter", &"apex", &"champion", &"spawner", &"winged_spawner", &"stone_face_serpent"]:
 		ok = _check_unit(archetype) and ok
 	ok = _check_evolution(&"terrible_thing", &"gripper") and ok
+	ok = _check_evolution(&"oaven_spear", &"oaven_jumper") and ok
 	ok = _check_evolution(&"horror", &"hunter") and ok
 	ok = _check_evolution(&"apex", &"champion") and ok
 	ok = _check_evolution(&"spawner", &"winged_spawner") and ok
 	var barracks := UnitCatalog.get_definition(&"barracks")
-	for produced in [&"terrible_thing", &"horror", &"apex", &"spawner", &"stone_face_serpent"]:
+	for produced in [&"terrible_thing", &"oaven_spear", &"horror", &"apex", &"spawner", &"stone_face_serpent"]:
 		if not barracks.get("production", []).has(produced):
 			push_error("Barracks missing production unit %s" % str(produced))
 			ok = false

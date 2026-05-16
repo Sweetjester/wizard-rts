@@ -9,6 +9,7 @@ const EXPORT_DIR := "res://test_exports/session_data"
 @export var wave_director_path: NodePath = NodePath("../WaveDirector")
 @export var combat_system_path: NodePath = NodePath("../CombatSystem")
 @export var enabled: bool = true
+@export var flush_each_sample: bool = false
 
 var rts_world: RTSWorld
 var map_generator: Node
@@ -77,7 +78,8 @@ func capture_sample() -> Dictionary:
 	_highest_physics_ms = maxf(_highest_physics_ms, float(sample.get("physics_ms", 0.0)))
 	if _samples_file != null:
 		_samples_file.store_line(JSON.stringify(sample))
-		_samples_file.flush()
+		if flush_each_sample:
+			_samples_file.flush()
 	return sample
 
 func finalize(reason: String = "session_end") -> void:

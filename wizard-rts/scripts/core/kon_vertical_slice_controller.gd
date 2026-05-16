@@ -12,16 +12,24 @@ const ENEMY_ID := 2
 @export var economy_manager_path: NodePath = NodePath("../EconomyManager")
 @export var build_system_path: NodePath = NodePath("../BuildSystem")
 @export var rts_world_path: NodePath = NodePath("../RTSWorld")
+@export var selection_controller_path: NodePath = NodePath("../SelectionController")
 @export var content_clear_radius: float = 128.0
 @export var content_reward_bio: int = 180
 @export var required_outpost_count: int = 2
 @export var gate_boss_until_objectives_complete: bool = true
+@export var outpost_spawn_interval: float = 28.0
+@export var outpost_spawn_radius: int = 7
+@export var outpost_max_active_spawned_enemies: int = 36
+@export var combat_debug_logging: bool = false
+@export var slice_update_interval: float = 0.25
+@export var overlay_update_interval: float = 0.25
 
 var map_generator: Node
 var wave_director: WaveDirector
 var economy_manager: EconomyManager
 var build_system: BuildSystem
 var rts_world: RTSWorld
+var selection_controller: SelectionController
 var _root_panel: PanelContainer
 var _label: Label
 var _initialized := false
@@ -32,6 +40,9 @@ var _outpost_blockers: Dictionary = {}
 var _boss_triggered_by_slice := false
 var _defeat := false
 var _last_debug_print_msec := 0
+var _last_damage_event := "none"
+var _slice_update_elapsed := 0.0
+var _overlay_update_elapsed := 0.0
 
 func _ready() -> void:
 	layer = 65
@@ -41,15 +52,23 @@ func _ready() -> void:
 	_build_ui()
 	call_deferred("_initialize")
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not _initialized:
 		return
-	_prune_outposts()
-	_check_content_clear()
-	_check_boss_gate()
-	_check_defeat()
-	_update_overlay()
-	if Time.get_ticks_msec() - _last_debug_print_msec > 7000:
+	_slice_update_elapsed += delta
+	_overlay_update_elapsed += delta
+	if _slice_update_elapsed >= slice_update_interval:
+		var step_delta := _slice_update_elapsed
+		_slice_update_elapsed = 0.0
+		_update_outpost_offense(step_delta)
+		_prune_outposts()
+		_check_content_clear()
+		_check_boss_gate()
+		_check_defeat()
+	if _overlay_update_elapsed >= overlay_update_interval:
+		_overlay_update_elapsed = 0.0
+		_update_overlay()
+	if combat_debug_logging and Time.get_ticks_msec() - _last_debug_print_msec > 7000:
 		_last_debug_print_msec = Time.get_ticks_msec()
 		print("[KonVerticalSlice] ", _status_line())
 
@@ -59,6 +78,7 @@ func _initialize() -> void:
 	economy_manager = get_node_or_null(economy_manager_path)
 	build_system = get_node_or_null(build_system_path)
 	rts_world = get_node_or_null(rts_world_path)
+	selection_controller = get_node_or_null(selection_controller_path)
 	if map_generator == null:
 		push_warning("[KonVerticalSlice] Missing MapGenerator; vertical slice overlay disabled.")
 		visible = false
@@ -110,7 +130,7 @@ func _collect_content_and_outposts() -> void:
 		var archetype := str(plot.get("content_archetype", ""))
 		if kind == "enemy_outpost" or _is_slice_outpost_archetype(archetype):
 			if _outposts.size() < required_outpost_count:
-				_outposts.append({"plot": plot, "node": null, "destroyed": false})
+				_outposts.append({"plot": plot, "node": null, "destroyed": false, "combat_destroyed": false, "missing": false, "spawn_elapsed": 0.0, "spawned": 0})
 			continue
 		if kind == "content_blank" or kind == "quest" or kind == "objective":
 			_content_plots.append(plot)
@@ -127,20 +147,75 @@ func _spawn_outpost_objectives() -> void:
 		var outpost := KonStructure.new()
 		outpost.configure(OUTPOST_ARCHETYPE, cell, Vector2i(4, 4))
 		outpost.set_runtime_stats(ENEMY_ID, 640 + i * 160, 640 + i * 160, 1)
+		outpost.combat_debug_logging = combat_debug_logging
 		outpost.global_position = map_generator.cell_to_world(cell)
 		outpost.z_index = clampi(int(outpost.global_position.y) + 180, -4096, 4096)
 		get_parent().add_child(outpost)
 		_outposts[i]["node"] = outpost
+		outpost.damage_taken.connect(_on_outpost_damage_taken.bind(str(plot.get("id", ""))))
+		outpost.destroyed.connect(_on_outpost_destroyed.bind(str(plot.get("id", ""))))
 		var blockers := _footprint_cells(cell, Vector2i(4, 4))
 		_outposts[i]["blockers"] = blockers
 		_outpost_blockers[outpost.get_instance_id()] = blockers
 		var approach_walkable: bool = map_generator.is_walkable_cell(cell) if map_generator.has_method("is_walkable_cell") else true
 		if map_generator.has_method("add_dynamic_blockers"):
 			map_generator.add_dynamic_blockers(blockers)
-		print("[KonVerticalSlice] Outpost objective spawned id=", plot.get("id", ""),
-			" cell=", cell,
-			" hp=", outpost.health,
-			" approach_walkable_before_blocker=", approach_walkable)
+		if combat_debug_logging:
+			print("[KonVerticalSlice] Outpost objective spawned id=", plot.get("id", ""),
+				" cell=", cell,
+				" hp=", outpost.health,
+				" approach_walkable_before_blocker=", approach_walkable)
+		_log_combat_entity("enemy_outpost_spawned", outpost)
+
+func _update_outpost_offense(delta: float) -> void:
+	if wave_director == null or map_generator == null:
+		return
+	if rts_world != null and rts_world.count_units_for_owner(ENEMY_ID) >= outpost_max_active_spawned_enemies:
+		return
+	for i in _outposts.size():
+		if bool(_outposts[i].get("destroyed", false)):
+			continue
+		var node = _outposts[i].get("node", null)
+		if node == null or not is_instance_valid(node):
+			continue
+		_outposts[i]["spawn_elapsed"] = float(_outposts[i].get("spawn_elapsed", 0.0)) + delta
+		if float(_outposts[i]["spawn_elapsed"]) < outpost_spawn_interval:
+			continue
+		_outposts[i]["spawn_elapsed"] = 0.0
+		_spawn_outpost_defender(i)
+
+func _spawn_outpost_defender(outpost_index: int) -> void:
+	if wave_director == null or map_generator == null:
+		return
+	var node = _outposts[outpost_index].get("node", null)
+	if node == null or not is_instance_valid(node) or not (node is Node2D):
+		return
+	var outpost_node := node as Node2D
+	var outpost_cell: Vector2i = map_generator.world_to_cell(outpost_node.global_position)
+	var spawn_cell: Vector2i = map_generator.nearest_walkable_cell(outpost_cell + Vector2i(outpost_index + 1, 2), outpost_spawn_radius)
+	var target := _player_target_world()
+	var spawn_count := int(_outposts[outpost_index].get("spawned", 0))
+	var archetype := &"deom_crosshirran" if spawn_count % 3 == 2 else &"deom_blade"
+	var enemy: Node = wave_director.call("_spawn_enemy", archetype, spawn_cell, get_parent(), target)
+	_outposts[outpost_index]["spawned"] = spawn_count + 1
+	_log_combat_entity("outpost_defender_spawned", enemy)
+	if combat_debug_logging:
+		print("[KonVerticalSlice] Outpost spawned defender archetype=", archetype,
+			" outpost=", _outposts[outpost_index].get("plot", {}).get("id", ""),
+			" spawn_cell=", spawn_cell,
+			" target=", target,
+			" enemy=", enemy.name if enemy != null and is_instance_valid(enemy) else "<none>")
+
+func _player_target_world() -> Vector2:
+	if wave_director != null and wave_director.has_method("_player_target_world"):
+		return wave_director.call("_player_target_world")
+	for structure in get_tree().get_nodes_in_group("structures"):
+		if is_instance_valid(structure) and structure is Node2D and int(structure.get("owner_player_id")) == PLAYER_ID:
+			return (structure as Node2D).global_position
+	for unit in _player_units():
+		if is_instance_valid(unit):
+			return unit.global_position
+	return Vector2.ZERO
 
 func _configure_boss_gate() -> void:
 	if wave_director == null or not gate_boss_until_objectives_complete:
@@ -150,16 +225,39 @@ func _configure_boss_gate() -> void:
 
 func _prune_outposts() -> void:
 	for i in _outposts.size():
-		var node: Node = _outposts[i].get("node", null)
+		var node = _outposts[i].get("node", null)
 		if bool(_outposts[i].get("destroyed", false)):
 			continue
 		if node == null or not is_instance_valid(node):
-			_outposts[i]["destroyed"] = true
-			var blockers: Array[Vector2i] = _outposts[i].get("blockers", [])
-			if not blockers.is_empty() and map_generator != null and map_generator.has_method("remove_dynamic_blockers"):
-				map_generator.remove_dynamic_blockers(blockers)
+			if bool(_outposts[i].get("missing", false)):
+				continue
+			_outposts[i]["missing"] = true
 			var plot: Dictionary = _outposts[i].get("plot", {})
-			print("[KonVerticalSlice] Outpost destroyed id=", plot.get("id", ""), " remaining=", _outposts_remaining())
+			push_warning("[KonVerticalSlice] Outpost node missing without combat destruction; objective remains uncleared: %s" % str(plot.get("id", "")))
+
+func _on_outpost_damage_taken(amount: int, source: Node, remaining_health: int, plot_id: String) -> void:
+	_last_damage_event = "outpost %s took %s from %s, hp %s" % [
+		plot_id,
+		amount,
+		source.name if source != null and is_instance_valid(source) else "<none>",
+		remaining_health,
+	]
+	if combat_debug_logging:
+		print("[KonVerticalSlice] Damage event: ", _last_damage_event)
+
+func _on_outpost_destroyed(structure: KonStructure, source: Node, plot_id: String) -> void:
+	for i in _outposts.size():
+		if _outposts[i].get("node", null) != structure:
+			continue
+		_outposts[i]["destroyed"] = true
+		_outposts[i]["combat_destroyed"] = true
+		_outposts[i]["missing"] = false
+		var blockers: Array[Vector2i] = _outposts[i].get("blockers", [])
+		if not blockers.is_empty() and map_generator != null and map_generator.has_method("remove_dynamic_blockers"):
+			map_generator.remove_dynamic_blockers(blockers)
+		break
+	_last_damage_event = "outpost %s destroyed by %s" % [plot_id, source.name if source != null and is_instance_valid(source) else "<unknown>"]
+	print("[KonVerticalSlice] Outpost destroyed via combat id=", plot_id, " remaining=", _outposts_remaining())
 
 func _check_content_clear() -> void:
 	if _content_plots.is_empty() or map_generator == null:
@@ -244,6 +342,53 @@ func _update_overlay() -> void:
 		int(resources.get(&"bio", 0)),
 		int(resources.get(&"essence", 0)),
 	]
+	_label.text += "\n\nCOMBAT DEBUG\n%s\nLast damage: %s" % [_combat_debug_text(), _last_damage_event]
+
+func _combat_debug_text() -> String:
+	var selected := _selected_debug_node()
+	if selected == null:
+		return "selected target: none"
+	var owner := int(selected.get("owner_player_id")) if _node_has_property(selected, "owner_player_id") else -1
+	var hp := int(selected.get("health")) if _node_has_property(selected, "health") else -1
+	var max_hp := int(selected.get("max_health")) if _node_has_property(selected, "max_health") else -1
+	var targetable := selected.has_method("take_damage")
+	var hostile := owner != PLAYER_ID and owner != -1
+	var attack_target: Variant = selected.get("attack_target") if _node_has_property(selected, "attack_target") else null
+	var attack_cooldown: Variant = selected.get("attack_cooldown") if _node_has_property(selected, "attack_cooldown") else "<none>"
+	var attackable_to_selection := targetable
+	var selected_owner := _valid_selected_owner_for_debug()
+	if selected_owner != -1:
+		attackable_to_selection = targetable and owner != selected_owner
+	return "selected=%s owner=%s hp=%s/%s attackable=%s hostile_to_player=%s hostile_to_selected=%s current_target=%s cooldown=%s" % [
+		selected.name,
+		owner,
+		hp,
+		max_hp,
+		targetable,
+		hostile,
+		attackable_to_selection,
+		attack_target.name if attack_target != null and is_instance_valid(attack_target) else "none",
+		str(attack_cooldown),
+	]
+
+func _selected_debug_node() -> Node:
+	if selection_controller != null and not selection_controller.selected_units.is_empty():
+		for node in selection_controller.selected_units:
+			if is_instance_valid(node):
+				return node
+	for outpost in _outposts:
+		var node = outpost.get("node", null)
+		if node != null and is_instance_valid(node):
+			return node
+	return null
+
+func _valid_selected_owner_for_debug() -> int:
+	if selection_controller == null:
+		return -1
+	for node in selection_controller.selected_units:
+		if node != null and is_instance_valid(node) and _node_has_property(node, "owner_player_id"):
+			return int(node.get("owner_player_id"))
+	return -1
 
 func _slice_phase() -> String:
 	if wave_director == null:
@@ -298,9 +443,7 @@ func _outposts_remaining() -> int:
 	var remaining := 0
 	for outpost in _outposts:
 		if not bool(outpost.get("destroyed", false)):
-			var node: Node = outpost.get("node", null)
-			if node != null and is_instance_valid(node):
-				remaining += 1
+			remaining += 1
 	return remaining
 
 func _required_outposts_total() -> int:
@@ -321,6 +464,14 @@ func _footprint_cells(origin: Vector2i, footprint: Vector2i) -> Array[Vector2i]:
 		for y in range(origin.y, origin.y + footprint.y):
 			cells.append(Vector2i(x, y))
 	return cells
+
+func _node_has_property(node: Node, property_name: String) -> bool:
+	if node == null or not is_instance_valid(node):
+		return false
+	for property in node.get_property_list():
+		if str(property.get("name", "")) == property_name:
+			return true
+	return false
 
 func _validate_slice_routes() -> void:
 	if map_generator == null or not map_generator.has_method("find_path_world"):
@@ -353,3 +504,41 @@ func _status_line() -> String:
 		wave_director.boss_has_spawned if wave_director != null else false,
 		_victory_defeat_state(),
 	]
+
+func _log_combat_entity(context: String, node: Node) -> void:
+	if not combat_debug_logging:
+		return
+	if node == null or not is_instance_valid(node):
+		print("[CombatValidation] ", context, " node=<invalid>")
+		return
+	var groups := PackedStringArray()
+	for group in node.get_groups():
+		groups.append(str(group))
+	var script_path := "<none>"
+	var script: Variant = node.get_script()
+	if script != null and script is Resource:
+		script_path = str((script as Resource).resource_path)
+	var group_text := ",".join(groups)
+	print("[CombatValidation] ", context,
+		" node=", node.name,
+		" class=", node.get_class(),
+		" script=", script_path,
+		" owner=", node.get("owner_player_id") if _node_has_property(node, "owner_player_id") else "<missing>",
+		" take_damage=", node.has_method("take_damage"),
+		" rts_unit_registered=", _is_registered_unit(node),
+		" rts_structure_registered=", _is_registered_structure(node),
+		" groups=", group_text,
+		" attack_damage=", node.get("attack_damage") if _node_has_property(node, "attack_damage") else "<missing>",
+		" attack_range=", node.get("attack_range") if _node_has_property(node, "attack_range") else "<missing>",
+		" health=", node.get("health") if _node_has_property(node, "health") else "<missing>",
+		" max_health=", node.get("max_health") if _node_has_property(node, "max_health") else "<missing>")
+
+func _is_registered_unit(node: Node) -> bool:
+	if rts_world == null or not is_instance_valid(rts_world) or not (node is Node2D):
+		return false
+	return rts_world.all_units().has(node)
+
+func _is_registered_structure(node: Node) -> bool:
+	if rts_world == null or not is_instance_valid(rts_world) or not (node is Node2D):
+		return false
+	return rts_world.all_structures().has(node)

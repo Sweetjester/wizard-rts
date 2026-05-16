@@ -8,6 +8,7 @@ signal selection_changed(selected: Array[Node])
 @export var shared_path_threshold: int = 4
 @export var command_dispatcher_path: NodePath = NodePath("../CommandDispatcher")
 @export var build_system_path: NodePath = NodePath("../BuildSystem")
+@export var combat_debug_logging: bool = false
 
 var selected_units: Array[Node] = []
 var command_dispatcher: CommandDispatcher
@@ -58,6 +59,9 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 			queue_redraw()
 	elif event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
 		_pending_target_command = &""
+		if _try_order_attack_target(get_global_mouse_position()):
+			get_viewport().set_input_as_handled()
+			return
 		_order_selected_units(get_global_mouse_position())
 
 func _handle_key(event: InputEventKey) -> void:
@@ -98,6 +102,7 @@ func _issue_pending_target_command(target: Vector2) -> void:
 	queue_redraw()
 
 func _select_units(rect: Rect2) -> void:
+	_prune_invalid_selection()
 	for unit in selected_units:
 		if is_instance_valid(unit):
 			unit.set_selected(false)
@@ -144,6 +149,8 @@ func _select_node(node: Node) -> void:
 	selected_units.append(node)
 
 func _is_player_selectable(node: Node) -> bool:
+	if node == null or not is_instance_valid(node):
+		return false
 	if not _has_property(node, "owner_player_id"):
 		return false
 	return int(node.get("owner_player_id")) == 1
@@ -152,12 +159,24 @@ func _is_structure(node: Node) -> bool:
 	return node.has_method("get_selection_kind") and node.get_selection_kind() == &"structure"
 
 func _has_property(node: Node, property_name: String) -> bool:
+	if node == null or not is_instance_valid(node):
+		return false
 	for property in node.get_property_list():
 		if str(property.get("name", "")) == property_name:
 			return true
 	return false
 
+func _prune_invalid_selection() -> void:
+	var removed := false
+	for i in range(selected_units.size() - 1, -1, -1):
+		if not is_instance_valid(selected_units[i]):
+			selected_units.remove_at(i)
+			removed = true
+	if removed:
+		selection_changed.emit(selected_units.duplicate())
+
 func _order_selected_units(target: Vector2) -> void:
+	_prune_invalid_selection()
 	if selected_units.is_empty():
 		return
 	if _try_set_rally_point(target):
@@ -179,6 +198,102 @@ func _order_selected_units(target: Vector2) -> void:
 		elif is_instance_valid(unit):
 			if unit.has_method("issue_move_order_offset"):
 				unit.issue_move_order_offset(target, offsets[i])
+
+func _try_order_attack_target(world_pos: Vector2) -> bool:
+	if selected_units.is_empty():
+		return false
+	var movable_units := _movable_selected_units()
+	if movable_units.is_empty():
+		if combat_debug_logging:
+			print("[SelectionController] Attack target rejected: selection has no movable combat units")
+		return false
+	var target := _attackable_at_position(world_pos)
+	if target == null:
+		if combat_debug_logging:
+			print("[SelectionController] Attack target rejected: no hostile attackable at ", world_pos,
+				" selected=", selected_units.size())
+		return false
+	var ordered := 0
+	for unit in movable_units:
+		if not is_instance_valid(unit):
+			continue
+		if int(unit.get("owner_player_id")) == int(target.get("owner_player_id")):
+			continue
+		if unit.has_method("issue_attack_target"):
+			unit.issue_attack_target(target)
+			ordered += 1
+	if ordered > 0:
+		if combat_debug_logging:
+			print("[SelectionController] Attack target ordered target=", target.name,
+				" owner=", target.get("owner_player_id"),
+				" selected_units=", ordered,
+				" hp=", target.get("health") if _has_property(target, "health") else "<unknown>")
+		return true
+	if combat_debug_logging:
+		print("[SelectionController] Attack target failed: selected units cannot attack target=", target.name)
+	return false
+
+func _attackable_at_position(world_pos: Vector2) -> Node2D:
+	var best: Node2D = null
+	var best_distance := INF
+	for node in get_tree().get_nodes_in_group("units"):
+		if node is Node2D:
+			var candidate := node as Node2D
+			if not _is_attackable_candidate(candidate):
+				_log_attackable_rejection(candidate, "units_group")
+				continue
+			var radius := float(candidate.get("selection_radius")) if _has_property(candidate, "selection_radius") else 24.0
+			var distance := candidate.global_position.distance_to(world_pos)
+			if distance <= radius and distance < best_distance:
+				best = candidate
+				best_distance = distance
+	for node in get_tree().get_nodes_in_group("structures"):
+		if node is Node2D:
+			var candidate := node as Node2D
+			if not _is_attackable_candidate(candidate):
+				_log_attackable_rejection(candidate, "structures_group")
+				continue
+			var radius := float(candidate.get("selection_radius")) if _has_property(candidate, "selection_radius") else 48.0
+			var distance := candidate.global_position.distance_to(world_pos)
+			if distance <= radius and distance < best_distance:
+				best = candidate
+				best_distance = distance
+	return best
+
+func _is_attackable_candidate(node: Node) -> bool:
+	if node == null or not is_instance_valid(node) or not node.has_method("take_damage"):
+		return false
+	if not _has_property(node, "owner_player_id"):
+		return false
+	for selected in selected_units:
+		if is_instance_valid(selected) and _has_property(selected, "owner_player_id"):
+			return int(selected.get("owner_player_id")) != int(node.get("owner_player_id"))
+	return false
+
+func _log_attackable_rejection(node: Node, source_group: String) -> void:
+	if not combat_debug_logging:
+		return
+	if node == null or not is_instance_valid(node):
+		return
+	var selected_owner := -999999
+	for selected in selected_units:
+		if is_instance_valid(selected) and _has_property(selected, "owner_player_id"):
+			selected_owner = int(selected.get("owner_player_id"))
+			break
+	var node_owner := int(node.get("owner_player_id")) if _has_property(node, "owner_player_id") else -999999
+	var distance := INF
+	if node is Node2D:
+		distance = (node as Node2D).global_position.distance_to(get_global_mouse_position())
+	var radius := float(node.get("selection_radius")) if _has_property(node, "selection_radius") else 48.0
+	if distance > radius:
+		return
+	print("[SelectionController] Attackable rejected source=", source_group,
+		" node=", node.name,
+		" owner=", node_owner,
+		" selected_owner=", selected_owner,
+		" has_take_damage=", node.has_method("take_damage"),
+		" has_owner=", _has_property(node, "owner_player_id"),
+		" groups=", node.get_groups())
 
 func _shared_group_path(target: Vector2, units: Array[Node]) -> Array[Vector2]:
 	var terrain: Node = null

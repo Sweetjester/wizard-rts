@@ -1,0 +1,27 @@
+{
+	"animation_status": {
+		"attack": "placeholder requested",
+		"death": "placeholder requested",
+		"idle": "placeholder requested",
+		"move": "placeholder requested"
+	},
+	"errors": [],
+	"generated": [
+		"res://game/units/generated/bad_kon_willow/bad_kon_willow.tscn",
+		"res://game/units/generated/bad_kon_willow/bad_kon_willow.gd",
+		"res://game/data/units/bad_kon_willow.tres",
+		"res://game/data/units/generated_unit_data.gd",
+		"res://game/units/generated/bad_kon_willow/IMPORT_REPORT.md"
+	],
+	"godot_scene_path": "game/units/generated/bad_kon_willow/bad_kon_willow.tscn",
+	"manual_todos": [
+		"Review Meshy topology and silhouette in Blender.",
+		"Replace placeholder animations with authored locomotion/combat/death clips.",
+		"Hook generated Node3D unit into the active 2D RTS runtime if/when the project moves to 3D unit actors."
+	],
+	"meshy_called": false,
+	"processed_glb_path": "art/processed_models/bad_kon_willow/bad_kon_willow.glb",
+	"raw_model_path": "art/generated_models/bad_kon_willow/bad_kon_willow_raw.glb",
+	"unit_id": "bad_kon_willow",
+	"warnings": []
+}

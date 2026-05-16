@@ -801,6 +801,7 @@ func _rebuild_context_commands(selected: Array[Node]) -> void:
 		_add_button(command_container, "Observer Aura", func() -> void: _activate_selected("activate_observer_aura", "Observer Aura"))
 	elif _selection_has_archetype(selected, &"barracks"):
 		_add_button(command_container, "Thing", func() -> void: _produce_from_selected(&"terrible_thing"))
+		_add_button(command_container, "Oaven", func() -> void: _produce_from_selected(&"oaven_spear"))
 		_add_button(command_container, "Horror", func() -> void: _produce_from_selected(&"horror"))
 		_add_button(command_container, "Apex", func() -> void: _produce_from_selected(&"apex"))
 		_add_button(command_container, "Spawner", func() -> void: _produce_from_selected(&"spawner"))
@@ -855,6 +856,7 @@ func _is_spawnable_test_unit(archetype: StringName) -> bool:
 		return false
 	return archetype in [
 		&"terrible_thing",
+		&"oaven_spear",
 		&"horror",
 		&"apex",
 		&"spawner",
@@ -872,7 +874,7 @@ func _selection_has_evolvable_kon_unit(selected: Array[Node]) -> bool:
 		if not is_instance_valid(node) or not node.has_method("debug_force_evolve"):
 			continue
 		var definition := UnitCatalog.get_definition(_archetype_for(node))
-		if definition.get("unit_family", &"") in [&"terrible_thing", &"horror", &"apex", &"spawner", &"stone_face_serpent"]:
+		if definition.get("unit_family", &"") in [&"terrible_thing", &"oaven", &"horror", &"apex", &"spawner", &"stone_face_serpent"]:
 			var progress: Dictionary = node.get_evolution_progress() if node.has_method("get_evolution_progress") else {}
 			if float(progress.get("needed", definition.get("evolution_xp_required", 0.0))) > 0.0:
 				return true
@@ -969,6 +971,10 @@ func _add_unit_active_buttons(selected: Array[Node]) -> void:
 		match str(active):
 			"Charge":
 				_add_button(command_container, "Charge", func() -> void: _activate_selected("activate_charge", "Charge"))
+			"Taunt":
+				_add_button(command_container, "Taunt", func() -> void: _activate_selected("activate_taunt", "Taunt"))
+			"Flight":
+				_add_button(command_container, "Flight", func() -> void: _activate_selected("activate_flight", "Flight"))
 			"Grapple":
 				_add_button(command_container, "Grapple", func() -> void: _activate_selected("activate_grapple", "Grapple"))
 			"Eat ally":

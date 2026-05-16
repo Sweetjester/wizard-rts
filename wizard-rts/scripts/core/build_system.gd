@@ -23,6 +23,7 @@ signal upgrade_researched(player_id: int, upgrade_id: StringName)
 @export var simulation_runner_path: NodePath = NodePath("../SimulationRunner")
 @export var rts_world_path: NodePath = NodePath("../RTSWorld")
 @export var terrible_thing_scene: PackedScene = preload("res://scenes/units/terrible_thing.tscn")
+@export var oaven_spear_scene: PackedScene = preload("res://scenes/units/oaven_spear.tscn")
 @export var horror_scene: PackedScene = preload("res://scenes/units/horror.tscn")
 @export var apex_scene: PackedScene = preload("res://scenes/units/apex.tscn")
 @export var spawner_scene: PackedScene = preload("res://scenes/units/spawner.tscn")
@@ -691,6 +692,8 @@ func _scene_for_unit(archetype: StringName) -> PackedScene:
 	match archetype:
 		&"terrible_thing", &"awful_thing":
 			return terrible_thing_scene
+		&"oaven_spear", &"oaven_jumper":
+			return oaven_spear_scene
 		&"horror":
 			return horror_scene
 		&"apex", &"apex_predator":

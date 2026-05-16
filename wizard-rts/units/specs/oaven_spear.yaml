@@ -1,0 +1,50 @@
+unit_id: oaven_spear
+display_name: Oaven Spear
+faction: oaven
+role: melee_frontline_skirmisher
+concept_art_path: art/concepts/oaven/oaven_spear.png
+
+visual:
+  style: painterly_npr
+  description: stylized occult frontier spear warrior, strong RTS silhouette, exaggerated spear, readable from zoomed out camera
+  colors:
+    body: muted earthy tones
+    cloth: dark red or ochre
+    emissive: pale blue
+  outline: true
+
+model:
+  generator: meshy
+  source: image_to_3d
+  target_polycount: 6000
+  scale_meters: 1.8
+  export: glb
+
+movement:
+  type: ground
+  speed: 3.4
+
+stats:
+  hp: 120
+  armor: 1
+  sight_range: 8
+
+combat:
+  attack_type: melee
+  weapon: spear
+  damage: 18
+  range: 1.8
+  cooldown: 1.2
+
+animations:
+  idle: required
+  move: required
+  attack: required
+  death: required
+
+vfx:
+  selection_circle: true
+  shadow_blob: true
+  attack_flash: true
+
+abilities: []

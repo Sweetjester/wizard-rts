@@ -73,6 +73,12 @@ var _root_cast_remaining := 0.0
 var _uproot_cast_remaining := 0.0
 var _flight_cast_remaining := 0.0
 var _flight_state: StringName = &"grounded"
+var _temporary_flight_until_msec := 0
+var _slowed_until_msec := 0
+var _slow_multiplier := 1.0
+var _taunt_until_msec := 0
+var _cripple_last_msec := -100000
+var _jumper_landing_ready := false
 var _hunt_elapsed := 0.0
 var _hunt_charges := 0
 var _observer_aura_enabled := false
@@ -211,6 +217,7 @@ func rts_movement_tick(delta: float) -> void:
 	_life_elapsed += delta
 	_update_limited_lifetime()
 	_update_damage_over_time(delta)
+	_update_temporary_status_effects()
 	_update_spawner_root_casts(delta)
 	_update_winged_spawner_flight(delta)
 	if _flight_cast_remaining > 0.0:
@@ -424,6 +431,8 @@ func rts_combat_tick(delta: float, nearby_units: Array[Node2D]) -> void:
 			return
 		if unit_state == &"attacking" or command_mode in [&"attack_move", &"attack_target", &"patrol"]:
 			_chase_attack_target()
+		return
+	if _try_oaven_jumper_landing(attack_target):
 		return
 	path.clear()
 	moving = false
@@ -749,6 +758,7 @@ func _fire_attack(target: Node2D, damage_multiplier: float = 1.0) -> void:
 		if not _mass_performance_mode() or selected:
 			queue_redraw()
 		target.take_damage(maxi(1, int(float(attack_damage) * damage_multiplier)), self)
+		_try_oaven_crippling_attack(target)
 
 func _uses_projectile() -> bool:
 	return WeaponCatalog.uses_projectile(unit_archetype)
@@ -1000,6 +1010,8 @@ func _apply_owner_art_tint() -> void:
 func take_damage(amount: int, source: Node = null, damage_type: StringName = &"physical") -> void:
 	if _dying:
 		return
+	if Time.get_ticks_msec() < _taunt_until_msec:
+		amount = maxi(1, int(float(amount) * (1.0 - float(UnitCatalog.get_definition(unit_archetype).get("taunt_damage_reduction", 0.0)))))
 	var mitigation := magic_armor if damage_type == &"magic" else armor
 	if UnitCatalog.get_definition(unit_archetype).has("low_health_armor_bonus"):
 		var missing_health_ratio := 1.0 - (float(health) / maxf(1.0, float(max_health)))
@@ -1112,6 +1124,13 @@ func stun_for_seconds(seconds: float) -> void:
 	unit_state = &"stunned"
 	_queue_unit_redraw()
 
+func slow_for_seconds(seconds: float, multiplier: float) -> void:
+	if seconds <= 0.0:
+		return
+	_slowed_until_msec = Time.get_ticks_msec() + int(seconds * 1000.0)
+	_slow_multiplier = clampf(multiplier, 0.1, 1.0)
+	_queue_unit_redraw()
+
 func salvage_value() -> int:
 	return int(float(UnitCatalog.cost_bio(unit_archetype)) * 0.6) + int(float(max_health) * 0.12)
 
@@ -1136,6 +1155,8 @@ func _evolve(definition: Dictionary) -> void:
 		_spawner_rooted = false
 		_root_cast_remaining = 0.0
 		_uproot_cast_remaining = 0.0
+		_temporary_flight_until_msec = 0
+		_jumper_landing_ready = false
 	_apply_catalog_definition()
 	evolution_level += 1
 	max_health = int(float(max_health) * (1.18 + float(evolution_level) * 0.03))
@@ -1182,9 +1203,50 @@ func activate_charge() -> bool:
 	if not definition.has("charge_speed_multiplier"):
 		return false
 	_charge_until_msec = Time.get_ticks_msec() + 3200
+	if definition.has("jumper_landing_stun_seconds") and _is_temporary_flying():
+		_jumper_landing_ready = true
 	unit_state = &"attack_move" if attack_target == null else &"attacking"
 	_set_ability_animation(&"charge", 0.55)
 	_queue_unit_redraw()
+	return true
+
+func activate_taunt() -> bool:
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	var radius := float(definition.get("taunt_radius", 0.0))
+	if radius <= 0.0 or rts_world == null or not is_instance_valid(rts_world):
+		return false
+	var enemies := rts_world.query_enemy_attackables(global_position, radius, owner_player_id, 18)
+	if enemies.is_empty():
+		return false
+	_taunt_until_msec = Time.get_ticks_msec() + int(float(definition.get("taunt_seconds", 3.0)) * 1000.0)
+	var affected := 0
+	for enemy in enemies:
+		if not is_instance_valid(enemy) or enemy == self:
+			continue
+		if enemy.has_method("issue_attack_target"):
+			enemy.issue_attack_target(self)
+			affected += 1
+		elif _node_has_property(enemy, "attack_target"):
+			enemy.set("attack_target", self)
+			affected += 1
+	print("[Oaven] Taunt archetype=", unit_archetype, " affected=", affected, " radius=", radius)
+	_set_ability_animation(&"taunt", 0.8)
+	_queue_unit_redraw()
+	return affected > 0
+
+func activate_flight() -> bool:
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	var seconds := float(definition.get("temporary_flight_seconds", 0.0))
+	if seconds <= 0.0:
+		return false
+	_temporary_flight_until_msec = Time.get_ticks_msec() + int(seconds * 1000.0)
+	_flight_state = &"flying"
+	_flight_cast_remaining = 0.0
+	ignores_terrain = true
+	unit_state = &"takeoff"
+	_set_ability_animation(&"takeoff", 0.65)
+	_queue_unit_redraw()
+	print("[Oaven] Flight activated seconds=", seconds)
 	return true
 
 func activate_grapple() -> bool:
@@ -1439,7 +1501,79 @@ func _current_move_speed() -> float:
 		var charge_range := maxf(attack_range * 4.0, 160.0)
 		if Time.get_ticks_msec() < _charge_until_msec or global_position.distance_squared_to(attack_target.global_position) <= charge_range * charge_range:
 			speed *= float(definition.get("charge_speed_multiplier", 1.0))
+	if _is_temporary_flying():
+		speed *= float(definition.get("temporary_flight_speed_multiplier", 1.0))
+	if Time.get_ticks_msec() < _slowed_until_msec:
+		speed *= _slow_multiplier
 	return speed
+
+func _update_temporary_status_effects() -> void:
+	if _temporary_flight_until_msec > 0 and Time.get_ticks_msec() >= _temporary_flight_until_msec:
+		_temporary_flight_until_msec = 0
+		_jumper_landing_ready = false
+		if not _is_winged_spawner():
+			_flight_state = &"grounded"
+			ignores_terrain = bool(UnitCatalog.get_definition(unit_archetype).get("ignores_terrain", false))
+			if unit_state == &"takeoff" or unit_state == &"flying" or unit_state == &"landing":
+				unit_state = &"idle"
+			_queue_unit_redraw()
+	if _slowed_until_msec > 0 and Time.get_ticks_msec() >= _slowed_until_msec:
+		_slowed_until_msec = 0
+		_slow_multiplier = 1.0
+
+func _is_temporary_flying() -> bool:
+	return _temporary_flight_until_msec > Time.get_ticks_msec()
+
+func _try_oaven_crippling_attack(target: Node2D) -> void:
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	var seconds := float(definition.get("cripple_seconds", 0.0))
+	if seconds <= 0.0 or target == null or not is_instance_valid(target):
+		return
+	var now := Time.get_ticks_msec()
+	if now - _cripple_last_msec < int(float(definition.get("cripple_cooldown_seconds", 3.0)) * 1000.0):
+		return
+	if bool(definition.get("cripple_requires_moving_target", false)) and _node_has_property(target, "moving") and not bool(target.get("moving")):
+		return
+	_cripple_last_msec = now
+	if target.has_method("slow_for_seconds"):
+		target.slow_for_seconds(seconds, 0.42)
+	if target.has_method("take_damage"):
+		target.take_damage(int(definition.get("cripple_bonus_damage", 0)), self)
+	print("[Oaven] Crippling spear target=", target.name, " seconds=", seconds)
+
+func _try_oaven_jumper_landing(target: Node2D) -> bool:
+	if not _jumper_landing_ready or target == null or not is_instance_valid(target):
+		return false
+	var definition := UnitCatalog.get_definition(unit_archetype)
+	var radius := float(definition.get("jumper_landing_radius", 0.0))
+	var stun_seconds := float(definition.get("jumper_landing_stun_seconds", 0.0))
+	var damage := int(definition.get("jumper_landing_damage", 0))
+	if radius <= 0.0 or stun_seconds <= 0.0:
+		return false
+	_jumper_landing_ready = false
+	_temporary_flight_until_msec = 0
+	_flight_state = &"grounded"
+	ignores_terrain = bool(definition.get("ignores_terrain", false))
+	_charge_until_msec = 0
+	unit_state = &"attacking"
+	moving = false
+	path.clear()
+	var victims: Array[Node2D] = []
+	if rts_world != null and is_instance_valid(rts_world):
+		victims = rts_world.query_enemy_units(target.global_position, radius, owner_player_id, 12)
+	else:
+		victims.append(target)
+	for victim in victims:
+		if not is_instance_valid(victim) or not victim.has_method("take_damage"):
+			continue
+		if victim.has_method("stun_for_seconds"):
+			victim.stun_for_seconds(stun_seconds)
+		if damage > 0:
+			victim.take_damage(damage, self)
+	print("[Oaven] Jumper landing target=", target.name, " victims=", victims.size(), " stun=", stun_seconds)
+	_set_ability_animation(&"landing_stun", 0.85)
+	_queue_unit_redraw()
+	return true
 
 func _nearest_enemy(radius: float) -> Node2D:
 	if rts_world == null or not is_instance_valid(rts_world):

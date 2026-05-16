@@ -1,6 +1,9 @@
 class_name KonStructure
 extends StaticBody2D
 
+signal damage_taken(amount: int, source: Node, remaining_health: int)
+signal destroyed(structure: KonStructure, source: Node)
+
 const STRUCTURE_TEXTURES := {
 	&"wizard_tower": preload("res://assets/buildings/kon/wizard_tower.png"),
 	&"bio_absorber": preload("res://assets/buildings/kon/bio_absorber.png"),
@@ -32,6 +35,7 @@ var rally_point := Vector2.ZERO
 var rally_enabled := false
 var attack_flash_msec: int = -10000
 var selected := false
+var combat_debug_logging := false
 var art_sprite: Sprite2D
 var rts_world: RTSWorld
 
@@ -119,12 +123,20 @@ func take_damage(amount: int, source: Node = null) -> void:
 	if rts_world != null and is_instance_valid(rts_world):
 		rts_world.record_damage(source, self, actual_damage)
 	health = maxi(0, health - amount)
+	damage_taken.emit(actual_damage, source, health)
+	if combat_debug_logging:
+		print("[KonStructure] Damage archetype=", archetype,
+			" owner=", owner_player_id,
+			" amount=", actual_damage,
+			" hp=", health, "/", max_health,
+			" source=", source.name if source != null and is_instance_valid(source) else "<none>")
 	if archetype == &"vinewall" and source != null and is_instance_valid(source) and source.has_method("take_damage"):
 		var retaliation := int(UnitCatalog.get_definition(&"vinewall").get("retaliation_damage", 8)) + level * 2
 		source.take_damage(retaliation, self)
 		attack_flash_msec = Time.get_ticks_msec()
 	queue_redraw()
 	if health <= 0:
+		destroyed.emit(self, source)
 		queue_free()
 
 func heal_damage(amount: int) -> void:

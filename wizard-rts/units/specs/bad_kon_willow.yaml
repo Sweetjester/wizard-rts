@@ -1,0 +1,50 @@
+unit_id: bad_kon_willow
+display_name: bad kon willow
+faction: Kon
+role: Life Wizard
+concept_art_path: art/concepts/oaven/bad_kon_willow.png
+
+visual:
+  style: painterly_npr
+  description: stylized occult wizard, strong RTS silhouette, readable from zoomed out camera
+  colors:
+    body: muted earthy tones
+    cloth: black and silver
+    emissive: pale blue
+  outline: true
+
+model:
+  generator: meshy
+  source: image_to_3d
+  target_polycount: 6000
+  scale_meters: 1.8
+  export: glb
+
+movement:
+  type: ground
+  speed: 3.4
+
+stats:
+  hp: 120
+  armor: 1
+  sight_range: 8
+
+combat:
+  attack_type: projectile
+  weapon: staff
+  damage: 18
+  range: 7
+  cooldown: 1.2
+
+animations:
+  idle: required
+  move: required
+  attack: required
+  death: required
+
+vfx:
+  selection_circle: true
+  shadow_blob: true
+  attack_flash: true
+
+abilities: []

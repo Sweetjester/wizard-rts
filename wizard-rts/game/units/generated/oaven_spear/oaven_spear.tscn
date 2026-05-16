@@ -1,0 +1,86 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://game/units/generated/oaven_spear/oaven_spear.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://art/processed_models/oaven_spear/oaven_spear.glb" id="2_model"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_shadow"]
+radius = 0.42
+height = 0.04
+
+[sub_resource type="Animation" id="Animation_idle"]
+resource_name = "idle"
+length = 1.2
+loop_mode = 1
+tracks/0/type = "position_3d"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("ModelRoot:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = PackedFloat32Array(0, 1, 0, 0, 0, 0.6, 1, 0, 0.04, 0, 1.2, 1, 0, 0, 0)
+
+[sub_resource type="Animation" id="Animation_move"]
+resource_name = "move"
+length = 0.7
+loop_mode = 1
+tracks/0/type = "position_3d"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("ModelRoot:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = PackedFloat32Array(0, 1, 0, 0, 0, 0.18, 1, 0, 0.08, -0.04, 0.36, 1, 0, 0, 0.04, 0.54, 1, 0, 0.08, -0.04, 0.7, 1, 0, 0, 0)
+
+[sub_resource type="Animation" id="Animation_attack"]
+resource_name = "attack"
+length = 0.55
+tracks/0/type = "position_3d"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("ModelRoot:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = PackedFloat32Array(0, 1, 0, 0, 0, 0.18, 1, 0, 0, -0.18, 0.32, 1, 0, 0.02, -0.42, 0.55, 1, 0, 0, 0)
+
+[sub_resource type="Animation" id="Animation_death"]
+resource_name = "death"
+length = 1.0
+tracks/0/type = "scale_3d"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("ModelRoot:scale")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = PackedFloat32Array(0, 1, 1, 1, 1, 0.45, 1, 1.05, 0.35, 1.05, 1, 1, 1.15, 0.02, 1.15)
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_generated"]
+_data = {
+&"attack": SubResource("Animation_attack"),
+&"death": SubResource("Animation_death"),
+&"idle": SubResource("Animation_idle"),
+&"move": SubResource("Animation_move")
+}
+
+[node name="OavenSpearRoot" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="ModelRoot" type="Node3D" parent="."]
+
+[node name="Model" parent="ModelRoot" instance=ExtResource("2_model")]
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries/ = SubResource("AnimationLibrary_generated")
+
+[node name="SelectionCircle" type="Node3D" parent="."]
+visible = false
+
+[node name="HealthBarAnchor" type="Node3D" parent="."]
+position = Vector3(0, 2.05, 0)
+
+[node name="ShadowBlob" type="MeshInstance3D" parent="."]
+mesh = SubResource("SphereMesh_shadow")
+
+[node name="VFXRoot" type="Node3D" parent="."]
+
+[node name="MeleeHitMarker" type="Marker3D" parent="."]
+position = Vector3(0, 0.9, -1.15)

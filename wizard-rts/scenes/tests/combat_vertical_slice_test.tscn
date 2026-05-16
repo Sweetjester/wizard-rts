@@ -1,0 +1,24 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/combat_vertical_slice_test_scene.gd" id="1_test"]
+[ext_resource type="Script" path="res://scripts/core/rts_world.gd" id="2_world"]
+[ext_resource type="Script" path="res://scripts/core/combat_system.gd" id="3_combat"]
+[ext_resource type="Script" path="res://scripts/input/selection_controller.gd" id="4_select"]
+
+[node name="CombatVerticalSliceTest" type="Node2D"]
+script = ExtResource("1_test")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(500, 360)
+zoom = Vector2(0.75, 0.75)
+enabled = true
+
+[node name="RTSWorld" type="Node" parent="."]
+script = ExtResource("2_world")
+
+[node name="CombatSystem" type="Node" parent="."]
+script = ExtResource("3_combat")
+tick_interval = 0.1
+
+[node name="SelectionController" type="Node2D" parent="."]
+script = ExtResource("4_select")
