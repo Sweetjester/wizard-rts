@@ -4,13 +4,33 @@ Living reference for anyone (human or AI) picking up this project. Last synthesi
 
 ## What the game is
 
-A Godot 4 real-time strategy game. The player controls **KON**, led by a persistent, controllable **hero wizard unit** (not just a base — the wizard walks around, fights, and can die/respawn), commanding an evolving roster of creature units against **Deom Legion**, a tiered enemy faction, across procedurally generated 96×96 maps. Structurally it's closer to an RTS/hero-unit hybrid (WarCraft III-ish) than a pure base-builder.
+A **Godot 4.6** real-time strategy game (confirmed via `project.godot`'s `config/features`). The player controls **KON**, led by a persistent, controllable **hero wizard unit** (not just a base — the wizard walks around, fights, and can die/respawn), commanding an evolving roster of creature units against **Deom Legion**, a tiered enemy faction, across procedurally generated 96×96 maps. Structurally it's closer to an RTS/hero-unit hybrid (WarCraft III-ish) than a pure base-builder.
 
 Core loop: build economy (`bio_absorber`) → train units at `barracks` → units gain XP from combat and **evolve** into stronger forms → survive escalating enemy waves → destroy enemy outposts → beat a boss (`mycelium_boss`) to win. Defend your `wizard_tower` — if it falls, you lose; if your wizard dies, the tower absorbs the blow and the wizard respawns there instead.
 
 ## Repo layout gotcha
 
 The real project is nested: `wizard-rts/wizard-rts/` (the outer `wizard-rts/` has a placeholder README and legacy top-level `scripts`/`scenes` folders — ignore those, they're not the active project). `project.godot` lives in the nested folder.
+
+## Boot flow & entry points (verified against `project.godot`)
+
+- Boot scene: `res://scenes/ui/main_menu.tscn` (`scripts/ui/main_menu.gd`) — start game, character/wizard select, map select, audio/display settings, map editor, test maps.
+- Gameplay scene: `res://scripts/map/main_map.tscn` — **this is the real one**, referenced by `main_menu.gd` and every smoke test.
+- **Trap**: there is a second, near-identical-named `res://scenes/map/main_map.tscn` (103 bytes, a dead stub) that nothing references. If you're searching for "main map" and land on the one under `scenes/`, you're in the wrong file — the live scene lives under `scripts/map/`, not `scenes/map/`.
+- HUD: `scripts/ui/rts_hud.gd` — Bio, wave phase, boss countdown, selection/unit details, evolution progress, build/train commands, alerts, plus AI-test telemetry and map-gen controls on test maps.
+- Audio: `scripts/audio/audio_manager.gd` — one looping track at a time; main menu swaps track based on selected wizard (`Bad John Dillo Fixed.mp3`, `Fire Wizard.mp3`, `Evangalion.mp3`, plus `vampire mushroom forest.mp3` for that biome).
+
+## Key files to read first
+
+`project.godot` → `unit_catalog.gd` (live stats) → `rts_unit.gd` (base unit class) → `combat_system.gd`/`rts_world.gd` (combat) → `build_system.gd` → `wave_director.gd` → `selection_controller.gd` → `rts_hud.gd` → `map_generator.gd`. Plus `COMBAT_SYSTEM_REVIEW.md` and `STYLE_BIBLE.md` for the two areas with dedicated deep-dive docs.
+
+## Working agreements for AI collaborators
+
+- Treat this file as current high-level truth; update it when it drifts.
+- `unit_catalog.gd` is the live gameplay stat source — not `units/specs/*.yaml` (offline art-pipeline input only, stats don't match).
+- Live gameplay is 2D. Don't assume or introduce 3D gameplay logic — see the rendering-paths section above.
+- Prefer existing Godot patterns/scripts over introducing new architecture; avoid refactoring unrelated systems.
+- Add or run a smoke test (`scripts/core/*_smoke_test.gd`) when touching a gameplay system — the project already has strong coverage here, keep it that way.
 
 ## Two rendering paths — know which is real
 
