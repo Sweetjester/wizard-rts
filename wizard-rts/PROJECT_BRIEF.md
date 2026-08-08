@@ -8,6 +8,12 @@ A **Godot 4.6** real-time strategy game (confirmed via `project.godot`'s `config
 
 Core loop: build economy (`bio_absorber`) → train units at `barracks` → units gain XP from combat and **evolve** into stronger forms → survive escalating enemy waves → destroy enemy outposts → beat a boss (`mycelium_boss`) to win. Defend your `wizard_tower` — if it falls, you lose; if your wizard dies, the tower absorbs the blow and the wizard respawns there instead.
 
+## DECIDED: staying 2D (2026-08-08)
+
+The 2D vs 3D question below is resolved. **Units render 2D** (sprite sheets per `docs/kon_unit_asset_template.md`/`STYLE_BIBLE.md`'s existing billboard spec — not the Meshy/Blender 3D GLB pipeline). The 3D unit pipeline is deprioritized as a gameplay path; keep it only for marketing/preview renders if wanted, don't bridge more units through it, don't build gameplay logic assuming 3D. Reasoning: the actual required scale (hundreds of units) is already proven achievable in 2D per `PERFORMANCE_CRITIQUE.md`; sprite-sheet rendering batches far more cheaply than per-unit 3D meshes with unsolved animation; and AI-assisted dev velocity (Claude/Codex) is materially higher on Godot 2D than on the 3D content pipeline's tooling.
+
+Engine choice also settled: **staying on Godot**, not migrating to Spring/Recoil. Target scale (hundreds, not BAR's thousands) is already within Godot's proven range, and an engine migration would discard the tested systems already built here for a much weaker AI-assisted development position.
+
 ## Repo layout gotcha
 
 The real project is nested: `wizard-rts/wizard-rts/` (the outer `wizard-rts/` has a placeholder README and legacy top-level `scripts`/`scenes` folders — ignore those, they're not the active project). `project.godot` lives in the nested folder.
@@ -36,7 +42,7 @@ The real project is nested: `wizard-rts/wizard-rts/` (the outer `wizard-rts/` ha
 
 - **Actual gameplay is 2D.** Units are `CharacterBody2D`, the map is `TileMapLayer`s, pathing is `AStarGrid2D`. This is what ships and what the player sees.
 - **`map_3d_renderer.gd`/`map_3d_preview.gd` is a prototyping tool**, not the shipping renderer — it instantiates its own headless `MapGenerator` and extrudes the same logical grid into 3D purely to evaluate art direction. Don't confuse "there's a polished 3D renderer" with "the game is 3D."
-- Similarly, the automated **unit art pipeline produces 3D GLB models** (Meshy → Blender → Godot `Node3D` scenes), but the live gameplay unit class (`RTSUnit`) is 2D. Only one unit (**Oaven Spear**) has been manually bridged from the 3D pipeline into actual 2D gameplay so far — everything else drawn in-game is hand-drawn vector art in each unit's `_draw()` override. **This 2D/3D mismatch is the single biggest unresolved architectural question in the project** — see Open Questions below.
+- Similarly, the automated **unit art pipeline produces 3D GLB models** (Meshy → Blender → Godot `Node3D` scenes), but the live gameplay unit class (`RTSUnit`) is 2D. Only one unit (**Oaven Spear**) was manually bridged from the 3D pipeline into actual 2D gameplay. **This is now a closed decision, not an open question** — see "DECIDED: staying 2D" above. Units are moving toward sprite sheets, not more 3D bridging.
 
 ## Factions & roster
 
@@ -79,12 +85,12 @@ Uncommitted work in progress when this brief was written: refinements to the Ble
 
 ## Open questions worth resolving before more content work
 
-1. **2D vs 3D rendering path**: the project has fully-built 3D asset pipelines feeding a `Node3D` prototype renderer, but ships as 2D with hand-drawn vector unit art. Is the plan to eventually flip the whole game to 3D, or keep 2D gameplay and use the 3D work only for marketing/preview? This affects almost every future art decision.
+1. ~~2D vs 3D rendering path~~ — **Decided**, see top of file. Staying 2D.
 2. **TileSet migration**: `TILESET_RUNTIME_DECISION_REPORT.md` found the live map's TileSet has zero terrain sets (autotiling is currently non-functional) and recommended migrating to `tiny_swords_plot_tileset.tres` — this was a fully-specified plan that, as far as the docs show, was never executed.
 3. **AI-test mode may have a bug**: in `wave_director.gd`'s stress-test mode, both the "west" and "east" test armies appear to draw from the same KON unit mix rather than KON vs Deom — worth confirming whether that's intentional (controlled army-vs-army testing) or a leftover mistake.
 4. **`units/specs/*.yaml` are stale**: their stat blocks don't match the live `unit_catalog.gd` numbers — they're inputs to the offline art pipeline only, not a live data source. Don't treat them as gameplay-authoritative.
 5. **`ASSET_REPLACEMENT_STATUS.md` is superseded** by `DARK_FOREST_FRONTIER_V2_STATUS.md` (written the same day, later) — don't trust the V1 doc's "current" claims without cross-checking the actual renderer code.
-6. **Rendering cost at scale is unaddressed**: a real `MultiMeshInstance2D`-based batched renderer (`scripts/units/mass_unit_multimesh_renderer.gd`) exists in the repo and is referenced by nothing — units still render via per-unit hand-drawn `_draw()` calls. See `PERFORMANCE_CRITIQUE.md` for measured stress-test numbers (real FPS/frame-time data from the project's own test suite, not speculation) and prioritized fixes.
+6. **In progress**: `scripts/units/mass_unit_multimesh_renderer.gd` exists but was a rough, unfinished sketch — flat untextured colored quads, an inverted `unit.visible` check that skips every unit, never added to the scene tree. Being reworked into a proper distance/count-based LOD system: full hand-drawn detail for nearby/important units, cheap batched blobs for the mass of distant swarm units. Not blocked on real sprite art — that's a separate, longer content-pipeline effort. See `PERFORMANCE_CRITIQUE.md` for the measured numbers driving this.
 7. **"Roguelike" isn't designed yet, only vibed toward**: no permadeath, run structure, or meta-progression found anywhere in code/docs — see `PERFORMANCE_CRITIQUE.md`'s genre-fit section.
 
 ## Source-of-truth docs for deep dives
