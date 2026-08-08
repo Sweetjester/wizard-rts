@@ -84,10 +84,13 @@ Uncommitted work in progress when this brief was written: refinements to the Ble
 3. **AI-test mode may have a bug**: in `wave_director.gd`'s stress-test mode, both the "west" and "east" test armies appear to draw from the same KON unit mix rather than KON vs Deom — worth confirming whether that's intentional (controlled army-vs-army testing) or a leftover mistake.
 4. **`units/specs/*.yaml` are stale**: their stat blocks don't match the live `unit_catalog.gd` numbers — they're inputs to the offline art pipeline only, not a live data source. Don't treat them as gameplay-authoritative.
 5. **`ASSET_REPLACEMENT_STATUS.md` is superseded** by `DARK_FOREST_FRONTIER_V2_STATUS.md` (written the same day, later) — don't trust the V1 doc's "current" claims without cross-checking the actual renderer code.
+6. **Rendering cost at scale is unaddressed**: a real `MultiMeshInstance2D`-based batched renderer (`scripts/units/mass_unit_multimesh_renderer.gd`) exists in the repo and is referenced by nothing — units still render via per-unit hand-drawn `_draw()` calls. See `PERFORMANCE_CRITIQUE.md` for measured stress-test numbers (real FPS/frame-time data from the project's own test suite, not speculation) and prioritized fixes.
+7. **"Roguelike" isn't designed yet, only vibed toward**: no permadeath, run structure, or meta-progression found anywhere in code/docs — see `PERFORMANCE_CRITIQUE.md`'s genre-fit section.
 
 ## Source-of-truth docs for deep dives
 
 - Combat mechanics: `COMBAT_SYSTEM_REVIEW.md`
+- Performance at scale: `PERFORMANCE_CRITIQUE.md` (measured, not speculative — includes real stress-test telemetry)
 - Visual direction: `STYLE_BIBLE.md`, `ASSET_SCALE_GUIDE.md`
 - Asset pipelines: `UNIT_ASSET_PIPELINE_STATUS.md`, `tools/unit_pipeline/README_UNIT_PIPELINE.md`, `ASSET_PIPELINE_PLAN.md`, `docs/asset_pack_pipeline.md`
 - Terrain rendering: `TILESET_RUNTIME_DECISION_REPORT.md`, `docs/procedural_plot_generator_design.md`
