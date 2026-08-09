@@ -13,7 +13,7 @@ Everything currently open, roughly prioritized. Not a schedule — a backlog. Up
 1. ~~Wire in batched LOD rendering for swarm units~~ — **done 2026-08-09**.
 2. ~~Move swarm-unit movement off `CharacterBody2D` physics toward manual position integration~~ — **done 2026-08-09**. Blob-tier swarm units now opt out of per-node physics processing and advance through `RTSWorld`'s central budgeted movement loop.
 3. ~~Flow-field pathfinding for grouped movement~~ — **done 2026-08-09**, scoped to enemy waves converging on the player target. Player-issued orders and individual chase/arena-lane pathing still use per-unit A* — that was a deliberate scope decision, not a gap.
-4. Disable `SimulationState`/`SimulationRunner` while not authoritative, or gate behind an explicit multiplayer/replay mode — currently pure overhead.
+4. ~~Disable `SimulationState`/`SimulationRunner` while not authoritative~~ — **done 2026-08-09**. Gated behind an actual-multiplayer check rather than deleted, preserving it for planned co-op. Bonus find: fixed a latent `OfflineMultiplayerPeer` bug in `command_dispatcher.gd`'s existing multiplayer routing check too.
 5. TileSet autotiling migration — the live map's TileSet has zero terrain sets; a fix was fully specified in `TILESET_RUNTIME_DECISION_REPORT.md` but never executed.
 
 ## Art

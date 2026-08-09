@@ -26,6 +26,10 @@ Added flow-field pathfinding scoped specifically to enemy waves converging on th
 
 First task delivered through `claude-loop.js` instead of Bell's task-mode loop — Claude planned directly with full context already in hand (no blind planning call), and reviewed the result in-conversation rather than via an automated review pass.
 
+### 2026-08-09 — Performance: SimulationRunner gated, not deleted
+
+`SimulationRunner.auto_start` defaulted to `true` unconditionally, so the 20Hz deterministic lockstep layer ran in every single-player session with nothing consuming its output. Gated it behind an actual-active-multiplayer check instead of removing it — this is groundwork for planned co-op, not dead weight to cut. Found and fixed a real latent bug along the way: Godot always assigns a default `OfflineMultiplayerPeer` even with no networking set up, so the existing `multiplayer_peer != null` check in `command_dispatcher.gd` had silently always evaluated true. Both checks now correctly test for a genuinely active (non-offline) peer.
+
 ### Open, not yet decided
 
 - **Wizard death vs. loss condition** — currently the tower absorbs a wizard's killing blow and the wizard respawns; dying doesn't end the game on its own. Andrew flagged this needs clarifying. See [01_Design](../01_Design/README.md).
