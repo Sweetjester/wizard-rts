@@ -25,6 +25,10 @@ Visual style, asset pipelines, sprites/models, UI art. **This is the most scatte
 - `UNIT_ASSET_PIPELINE_STATUS.md`, `tools/unit_pipeline/README_UNIT_PIPELINE.md` — describe the **3D unit pipeline** (Meshy/Blender/GLB). Deprioritized per the 2D decision. Kept for reference (marketing renders, maybe) but not the active unit-art path anymore.
 - `units/specs/*.yaml` — inputs to the old 3D pipeline, stat blocks don't match live gameplay. Not authoritative for anything.
 
+## Terrain & props roadmap
+
+See [Terrain_Props_Roadmap.md](Terrain_Props_Roadmap.md) — a full audit-grounded plan for taking terrain/prop art from thin procedural placeholder to real "high standard" coverage. Key finding: the current generation pipeline is 100% procedural Blender scripting, not concept-art-driven like the (working) unit pipeline — that's the likely root cause of the generic look, and the roadmap's core recommendation is splitting into a concept-driven track for landmark/hero assets and a procedural track for bulk/repeated elements.
+
 ## Open items
 
 - The actual sprite-sheet pipeline (concept art → 8-direction sheets per `docs/kon_unit_asset_template.md`) doesn't exist yet as working tooling — only the 3D one does. Building a real 2D pipeline is the natural next Art milestone now that the direction is settled. See [Roadmap](../06_Production/Roadmap.md).
