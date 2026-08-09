@@ -1,4 +1,4 @@
-[gd_scene load_steps=31 format=4 uid="uid://cadog5s2ne74q"]
+[gd_scene load_steps=32 format=4 uid="uid://cadog5s2ne74q"]
 
 [ext_resource type="Script" uid="uid://c55e5b81k5mcw" path="res://scripts/map/map_manager.gd" id="1_yq3ld"]
 [ext_resource type="Script" uid="uid://co8oyntpicxw5" path="res://scripts/camera/camera_controller.gd" id="2_v4mqy"]
@@ -27,6 +27,7 @@
 [ext_resource type="Script" path="res://scripts/ui/pause_menu.gd" id="29_pause"]
 [ext_resource type="Script" path="res://scripts/core/telemetry_logger.gd" id="30_telemetry"]
 [ext_resource type="Script" path="res://scripts/core/kon_vertical_slice_controller.gd" id="31_vertical_slice"]
+[ext_resource type="Script" path="res://scripts/units/mass_unit_multimesh_renderer.gd" id="32_lod"]
 
 [node name="Node2D" type="Node2D" unique_id=2018844996]
 script = ExtResource("1_yq3ld")
@@ -50,6 +51,9 @@ script = ExtResource("19_cmd")
 
 [node name="CombatSystem" type="Node" parent="."]
 script = ExtResource("20_combat")
+
+[node name="MassUnitMultimeshRenderer" type="MultiMeshInstance2D" parent="."]
+script = ExtResource("32_lod")
 
 [node name="EconomyManager" type="Node" parent="."]
 script = ExtResource("21_economy")
