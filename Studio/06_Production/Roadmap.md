@@ -11,7 +11,7 @@ Everything currently open, roughly prioritized. Not a schedule — a backlog. Up
 ## Engineering, prioritized (from `PERFORMANCE_CRITIQUE.md`)
 
 1. ~~Wire in batched LOD rendering for swarm units~~ — **done 2026-08-09**.
-2. Move swarm-unit movement off `CharacterBody2D` physics toward manual position integration — biggest remaining architectural lever for performance headroom.
+2. ~~Move swarm-unit movement off `CharacterBody2D` physics toward manual position integration~~ — **done 2026-08-09**. Blob-tier swarm units now opt out of per-node physics processing and advance through `RTSWorld`'s central budgeted movement loop.
 3. Flow-field pathfinding for grouped movement (wave-vs-wave, mass attack-move) instead of per-unit A*.
 4. Disable `SimulationState`/`SimulationRunner` while not authoritative, or gate behind an explicit multiplayer/replay mode — currently pure overhead.
 5. TileSet autotiling migration — the live map's TileSet has zero terrain sets; a fix was fully specified in `TILESET_RUNTIME_DECISION_REPORT.md` but never executed.

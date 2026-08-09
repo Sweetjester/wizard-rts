@@ -16,6 +16,10 @@ Considered migrating to Spring/Recoil (the engine Beyond All Reason uses) for it
 
 Fixed and wired up `scripts/units/mass_unit_multimesh_renderer.gd` (previously dead code — inverted visibility bug, never added to the scene). Now a working distance/count-based LOD system. Verified via the project's own stress-test suite at ~3000 units: worst-case frame stall went from 2 FPS to 40 FPS, steady-state hit a flat 60fps (up from 57-58). Gameplay unaffected — hidden units remain fully selectable/targetable. Full detail in `wizard-rts/wizard-rts/PERFORMANCE_CRITIQUE.md`.
 
+### 2026-08-09 — Performance: blob-tier movement centralized
+
+Moved blob-tier swarm movement off each unit's `CharacterBody2D` physics callback once the live unit count reaches swarm scale. Full-detail and selected units still use their normal per-node movement path; hidden multimesh-rendered units disable per-node physics and are advanced by `RTSWorld`'s existing budgeted central movement loop. This keeps gameplay objects selectable/targetable while removing the expensive per-unit physics callback from distant swarm units.
+
 ### Open, not yet decided
 
 - **Wizard death vs. loss condition** — currently the tower absorbs a wizard's killing blow and the wizard respawns; dying doesn't end the game on its own. Andrew flagged this needs clarifying. See [01_Design](../01_Design/README.md).
