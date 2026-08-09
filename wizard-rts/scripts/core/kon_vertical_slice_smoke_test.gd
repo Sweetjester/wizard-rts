@@ -49,12 +49,47 @@ func _run() -> void:
 		_fail("Expected MapBootstrap to place starting HQ")
 		return
 
+	var simulation_runner: SimulationRunner = scene.get_node("SimulationRunner")
+	if simulation_runner == null:
+		_fail("Expected SimulationRunner")
+		return
+	if simulation_runner.running:
+		_fail("SimulationRunner should stay stopped in single-player")
+		return
+	if simulation_runner.get_steps_processed() != 0:
+		_fail("SimulationRunner processed ticks in single-player")
+		return
+
 	var player_units := 0
+	var first_player_unit: Node = null
 	for unit in scene.get_tree().get_nodes_in_group("units"):
 		if is_instance_valid(unit) and int(unit.get("owner_player_id")) == 1:
 			player_units += 1
+			if first_player_unit == null:
+				first_player_unit = unit
 	if player_units < 1:
 		_fail("Expected KON player unit to spawn")
+		return
+	if first_player_unit == null or not (first_player_unit is Node2D):
+		_fail("Expected a commandable player unit")
+		return
+
+	var command_dispatcher: CommandDispatcher = scene.get_node("CommandDispatcher")
+	if command_dispatcher == null:
+		_fail("Expected CommandDispatcher")
+		return
+	var command_target := (first_player_unit as Node2D).global_position + Vector2(96.0, 0.0)
+	command_dispatcher.submit_move([first_player_unit], command_target, [Vector2.ZERO], [])
+	command_dispatcher.submit_attack_move([first_player_unit], command_target + Vector2(64.0, 0.0))
+	await process_frame
+	if simulation_runner.running:
+		_fail("SimulationRunner started after single-player commands")
+		return
+	if simulation_runner.get_steps_processed() != 0:
+		_fail("SimulationRunner processed ticks after single-player commands")
+		return
+	if simulation_runner.get_queued_command_count() != 0:
+		_fail("SimulationRunner retained queued commands while stopped")
 		return
 
 	print("[KonVerticalSliceSmokeTest] map=", map.get_seed_value(),

@@ -18,6 +18,7 @@ func _ready() -> void:
 		simulation_runner = get_node_or_null(simulation_runner_path)
 	multiplayer.peer_connected.connect(func(id: int) -> void: peer_connected.emit(id))
 	multiplayer.peer_disconnected.connect(func(id: int) -> void: peer_disconnected.emit(id))
+	_refresh_simulation_runner()
 
 func host(port: int = -1) -> bool:
 	if port < 0:
@@ -28,6 +29,7 @@ func host(port: int = -1) -> bool:
 		session_error.emit("Failed to host on port %s: %s" % [port, result])
 		return false
 	multiplayer.multiplayer_peer = peer
+	_refresh_simulation_runner()
 	hosting_started.emit(port)
 	return true
 
@@ -40,6 +42,7 @@ func join(address: String, port: int = -1) -> bool:
 		session_error.emit("Failed to join %s:%s: %s" % [address, port, result])
 		return false
 	multiplayer.multiplayer_peer = peer
+	_refresh_simulation_runner()
 	joined_server.emit(address, port)
 	return true
 
@@ -47,6 +50,11 @@ func close() -> void:
 	if multiplayer.multiplayer_peer != null:
 		multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = null
+	_refresh_simulation_runner()
+
+func has_active_multiplayer_peer() -> bool:
+	var peer := multiplayer.multiplayer_peer
+	return peer != null and not (peer is OfflineMultiplayerPeer)
 
 func submit_command(command: RTSCommand) -> void:
 	if simulation_runner == null:
@@ -72,3 +80,9 @@ func _broadcast_command(command_data: Dictionary) -> void:
 	if simulation_runner != null:
 		simulation_runner.receive_remote_command(command_data)
 	_receive_command.rpc(command_data)
+
+func _refresh_simulation_runner() -> void:
+	if simulation_runner == null and not simulation_runner_path.is_empty():
+		simulation_runner = get_node_or_null(simulation_runner_path)
+	if simulation_runner != null:
+		simulation_runner.refresh_running_from_multiplayer_peer()

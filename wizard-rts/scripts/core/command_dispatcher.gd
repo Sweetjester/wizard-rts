@@ -71,9 +71,9 @@ func submit_stop(units: Array[Node]) -> void:
 			unit.set("moving", false)
 
 func _submit_command(command: RTSCommand) -> void:
-	if multiplayer_session != null and multiplayer_session.multiplayer.multiplayer_peer != null:
+	if multiplayer_session != null and multiplayer_session.has_active_multiplayer_peer():
 		multiplayer_session.submit_command(command)
-	elif simulation_runner != null:
+	elif simulation_runner != null and simulation_runner.running:
 		simulation_runner.queue_command(command)
 	command_submitted.emit(command)
 
