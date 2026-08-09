@@ -29,6 +29,7 @@ func _run() -> void:
 	renderer.set("camera_view_margin", 0.0)
 	renderer.set("always_full_detail_radius", 0.0)
 	renderer.set("refresh_interval", 0.01)
+	renderer.set("central_movement_min_units", 10)
 
 	var treant_scene: PackedScene = load("res://scenes/units/treant.tscn")
 	var spawned: Array[Node2D] = []
@@ -96,6 +97,21 @@ func _run() -> void:
 	var hidden_enemy := far_units[0]
 	if hidden_enemy.visible or not bool(renderer.call("is_unit_blob_rendered", hidden_enemy)):
 		_fail("Expected test enemy to be hidden and blob-rendered")
+		return
+	if not bool(hidden_enemy.call("uses_central_mass_movement")):
+		_fail("Hidden blob-tier enemy did not opt into central mass movement")
+		return
+	if hidden_enemy.is_physics_processing():
+		_fail("Hidden blob-tier enemy still has per-node physics processing enabled")
+		return
+	var mover := far_units[1]
+	var mover_start := mover.global_position
+	mover.call("issue_move_order", mover_start + Vector2(320.0, 0.0))
+	for _frame in 18:
+		await process_frame
+		await physics_frame
+	if mover.global_position.distance_squared_to(mover_start) < 16.0:
+		_fail("Central mass movement did not advance a hidden blob-tier unit")
 		return
 	if selection_controller == null:
 		_fail("Missing SelectionController for hidden target order test")

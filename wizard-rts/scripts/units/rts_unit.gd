@@ -94,6 +94,7 @@ var _dying := false
 var _drone_children: Array[Node2D] = []
 var _mass_art_hidden := false
 var _force_lightweight_arena_unit := false
+var _central_mass_movement_active := false
 var _damage_over_time_effects: Array[Dictionary] = []
 
 func _ready() -> void:
@@ -142,6 +143,7 @@ func _process(delta: float) -> void:
 func set_selected(value: bool) -> void:
 	selected = value
 	if selected:
+		set_central_mass_movement_active(false)
 		set_process(true)
 	elif use_mass_vector_lod():
 		set_process(false)
@@ -149,6 +151,7 @@ func set_selected(value: bool) -> void:
 
 func prepare_lightweight_arena_unit() -> void:
 	_force_lightweight_arena_unit = true
+	_central_mass_movement_active = true
 	set_process(false)
 	set_physics_process(false)
 	collision_layer = 0
@@ -209,9 +212,22 @@ func issue_shared_path_order(shared_path: Array[Vector2], offset: Vector2) -> vo
 	_queue_unit_redraw()
 
 func _physics_process(delta: float) -> void:
-	if _force_lightweight_arena_unit:
+	if uses_central_mass_movement():
 		return
 	rts_movement_tick(delta)
+
+func set_central_mass_movement_active(enabled: bool) -> void:
+	if _force_lightweight_arena_unit:
+		return
+	if selected:
+		enabled = false
+	if enabled == _central_mass_movement_active:
+		return
+	_central_mass_movement_active = enabled
+	set_physics_process(not enabled)
+
+func uses_central_mass_movement() -> bool:
+	return _force_lightweight_arena_unit or _central_mass_movement_active
 
 func rts_movement_tick(delta: float) -> void:
 	_life_elapsed += delta

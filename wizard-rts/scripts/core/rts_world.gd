@@ -54,7 +54,7 @@ func _update_lightweight_arena_movement(delta: float) -> void:
 	var step := _lightweight_move_accum
 	_lightweight_move_accum = 0.0
 	var started := Time.get_ticks_usec()
-	var budget := _lightweight_move_budget()
+	var budget: int = mini(_units.size(), _lightweight_move_budget())
 	var scaled_step := step * (float(_units.size()) / float(maxi(1, budget)))
 	var updated := 0
 	var checked := 0
@@ -64,7 +64,10 @@ func _update_lightweight_arena_movement(delta: float) -> void:
 		checked += 1
 		if not is_instance_valid(unit) or not unit.has_method("rts_movement_tick"):
 			continue
-		if not bool(unit.get("_force_lightweight_arena_unit")):
+		if unit.has_method("uses_central_mass_movement"):
+			if not bool(unit.call("uses_central_mass_movement")):
+				continue
+		elif not bool(unit.get("_force_lightweight_arena_unit")):
 			continue
 		unit.call("rts_movement_tick", scaled_step)
 		updated += 1

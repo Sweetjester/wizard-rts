@@ -6,6 +6,7 @@ extends MultiMeshInstance2D
 @export var closest_full_detail_count: int = 220
 @export var camera_view_margin: float = 640.0
 @export var always_full_detail_radius: float = 0.0
+@export var central_movement_min_units: int = 160
 
 var update_elapsed := 0.0
 var _full_detail_ids: Dictionary = {}
@@ -35,6 +36,8 @@ func _exit_tree() -> void:
 	for unit in RTSUnit.get_registered_units_snapshot():
 		if is_instance_valid(unit):
 			unit.visible = true
+			if unit.has_method("set_central_mass_movement_active"):
+				unit.call("set_central_mass_movement_active", false)
 
 func _refresh_instances() -> void:
 	if multimesh == null:
@@ -49,6 +52,7 @@ func _refresh_instances() -> void:
 	var camera := get_viewport().get_camera_2d()
 	var camera_position := camera.global_position if camera != null else global_position
 	var full_detail_ids := _choose_full_detail_units(units, camera, camera_position)
+	var centralize_blob_movement := units.size() >= central_movement_min_units
 
 	var index := 0
 	for unit in units:
@@ -57,9 +61,13 @@ func _refresh_instances() -> void:
 		var unit_id := unit.get_instance_id()
 		if full_detail_ids.has(unit_id) or index >= max_instances:
 			unit.visible = true
+			if unit.has_method("set_central_mass_movement_active"):
+				unit.call("set_central_mass_movement_active", false)
 			_full_detail_ids[unit_id] = true
 			continue
 		unit.visible = false
+		if unit.has_method("set_central_mass_movement_active"):
+			unit.call("set_central_mass_movement_active", centralize_blob_movement)
 		var archetype := StringName(unit.get("unit_archetype"))
 		var size := _size_for(archetype)
 		var transform := Transform2D()
