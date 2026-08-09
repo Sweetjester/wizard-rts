@@ -25,6 +25,7 @@ Visual style, asset pipelines, sprites/models, UI art. **This is the most scatte
 - `UNIT_ASSET_PIPELINE_STATUS.md`, `tools/unit_pipeline/README_UNIT_PIPELINE.md` — describe the **3D unit pipeline** (Meshy/Blender/GLB). Deprioritized per the 2D decision. Kept for reference (marketing renders, maybe) but not the active unit-art path anymore.
 - `units/specs/*.yaml` — inputs to the old 3D pipeline, stat blocks don't match live gameplay. Not authoritative for anything.
 
-## Open item
+## Open items
 
-The actual sprite-sheet pipeline (concept art → 8-direction sheets per `docs/kon_unit_asset_template.md`) doesn't exist yet as working tooling — only the 3D one does. Building a real 2D pipeline is the natural next Art milestone now that the direction is settled. See [Roadmap](../06_Production/Roadmap.md).
+- The actual sprite-sheet pipeline (concept art → 8-direction sheets per `docs/kon_unit_asset_template.md`) doesn't exist yet as working tooling — only the 3D one does. Building a real 2D pipeline is the natural next Art milestone now that the direction is settled. See [Roadmap](../06_Production/Roadmap.md).
+- Terrain: water and cliff terrain sets exist in `tiny_swords_plot_tileset.tres` but aren't fully painted/used yet — water is a deliberate atlas-painted placeholder, cliff is unused. Finishing this is joint Art+Engineering work (asset-pack/TileSet coverage first, then reconciling with the logical elevation grid), not a code-only task. See Roadmap item 5.
