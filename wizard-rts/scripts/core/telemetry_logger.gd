@@ -191,8 +191,12 @@ func _make_sample() -> Dictionary:
 		"mass_collision_overlap_checks": int(collision_stats.get("mass_collision_overlap_checks", 0)),
 		"path_requests": int(path_stats.get("path_requests", 0)),
 		"path_cache_hits": int(path_stats.get("path_cache_hits", 0)),
+		"flow_field_recomputes": int(path_stats.get("flow_field_recomputes", 0)),
+		"units_using_flow_field": int(path_stats.get("units_using_flow_field", 0)),
 		"path_requests_per_second": int(path_stats.get("path_requests_per_second", 0)),
 		"path_cache_hits_per_second": int(path_stats.get("path_cache_hits_per_second", 0)),
+		"flow_field_recomputes_per_second": int(path_stats.get("flow_field_recomputes_per_second", 0)),
+		"units_using_flow_field_per_second": int(path_stats.get("units_using_flow_field_per_second", 0)),
 		"path_cache_size": int(path_stats.get("path_cache_size", 0)),
 	}
 

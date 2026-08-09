@@ -462,9 +462,13 @@ func _send_enemy_to_player_target(enemy: Node, preferred_target: Vector2 = Vecto
 		if combat_debug_logging:
 			print("[WaveDirector] Enemy aggression failed: no player target enemy=", enemy.name)
 		return
-	if not bool(enemy.get("ignores_terrain")):
+	var uses_flow_field := _can_use_flow_field_for_enemy(enemy as Node2D, target)
+	if not uses_flow_field and not bool(enemy.get("ignores_terrain")):
 		target = _pathable_target_for_enemy(enemy as Node2D, target)
-	enemy.issue_attack_move_order(target)
+	if uses_flow_field:
+		enemy.call("issue_flow_field_attack_move_order", target)
+	else:
+		enemy.issue_attack_move_order(target)
 	if enemy.get("path").is_empty() and not bool(enemy.get("ignores_terrain")):
 		target = _nearest_walkable_player_target(enemy as Node2D)
 		if target != Vector2.ZERO:
@@ -475,6 +479,15 @@ func _send_enemy_to_player_target(enemy: Node, preferred_target: Vector2 = Vecto
 			" target=", target,
 			" path_length=", enemy.get("path").size() if _has_property(enemy, "path") else "<unknown>",
 			" registered=", _is_registered_unit(enemy))
+
+func _can_use_flow_field_for_enemy(enemy: Node2D, target: Vector2) -> bool:
+	if enemy == null or map_generator == null or bool(enemy.get("ignores_terrain")):
+		return false
+	if not enemy.has_method("issue_flow_field_attack_move_order"):
+		return false
+	if not map_generator.has_method("has_flow_field_route_world"):
+		return false
+	return bool(map_generator.call("has_flow_field_route_world", enemy.global_position, target))
 
 func get_boss_seconds_remaining() -> int:
 	if boss_has_spawned:

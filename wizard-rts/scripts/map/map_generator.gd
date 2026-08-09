@@ -124,13 +124,20 @@ var road_cells: Dictionary = {}
 var dynamic_blocked_cells: Dictionary = {}
 var _path_cache: Dictionary = {}
 var _path_cache_version: int = 0
+var _flow_field_cache: Dictionary = {}
 const PATH_CACHE_LIMIT := 768
 var path_requests_total := 0
 var path_cache_hits_total := 0
+var flow_field_recomputes_total := 0
+var units_using_flow_field_total := 0
 var _path_requests_this_second := 0
 var _path_cache_hits_this_second := 0
+var _flow_field_recomputes_this_second := 0
+var _units_using_flow_field_this_second := 0
 var _path_requests_per_second := 0
 var _path_cache_hits_per_second := 0
+var _flow_field_recomputes_per_second := 0
+var _units_using_flow_field_per_second := 0
 var _path_meter_elapsed := 0.0
 
 var spawn_positions: Array = []
@@ -212,8 +219,12 @@ func _process(delta: float) -> void:
 		return
 	_path_requests_per_second = _path_requests_this_second
 	_path_cache_hits_per_second = _path_cache_hits_this_second
+	_flow_field_recomputes_per_second = _flow_field_recomputes_this_second
+	_units_using_flow_field_per_second = _units_using_flow_field_this_second
 	_path_requests_this_second = 0
 	_path_cache_hits_this_second = 0
+	_flow_field_recomputes_this_second = 0
+	_units_using_flow_field_this_second = 0
 	_path_meter_elapsed = 0.0
 
 func _apply_session_settings() -> void:
@@ -607,6 +618,7 @@ func _init_plot_test_grid() -> void:
 	road_cells.clear()
 	dynamic_blocked_cells.clear()
 	_path_cache.clear()
+	_flow_field_cache.clear()
 	spawn_positions.clear()
 	enemy_spawns.clear()
 	chokepoints.clear()
@@ -909,6 +921,113 @@ func find_path_world(start_world: Vector2, target_world: Vector2) -> Array[Vecto
 		world_path.append(cell_to_world(cell))
 	return world_path
 
+func get_flow_field_waypoints_world(start_world: Vector2, target_world: Vector2, max_steps: int = 5) -> Array[Vector2]:
+	var waypoints: Array[Vector2] = []
+	var start_cell := world_to_cell(start_world)
+	var target_cell := world_to_cell(target_world)
+	if not is_walkable_cell(start_cell):
+		start_cell = nearest_walkable_cell(start_cell, 4)
+	if not is_walkable_cell(target_cell):
+		target_cell = nearest_walkable_cell(target_cell, 16)
+	if not is_walkable_cell(start_cell) or not is_walkable_cell(target_cell):
+		return waypoints
+	var field := _flow_field_for_target_cell(target_cell)
+	var next_cells: Dictionary = field.get("next_cells", {})
+	if next_cells.is_empty() or (start_cell != target_cell and not next_cells.has(start_cell)):
+		return waypoints
+	var current := start_cell
+	for _i in range(maxi(1, max_steps)):
+		if current == target_cell:
+			break
+		if not next_cells.has(current):
+			break
+		var next_cell: Vector2i = next_cells[current]
+		if next_cell == current or not is_walkable_cell(next_cell):
+			break
+		waypoints.append(cell_to_world(next_cell))
+		current = next_cell
+	if not waypoints.is_empty():
+		units_using_flow_field_total += 1
+		_units_using_flow_field_this_second += 1
+	return waypoints
+
+func has_flow_field_route_world(start_world: Vector2, target_world: Vector2) -> bool:
+	var start_cell := world_to_cell(start_world)
+	var target_cell := world_to_cell(target_world)
+	if not is_walkable_cell(start_cell):
+		start_cell = nearest_walkable_cell(start_cell, 4)
+	if not is_walkable_cell(target_cell):
+		target_cell = nearest_walkable_cell(target_cell, 16)
+	if not is_walkable_cell(start_cell) or not is_walkable_cell(target_cell):
+		return false
+	if start_cell == target_cell:
+		return true
+	var field := _flow_field_for_target_cell(target_cell)
+	var next_cells: Dictionary = field.get("next_cells", {})
+	return next_cells.has(start_cell)
+
+func _flow_field_for_target_cell(target_cell: Vector2i) -> Dictionary:
+	var cache_key := "%s:%s:%s" % [_path_cache_version, target_cell.x, target_cell.y]
+	if _flow_field_cache.has(cache_key):
+		return _flow_field_cache[cache_key]
+	var field := _build_flow_field(target_cell)
+	_flow_field_cache[cache_key] = field
+	return field
+
+func _build_flow_field(target_cell: Vector2i) -> Dictionary:
+	flow_field_recomputes_total += 1
+	_flow_field_recomputes_this_second += 1
+	var costs: Dictionary = {}
+	var next_cells: Dictionary = {}
+	if not _is_path_traversable_cell(target_cell):
+		return {"target": target_cell, "costs": costs, "next_cells": next_cells}
+	var frontier: Array[Dictionary] = [{"cell": target_cell, "cost": 0.0}]
+	costs[target_cell] = 0.0
+	while not frontier.is_empty():
+		var current_entry: Dictionary = frontier.pop_front()
+		var current: Vector2i = current_entry.get("cell", target_cell)
+		var current_cost := float(current_entry.get("cost", 0.0))
+		if current_cost > float(costs.get(current, INF)):
+			continue
+		for neighbor in _flow_field_neighbors(current):
+			var step_cost := current.distance_to(neighbor) * get_movement_cost(neighbor)
+			var new_cost := current_cost + step_cost
+			if new_cost >= float(costs.get(neighbor, INF)):
+				continue
+			costs[neighbor] = new_cost
+			next_cells[neighbor] = current
+			_push_flow_frontier(frontier, neighbor, new_cost)
+	return {"target": target_cell, "costs": costs, "next_cells": next_cells}
+
+func _flow_field_neighbors(cell: Vector2i) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	for dx in range(-1, 2):
+		for dy in range(-1, 2):
+			if dx == 0 and dy == 0:
+				continue
+			var neighbor := cell + Vector2i(dx, dy)
+			if not _is_path_traversable_cell(neighbor):
+				continue
+			if not _can_step_between(cell, neighbor):
+				continue
+			if dx != 0 and dy != 0:
+				var side_x := cell + Vector2i(dx, 0)
+				var side_y := cell + Vector2i(0, dy)
+				if not _is_path_traversable_cell(side_x) or not _is_path_traversable_cell(side_y):
+					continue
+				if not _can_step_between(cell, side_x) or not _can_step_between(cell, side_y):
+					continue
+			result.append(neighbor)
+	return result
+
+func _push_flow_frontier(frontier: Array[Dictionary], cell: Vector2i, cost: float) -> void:
+	var entry := {"cell": cell, "cost": cost}
+	for i in range(frontier.size()):
+		if cost < float(frontier[i].get("cost", 0.0)):
+			frontier.insert(i, entry)
+			return
+	frontier.append(entry)
+
 func _smooth_path_cells(start: Vector2i, raw_path: Array[Vector2i]) -> Array[Vector2i]:
 	if raw_path.size() <= 2:
 		return raw_path
@@ -1009,6 +1128,7 @@ func _remember_path(cache_key: String, path: Array[Vector2i]) -> void:
 func _invalidate_path_cache() -> void:
 	_path_cache_version += 1
 	_path_cache.clear()
+	_flow_field_cache.clear()
 
 func _is_unramped_height_edge(cell: Vector2i) -> bool:
 	if not is_walkable_cell(cell) or grid[cell.x][cell.y] == E_RAMP:
@@ -4547,8 +4667,12 @@ func get_path_telemetry() -> Dictionary:
 	return {
 		"path_requests": path_requests_total,
 		"path_cache_hits": path_cache_hits_total,
+		"flow_field_recomputes": flow_field_recomputes_total,
+		"units_using_flow_field": units_using_flow_field_total,
 		"path_requests_per_second": _path_requests_per_second,
 		"path_cache_hits_per_second": _path_cache_hits_per_second,
+		"flow_field_recomputes_per_second": _flow_field_recomputes_per_second,
+		"units_using_flow_field_per_second": _units_using_flow_field_per_second,
 		"path_cache_size": _path_cache.size(),
 		"path_cache_version": _path_cache_version,
 	}

@@ -96,6 +96,8 @@ var _mass_art_hidden := false
 var _force_lightweight_arena_unit := false
 var _central_mass_movement_active := false
 var _damage_over_time_effects: Array[Dictionary] = []
+var _flow_field_attack_move_active := false
+var _last_flow_field_refresh_msec: int = -10000
 
 func _ready() -> void:
 	collision_layer = 2
@@ -169,6 +171,7 @@ func is_inside_selection_rect(rect: Rect2) -> bool:
 	return rect.has_point(global_position)
 
 func issue_move_order(world_pos: Vector2) -> void:
+	_clear_flow_field_order()
 	if _blocks_movement_for_rooting():
 		return
 	if _requires_takeoff_for_move():
@@ -186,6 +189,7 @@ func issue_move_order_offset(world_pos: Vector2, offset: Vector2) -> void:
 	issue_move_order(world_pos + offset)
 
 func issue_shared_path_order(shared_path: Array[Vector2], offset: Vector2) -> void:
+	_clear_flow_field_order()
 	if _blocks_movement_for_rooting():
 		return
 	attack_target = null
@@ -256,6 +260,8 @@ func rts_movement_tick(delta: float) -> void:
 	_update_z_index()
 	if arena_leash_enabled and not arena_leash_rect.has_point(global_position):
 		_pull_back_to_arena()
+	if _flow_field_attack_move_active and command_mode == &"attack_move" and attack_target == null:
+		_refresh_flow_field_attack_move_path()
 	if path.is_empty():
 		_reset_stuck_watch()
 		velocity = _mass_idle_separation_velocity() if mass_mode else _separation_velocity()
@@ -326,6 +332,7 @@ func rts_movement_tick(delta: float) -> void:
 	_update_stuck_recovery(sim_delta)
 
 func issue_attack_target(target: Node2D) -> void:
+	_clear_flow_field_order()
 	if target == null or not is_instance_valid(target):
 		return
 	attack_target = target
@@ -336,6 +343,7 @@ func issue_attack_target(target: Node2D) -> void:
 	unit_state = &"attacking"
 
 func issue_attack_move_order(world_pos: Vector2) -> void:
+	_clear_flow_field_order()
 	if _blocks_movement_for_rooting():
 		return
 	if _requires_takeoff_for_move():
@@ -349,7 +357,34 @@ func issue_attack_move_order(world_pos: Vector2) -> void:
 	command_mode = &"attack_move"
 	unit_state = &"attack_move"
 
+func issue_flow_field_attack_move_order(world_pos: Vector2) -> void:
+	if _blocks_movement_for_rooting():
+		return
+	if _requires_takeoff_for_move():
+		_start_takeoff()
+		_flow_field_attack_move_active = true
+		command_mode = &"attack_move"
+		unit_state = &"takeoff"
+		_command_destination = _legal_destination(world_pos)
+		_has_command_destination = true
+		return
+	attack_target = null
+	command_mode = &"attack_move"
+	unit_state = &"attack_move"
+	_command_destination = _legal_destination(world_pos)
+	_has_command_destination = true
+	_flow_field_attack_move_active = true
+	_refresh_flow_field_attack_move_path(true)
+	if path.is_empty():
+		path = _world_path_to(_command_destination)
+	moving = not path.is_empty()
+	if moving:
+		target_pos = path[0]
+		_reset_stuck_watch()
+	_queue_unit_redraw()
+
 func issue_arena_attack_move_order(world_pos: Vector2) -> void:
+	_clear_flow_field_order()
 	if _blocks_movement_for_rooting():
 		return
 	if _requires_takeoff_for_move():
@@ -373,6 +408,7 @@ func issue_arena_attack_move_order(world_pos: Vector2) -> void:
 	_queue_unit_redraw()
 
 func issue_patrol_order(world_pos: Vector2) -> void:
+	_clear_flow_field_order()
 	if _blocks_movement_for_rooting():
 		return
 	if _requires_takeoff_for_move():
@@ -393,6 +429,7 @@ func issue_patrol_order(world_pos: Vector2) -> void:
 	unit_state = &"patrol"
 
 func issue_hold_position_order() -> void:
+	_clear_flow_field_order()
 	attack_target = null
 	command_mode = &"hold"
 	_has_command_destination = false
@@ -403,6 +440,7 @@ func issue_hold_position_order() -> void:
 	_queue_unit_redraw()
 
 func issue_stop_order() -> void:
+	_clear_flow_field_order()
 	attack_target = null
 	command_mode = &"idle"
 	_has_command_destination = false
@@ -528,12 +566,51 @@ func _resume_attack_move_objective() -> void:
 				_reset_stuck_watch()
 		return
 	if _has_command_destination:
-		path = _world_path_to(_command_destination)
+		if _flow_field_attack_move_active:
+			_refresh_flow_field_attack_move_path(true)
+			if path.is_empty():
+				path = _world_path_to(_command_destination)
+		else:
+			path = _world_path_to(_command_destination)
 		moving = not path.is_empty()
 		if moving:
 			target_pos = path[0]
 			unit_state = &"attack_move"
 			_reset_stuck_watch()
+
+func _clear_flow_field_order() -> void:
+	_flow_field_attack_move_active = false
+	_last_flow_field_refresh_msec = -10000
+
+func _refresh_flow_field_attack_move_path(force: bool = false) -> void:
+	if not _flow_field_attack_move_active or not _has_command_destination:
+		return
+	if ignores_terrain or terrain == null or not terrain.has_method("get_flow_field_waypoints_world"):
+		return
+	if global_position.distance_squared_to(_command_destination) <= maxf(attack_range * 0.35, 32.0) * maxf(attack_range * 0.35, 32.0):
+		path.clear()
+		moving = false
+		return
+	var now := Time.get_ticks_msec()
+	if not force and not path.is_empty() and now - _last_flow_field_refresh_msec < 550:
+		return
+	_last_flow_field_refresh_msec = now
+	var flow_path: Array[Vector2] = []
+	for point in terrain.call("get_flow_field_waypoints_world", global_position, _command_destination, 5):
+		flow_path.append(point)
+	if flow_path.is_empty():
+		if force or path.is_empty():
+			path = _world_path_to(_command_destination)
+			moving = not path.is_empty()
+			if moving:
+				target_pos = path[0]
+				_reset_stuck_watch()
+		return
+	path = _dedupe_path(flow_path)
+	moving = not path.is_empty()
+	if moving:
+		target_pos = path[0]
+		_reset_stuck_watch()
 
 func _maintain_arena_attack_objective() -> void:
 	if not arena_leash_enabled or command_mode != &"attack_move" or attack_target != null or _blocks_movement_for_rooting():
@@ -1488,7 +1565,10 @@ func _update_winged_spawner_flight(delta: float) -> void:
 			ability_animation_action = &""
 			_ability_animation_until_msec = 0
 			if _has_command_destination:
-				path = _single_point_path(_command_destination) if ignores_terrain else _world_path_to(_command_destination)
+				if _flow_field_attack_move_active and not ignores_terrain:
+					_refresh_flow_field_attack_move_path(true)
+				else:
+					path = _single_point_path(_command_destination) if ignores_terrain else _world_path_to(_command_destination)
 				moving = not path.is_empty()
 				if moving:
 					target_pos = path[0]
