@@ -2,6 +2,9 @@
 .godot/
 /android/
 
+# Python
+__pycache__/
+
 # Local secrets and generated PixelLab outputs
 .env
 .env.*
