@@ -20,6 +20,7 @@ Everything currently open, roughly prioritized. Not a schedule — a backlog. Up
 
 - Build the actual 2D sprite-sheet pipeline (`docs/kon_unit_asset_template.md`'s contract) — nothing produces real sprite art yet, only the deprioritized 3D pipeline does.
 - Decide what to do with the existing 3D asset investment (Meshy/Blender output) — archive, keep for marketing renders, or drop entirely.
+- ~~Close zero-coverage plot-marker categories + stand up a concept-art-driven terrain/prop pipeline~~ — **done 2026-08-11**. `create_prop.py` now supports Meshy Image-to-3D from real concept art; 10 new assets landed (3 concept-driven hero props, 7 variety-pass variants) plus a real ground texture. Zero fallback rendering confirmed live. Next: try flipping `discard_imported_materials` on for a batch — dense blocker clusters still read flat grey-blue from Meshy's raw PBR texture rather than the profile's painterly palette. See [Terrain_Props_Roadmap.md](../03_Art/Terrain_Props_Roadmap.md).
 
 ## Multiplayer / Co-op
 

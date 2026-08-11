@@ -49,6 +49,23 @@ Source `.blend` files are saved in:
 
 - `assets_game/source/blender/dark_forest_frontier_v2/`
 
+### Concept-driven pass (2026-08-11)
+
+Ten more assets generated through `tools/prop_pipeline/create_prop.py` from `props/specs/*_b.yaml` / `*_c.yaml`, three of them via a new `image_to_3d` mode fed by real concept art instead of text-only prompts (see `Studio/03_Art/Terrain_Props_Roadmap.md` "Progress" section for the full writeup):
+
+- `assets_game/props/trees/dark_forest_frontier_v2/df_v2_ancient_tree_hero_b_a.glb` (image-to-3d)
+- `assets_game/props/roots/dark_forest_frontier_v2/df_v2_root_wall_hero_b_a.glb` (image-to-3d)
+- `assets_game/props/mushrooms/dark_forest_frontier_v2/df_v2_glowing_mushroom_ring_hero_b_a.glb` (image-to-3d)
+- `assets_game/props/rocks/dark_forest_frontier_v2/df_v2_rock_blocker_b_a.glb`
+- `assets_game/props/rocks/dark_forest_frontier_v2/df_v2_rock_moss_cluster_b_a.glb`
+- `assets_game/props/mushrooms/dark_forest_frontier_v2/df_v2_mushroom_cluster_small_b_a.glb`
+- `assets_game/props/mushrooms/dark_forest_frontier_v2/df_v2_mushroom_cluster_large_b_a.glb`
+- `assets_game/props/roots/dark_forest_frontier_v2/df_v2_twisted_root_blocker_b_a.glb`
+- `assets_game/props/trees/dark_forest_frontier_v2/df_v2_dead_tree_spike_b_a.glb`
+- `assets_game/props/trees/dark_forest_frontier_v2/df_v2_tree_blocker_c_a.glb`
+
+Also new: `LOW_GROUND_TILE`/`HIGH_GROUND_TILE` materials now carry a real tileable albedo texture (`assets_game/terrain/ground/dark_forest_frontier_v2/df_v2_ground_albedo_{low,high}_a.png`, derived from concept art) instead of flat color.
+
 ## Categories Replaced
 
 Asset pack:
@@ -137,6 +154,8 @@ Expected target:
 
 - Main terrain/blocker/plot categories should report no missing categories.
 - Renderer fallback usage should remain zero for the V2 showcase.
+
+**Confirmed 2026-08-11**: a live BIOME-mode showcase capture reports `missing_categories=[]` and `fallback_count={}` across all 39 categories the renderer resolves. See the concept-driven pass note above.
 
 Fallbacks remain intentionally available for missing paths or broken imports.
 

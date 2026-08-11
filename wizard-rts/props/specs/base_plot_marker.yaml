@@ -1,0 +1,41 @@
+prop_id: base_plot_marker
+display_name: Base Plot Marker
+category: BASE_PLOT_MARKER
+biome: dark_forest_frontier_v2
+role: ground_marker
+
+visual:
+  style: darkest_dungeon_2_like_painterly_npr
+  style_profile: tools/prop_pipeline/style_profiles/dark_forest_frontier_v2_props.json
+  prompt: >
+    A weathered circular stone dais set into mossy dark forest ground, carved with a faint
+    geometric rune circle, stylized dark fantasy RTS game prop, Darkest-Dungeon-2-like painterly
+    inked rendering, strong black silhouette, chunky readable shapes, matte worn stone with
+    moss-green growth in the carved grooves, a single controlled cyan bioluminescent glow tracing
+    the rune lines, mostly flat and low-profile so it reads as ground decoration not an obstacle,
+    orthographic top-down game asset reference, high contrast shadows, no photorealism
+  negative_prompt: >
+    photorealistic, glossy plastic, noisy AI texture, tiny surface detail, tall or blocking
+    geometry, bright cheerful colors, modern materials, UI, text, watermark, realistic stone
+    photo-scan look
+  colors:
+    stone: weathered dark grey-green, mossy
+    accent: cyan bioluminescent rune glow (matches KON player color)
+  outline: true
+  design_intent: >
+    Signals "you can build your base here" at a glance from RTS camera distance. Cyan ties it to
+    the player's own KON color language, distinguishing it clearly from the hostile-coded outpost
+    marker and the neutral/mysterious content marker. Must stay visually flat/flush — this is a
+    floor marker, not a blocker, and should never obstruct pathing or read as a collidable prop.
+
+model:
+  generator: meshy
+  source: text_to_3d
+  target_polycount: 16000
+  scale_meters: 2.2
+  footprint_note: fits within a single gameplay tile per ASSET_SCALE_GUIDE.md base-plot marker sizing
+  export: glb
+
+placement:
+  pivot: tile_center_at_top_surface
+  height_offset: 0.02

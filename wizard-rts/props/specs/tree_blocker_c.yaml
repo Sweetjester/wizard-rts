@@ -1,0 +1,38 @@
+prop_id: tree_blocker_c
+display_name: Forest Tree Blocker (Variant C)
+category: TREE_BLOCKER
+biome: dark_forest_frontier_v2
+role: blocker
+
+visual:
+  style: darkest_dungeon_2_like_painterly_npr
+  style_profile: tools/prop_pipeline/style_profiles/dark_forest_frontier_v2_props.json
+  prompt: >
+    A mid-size black-bark forest tree with a dense mossy canopy mass and a few exposed
+    surface roots, distinct trunk-lean and canopy shape from the other two tree variants,
+    stylized dark fantasy RTS terrain prop, Darkest-Dungeon-2-like painterly inked
+    rendering, strong black silhouette, matte bark and moss materials, orthographic
+    top-down game asset reference, high contrast shadows, no photorealism
+  negative_prompt: >
+    photorealistic, glossy plastic, noisy AI texture, tiny surface detail, bright cheerful
+    colors, modern materials, UI, text, watermark
+  colors:
+    bark: near-black wet bark
+    canopy: dark forest green moss mass
+  outline: true
+  design_intent: >
+    Third TREE_BLOCKER variant — trees are the dominant visual element in nearly every
+    scene per Terrain_Props_Roadmap.md, so this is the highest-value variety addition in
+    the whole batch.
+
+model:
+  generator: meshy
+  source: text_to_3d
+  target_polycount: 14000
+  scale_meters: 2.4
+  footprint_note: 1x1 gameplay tile, tree tier per ASSET_SCALE_GUIDE.md
+  export: glb
+
+placement:
+  pivot: tile_center_at_ground
+  height_offset: 0.0

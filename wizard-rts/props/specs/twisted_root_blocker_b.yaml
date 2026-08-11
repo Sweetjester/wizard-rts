@@ -1,0 +1,38 @@
+prop_id: twisted_root_blocker_b
+display_name: Twisted Root Blocker (Variant B)
+category: TWISTED_ROOT_BLOCKER
+biome: dark_forest_frontier_v2
+role: blocker
+
+visual:
+  style: darkest_dungeon_2_like_painterly_npr
+  style_profile: tools/prop_pipeline/style_profiles/dark_forest_frontier_v2_props.json
+  prompt: >
+    A gnarled mass of surfaced black tree roots twisting up out of the ground, distinct
+    knotted silhouette, small red spore flecks caught in the crevices, stylized dark fantasy
+    RTS terrain prop, Darkest-Dungeon-2-like painterly inked rendering, strong black
+    silhouette, matte wet-bark material, orthographic top-down game asset reference, high
+    contrast shadows, no photorealism
+  negative_prompt: >
+    photorealistic, glossy plastic, noisy AI texture, tiny surface detail, bright cheerful
+    colors, modern materials, UI, text, watermark
+  colors:
+    bark: near-black wet root wood
+    accent: sparse red spore flecks, no strong glow
+  outline: true
+  design_intent: >
+    Second TWISTED_ROOT_BLOCKER variant for map-generation variety (Terrain_Props_Roadmap.md
+    step 4). Smaller and less emissive than the ROOT_WALL_BLOCKER hero — this is filler-tier,
+    not a landmark.
+
+model:
+  generator: meshy
+  source: text_to_3d
+  target_polycount: 10000
+  scale_meters: 1.3
+  footprint_note: 1x1 gameplay tile, root blocker tier per ASSET_SCALE_GUIDE.md
+  export: glb
+
+placement:
+  pivot: tile_center_at_ground
+  height_offset: 0.0

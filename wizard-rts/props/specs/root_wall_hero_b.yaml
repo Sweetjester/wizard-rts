@@ -1,0 +1,38 @@
+prop_id: root_wall_hero_b
+display_name: Root Wall Cluster (Concept Hero B)
+category: ROOT_WALL_BLOCKER
+biome: dark_forest_frontier_v2
+role: blocker
+concept_art_path: art/concepts/dark_forest_frontier_v2/root_wall_hero.png
+
+visual:
+  style: darkest_dungeon_2_like_painterly_npr
+  style_profile: tools/prop_pipeline/style_profiles/dark_forest_frontier_v2_props.json
+  prompt: >
+    A dense impenetrable mass of black twisted roots rising from a mossy soil ledge, with
+    clumps of glowing magenta/red fungal fronds nested among the roots, matching the supplied
+    concept art. Clearly unwalkable, chunky readable silhouette, dark painterly inked
+    rendering, no fine noisy detail.
+  negative_prompt: >
+    photorealistic, glossy plastic, noisy AI texture, tiny surface detail, soft low-contrast
+    silhouette, bright cheerful colors, modern materials, UI, text, watermark
+  colors:
+    bark: near-black wet root wood
+    accent: magenta/pink corrupted fungal glow (matches biome's corruption accent language)
+  outline: true
+  design_intent: >
+    Hero root-wall blocker generated from real concept art (Track 1, concept-driven).
+    ROOT_WALL_BLOCKER previously had a single procedural-only variant; this adds a
+    visually distinct, higher-fidelity second option for map generation to pick from.
+
+model:
+  generator: meshy
+  source: image_to_3d
+  target_polycount: 14000
+  scale_meters: 1.7
+  footprint_note: 1x1 gameplay tile, root/wall blocker tier per ASSET_SCALE_GUIDE.md
+  export: glb
+
+placement:
+  pivot: tile_center_at_ground
+  height_offset: 0.0

@@ -29,6 +29,8 @@ Visual style, asset pipelines, sprites/models, UI art. **This is the most scatte
 
 See [Terrain_Props_Roadmap.md](Terrain_Props_Roadmap.md) — a full audit-grounded plan for taking terrain/prop art from thin procedural placeholder to real "high standard" coverage. Key finding: the current generation pipeline is 100% procedural Blender scripting, not concept-art-driven like the (working) unit pipeline — that's the likely root cause of the generic look, and the roadmap's core recommendation is splitting into a concept-driven track for landmark/hero assets and a procedural track for bulk/repeated elements.
 
+**Update 2026-08-11**: the concept-driven track is no longer theoretical — `create_prop.py` now supports Meshy Image-to-3D from real concept art (not just text prompts), zero-coverage categories are closed, and a first variety pass landed on the thinnest categories. See the roadmap's "Progress" section for details, including a naming note: `VAMPIRIC_MUSHROOM_FOREST` (used in a Codex-drafted generation brief) is not a real biome — it's the same concept-art stream and palette language already behind `DARK_FOREST_FRONTIER_V2`, treated as one biome, not forked into two.
+
 ## Open items
 
 - The actual sprite-sheet pipeline (concept art → 8-direction sheets per `docs/kon_unit_asset_template.md`) doesn't exist yet as working tooling — only the 3D one does. Building a real 2D pipeline is the natural next Art milestone now that the direction is settled. See [Roadmap](../06_Production/Roadmap.md).

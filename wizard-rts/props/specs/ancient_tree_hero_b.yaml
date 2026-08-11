@@ -1,0 +1,38 @@
+prop_id: ancient_tree_hero_b
+display_name: Ancient Tree (Concept Hero B)
+category: ANCIENT_TREE_BLOCKER
+biome: dark_forest_frontier_v2
+role: blocker
+concept_art_path: art/concepts/dark_forest_frontier_v2/ancient_tree_hero.png
+
+visual:
+  style: darkest_dungeon_2_like_painterly_npr
+  style_profile: tools/prop_pipeline/style_profiles/dark_forest_frontier_v2_props.json
+  prompt: >
+    A massive ancient black-bark tree trunk with sprawling gnarled roots, dozens of small
+    blood-red bioluminescent mushrooms nested in the root hollows, matching the supplied
+    concept art. Chunky readable silhouette, dark painterly inked rendering, moss patches
+    on the bark, no fine noisy detail.
+  negative_prompt: >
+    photorealistic, glossy plastic, noisy AI texture, tiny surface detail, bright cheerful
+    colors, modern materials, UI, text, watermark, realistic photo-scan look
+  colors:
+    bark: near-black wet bark, moss-green patches
+    accent: blood-red/magenta mushroom bioluminescence nested at the base
+  outline: true
+  design_intent: >
+    Hero landmark tree blocker generated from real concept art (Track 1, concept-driven,
+    per Terrain_Props_Roadmap.md) rather than a procedural text prompt alone. Meant to read
+    as a signature, seen-up-close silhouette distinct from the smaller filler tree variants.
+
+model:
+  generator: meshy
+  source: image_to_3d
+  target_polycount: 20000
+  scale_meters: 2.8
+  footprint_note: 1x1 gameplay tile, tall ancient-tree tier per ASSET_SCALE_GUIDE.md (1.8-3.2m)
+  export: glb
+
+placement:
+  pivot: tile_center_at_ground
+  height_offset: 0.0

@@ -1,0 +1,100 @@
+{
+  "profile_id": "dark_forest_frontier_v2_props",
+  "display_name": "Dark Forest Frontier V2 — Terrain & Props",
+  "style_reference": "Darkest Dungeon 2 inspired painterly NPR. Do not copy specific assets; use the value structure and readability language. Sibling profile to darkest_dungeon_2_like_kon.json (units) — same rendering language, different palette family for environment vs. player-faction assets.",
+  "goal": "Readable dark-fantasy RTS terrain and props with inked silhouettes, matte painterly materials, and the biome's established corrupted-forest accent language (magenta/pink for corruption, dull red for hostile markers, cyan reserved for KON-owned/base-adjacent elements only).",
+  "meshy_guidance": {
+    "prompt_requirements": [
+      "orthographic or three-quarter top-down game-asset reference framing",
+      "clean isolated silhouette, no ground plane clutter beyond the asset itself",
+      "large readable shapes — must be identifiable at RTS zoomed-out camera distance",
+      "no UI, text, frame, heavy background, or tiny surface detail",
+      "dark painterly values with at most one controlled emissive accent color per asset"
+    ],
+    "positive_prompt": "stylized dark fantasy RTS terrain prop, Darkest-Dungeon-2-like painterly inked rendering, strong black silhouette, chunky readable shapes, matte moss, bark, stone and bone, controlled single-color bioluminescent or ember accent, orthographic game asset reference, high contrast shadows, no photorealism",
+    "negative_prompt": "photorealistic, glossy plastic, noisy AI texture, tiny surface detail, soft low-contrast silhouette, bright cheerful colors, modern materials, sci-fi, UI, text, watermark, realistic photo-scan look"
+  },
+  "mesh_processing": {
+    "join_meshes": true,
+    "remove_loose_geometry": true,
+    "merge_by_distance": 0.002,
+    "flat_shading": true,
+    "weighted_normals": true,
+    "decimate_ratio": 1.0,
+    "discard_imported_materials": false,
+    "create_outline_proxy": true,
+    "outline_scale": 1.03
+  },
+  "material_palette": {
+    "stone": {
+      "base_color": "#2E3A2F",
+      "roughness": 0.95,
+      "metallic": 0.0
+    },
+    "moss": {
+      "base_color": "#3F5A3C",
+      "roughness": 0.92,
+      "metallic": 0.0
+    },
+    "wood_bark": {
+      "base_color": "#161311",
+      "roughness": 0.9,
+      "metallic": 0.0
+    },
+    "bone": {
+      "base_color": "#5C5648",
+      "roughness": 0.85,
+      "metallic": 0.0
+    },
+    "iron": {
+      "base_color": "#2A2622",
+      "roughness": 0.7,
+      "metallic": 0.35
+    },
+    "accent_base": {
+      "base_color": "#1A6D72",
+      "roughness": 0.8,
+      "metallic": 0.0,
+      "emission_color": "#34D9E8",
+      "emission_strength": 1.4,
+      "note": "cyan — reserve for BASE_PLOT_MARKER and other KON-owned/base-adjacent assets only, do not use generically"
+    },
+    "accent_corrupted": {
+      "base_color": "#6B1A55",
+      "roughness": 0.8,
+      "metallic": 0.0,
+      "emission_color": "#F23FB0",
+      "emission_strength": 1.5,
+      "note": "magenta/pink — the biome's established corrupted-mushroom accent, use for content/mystery/corruption-coded assets"
+    },
+    "accent_hostile": {
+      "base_color": "#3A1210",
+      "roughness": 0.85,
+      "metallic": 0.0,
+      "emission_color": "#B23A2C",
+      "emission_strength": 1.1,
+      "note": "dull red/ember — hostile/Deom-coded assets only (outpost markers, enemy structures)"
+    },
+    "outline_proxy": {
+      "base_color": "#050604",
+      "roughness": 1.0,
+      "metallic": 0.0
+    }
+  },
+  "assignment_rules": {
+    "stone_keywords": ["stone", "dais", "ritual", "rock", "cliff"],
+    "moss_keywords": ["moss", "mossy", "lichen", "overgrown"],
+    "wood_bark_keywords": ["wood", "bark", "root", "tree", "twisted"],
+    "bone_keywords": ["bone", "skull", "stake"],
+    "iron_keywords": ["iron", "metal", "chain"],
+    "accent_base_keywords": ["cyan", "base plot", "kon rune"],
+    "accent_corrupted_keywords": ["pink", "magenta", "corrupted", "mushroom glow", "content plot"],
+    "accent_hostile_keywords": ["red", "ember", "outpost", "hostile"]
+  },
+  "godot_expectations": {
+    "lighting": "cool moonlit key light, magenta fill near corrupted features per DARK_FOREST_FRONTIER_V2_STATUS.md",
+    "camera": "orthographic top-down preview plus in-game readability check at default RTS zoom",
+    "pivot_convention": "per BLENDER_EXPORT_GUIDE.md by category — tile-center-at-top-surface for ground markers/terrain tiles, tile-center-at-ground for props/blockers, trunk-base for trees",
+    "animation_status": "not applicable — static props/terrain, no rig or animation needed"
+  }
+}

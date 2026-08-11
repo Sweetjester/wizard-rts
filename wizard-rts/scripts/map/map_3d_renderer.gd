@@ -1306,6 +1306,21 @@ func _add_biome_decor() -> void:
 		if rect.size.x <= 0 or rect.size.y <= 0:
 			continue
 		var center := rect.position + Vector2i(rect.size.x / 2, rect.size.y / 2)
+		var plot_kind := str(plot.get("kind", ""))
+		var marker_cell := _clamp_cell(center)
+		if plot_kind == "base":
+			if _try_add_category_scene(CAT_BASE_PLOT_MARKER, _blocker_root, marker_cell, _surface_height_for_cell(marker_cell)):
+				_biome_decor_count += 1
+		elif plot_kind == "content_blank":
+			var content_archetype := str(plot.get("content_archetype", ""))
+			var is_hostile_archetype := content_archetype.contains("outpost") or content_archetype.contains("camp") or content_archetype.contains("ambush")
+			var marker_category := CAT_OUTPOST_MARKER if is_hostile_archetype else CAT_CONTENT_PLOT_MARKER
+			# Offset from the plot center: the center cell is where _add_biome_decor below
+			# places a standing shrine/altar/arch prop, which would otherwise fully occlude
+			# this flat, low-profile marker if both landed on the same cell.
+			var content_marker_cell := _clamp_cell(center + Vector2i(-3, 3))
+			if _try_add_category_scene(marker_category, _blocker_root, content_marker_cell, _surface_height_for_cell(content_marker_cell)):
+				_biome_decor_count += 1
 		if str(plot.get("kind", "")) == "content_blank":
 			var prop_roll := _hash_cell(center, 140) % 4
 			var prop_category := _first_available_category([CAT_RUINED_SHRINE, CAT_RUIN_PROP])

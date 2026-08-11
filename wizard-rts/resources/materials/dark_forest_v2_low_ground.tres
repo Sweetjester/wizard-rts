@@ -1,5 +1,9 @@
-[gd_resource type="StandardMaterial3D" format=3]
+[gd_resource type="StandardMaterial3D" load_steps=2 format=3]
+
+[ext_resource type="Texture2D" path="res://assets_game/terrain/ground/dark_forest_frontier_v2/df_v2_ground_albedo_low_a.png" id="1"]
 
 [resource]
-albedo_color = Color(0.055, 0.18, 0.12, 1)
+albedo_color = Color(0.62, 0.72, 0.66, 1)
+albedo_texture = ExtResource("1")
+uv1_scale = Vector3(2, 2, 1)
 roughness = 0.96
