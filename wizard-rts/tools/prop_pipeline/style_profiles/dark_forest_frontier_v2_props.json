@@ -1,8 +1,11 @@
 {
   "profile_id": "dark_forest_frontier_v2_props",
-  "display_name": "Dark Forest Frontier V2 — Terrain & Props",
+  "display_name": "Dark Forest Frontier V2 — Terrain & Props (low-ground tier)",
+  "art_bible": "DARK_FOREST_FRONTIER_V2_ART_BIBLE.md",
+  "tier": "low_ground",
+  "tier_note": "This profile covers the dark-ink low-ground tier only. Per the art bible's 'Two deliberate tiers' decision (2026-08-11), high-ground/plateau assets should use a brighter glass-mushroom palette instead — no sibling high-ground profile exists yet; write prompts by hand against the art bible's high-ground palette table until one does.",
   "style_reference": "Darkest Dungeon 2 inspired painterly NPR. Do not copy specific assets; use the value structure and readability language. Sibling profile to darkest_dungeon_2_like_kon.json (units) — same rendering language, different palette family for environment vs. player-faction assets.",
-  "goal": "Readable dark-fantasy RTS terrain and props with inked silhouettes, matte painterly materials, and the biome's established corrupted-forest accent language (magenta/pink for corruption, dull red for hostile markers, cyan reserved for KON-owned/base-adjacent elements only).",
+  "goal": "Readable dark-fantasy RTS terrain and props with inked silhouettes, matte painterly materials, and the biome's established corrupted-forest accent language (magenta/pink for corruption, dull red for hostile markers, cyan reserved for KON-owned/base-adjacent elements only). Every prompt should be built from the template in the art bible, not written freehand.",
   "meshy_guidance": {
     "prompt_requirements": [
       "orthographic or three-quarter top-down game-asset reference framing",

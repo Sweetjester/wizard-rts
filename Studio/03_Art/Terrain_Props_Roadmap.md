@@ -52,3 +52,28 @@ What landed:
 **Verified**: full reimport + a live BIOME-mode showcase capture reports `missing_categories=[]` and `fallback_count={}` — every one of the 39 categories the renderer asks for now resolves to a real asset, zero fallback rendering. Screenshots show the new ground texture and road contrast reading well; landmark mushroom clusters (pink/red glow) read well. **Not yet great**: dense blocker clusters (rock/moss/root fill at map edges) still read as fairly flat grey-blue at a distance — likely `discard_imported_materials: false` in the style profile keeping Meshy's raw PBR texture instead of the profile's curated flat palette. Worth an experiment: flip that flag for a batch and compare, per step 5 below.
 
 Ten new specs live under `props/specs/*_b.yaml` / `*_c.yaml` as a template for the next variety-pass round.
+
+## Progress — 2026-08-11: Art Bible + two-tier decision
+
+Andrew's own read on the 2026-08-10/11 batch: pipeline works, assets are OK, but (1) most of the
+live map is still the original pre-pipeline procedural assets — only a handful of categories have
+been touched, and the highest-frequency categories (`ROCK_MOSS_CLUSTER` at 2,391 placements,
+`TWISTED_ROOT_BLOCKER` at 1,426) are still mostly old stock; (2) art style isn't consistent enough
+yet; (3) animation (wind-sway trees, etc.) is wanted. Correct read, confirmed against the actual
+prop-count log from a live map generation — this pass was a variety top-up, not a full replacement.
+
+Before doing more generation, wrote `wizard-rts/DARK_FOREST_FRONTIER_V2_ART_BIBLE.md` — the
+locked reference every future prompt must be checked against. Notable finding along the way: the
+concept art itself wasn't stylistically consistent. Two visibly different reference sets exist —
+a muted "black-ink forest" (Aug 10, what today's assets were built from) and a much more saturated
+"glowing glass mushroom" set (Apr 19, unrelated crystal-cave-adjacent look). Rather than pick one
+and discard the other, Andrew confirmed this should become a **deliberate two-tier split by
+elevation**: dark-ink low ground, glass-mushroom high ground — reinforcing `STYLE_BIBLE.md`'s
+existing (previously unimplemented) "high ground should be visibly separated from low ground" rule
+with an atmospheric channel, not just a height difference. See the Decisions Log for the full
+reasoning.
+
+**This is a documentation-only pass — no new generation happened.** The high-ground tier described
+in the bible doesn't exist in the game yet (`HIGH_GROUND_TILE` is still a tinted copy of the
+low-ground texture); regenerating the two weak hero props flagged in the last progress note hasn't
+happened either. Both are now clearly scoped next steps rather than open-ended concerns.

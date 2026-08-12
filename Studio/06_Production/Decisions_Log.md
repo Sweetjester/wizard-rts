@@ -42,6 +42,16 @@ Delivered: `create_prop.py` gained `image_to_3d` support (Meshy Image-to-3D from
 
 Not resolved yet: dense blocker clusters still read fairly flat grey-blue at a distance in the verification screenshots, likely because the style profile keeps Meshy's raw PBR texture (`discard_imported_materials: false`) rather than remapping to the profile's curated painterly palette. Flagged as the next experiment in `Terrain_Props_Roadmap.md`, not fixed here — didn't want to flip a global style-affecting flag and regenerate everything without Andrew's eyes on the current result first.
 
+### 2026-08-11 — Art direction: dark-ink low ground / glass-mushroom high ground, deliberately
+
+Auditing the concept art behind [[2026-08-11 — Terrain/props: concept-driven pipeline stood up, treated as one biome not two]] surfaced that it isn't stylistically consistent — a muted "black-ink forest" set (2026-08-10) and a much more saturated "glowing glass mushroom" set (2026-04-19, crystal-cave-adjacent) exist side by side, generated 8 months apart. That's real concept-art drift, and very likely part of why Andrew read the current map as visually inconsistent.
+
+Asked Andrew which to treat as canonical. His call: **keep both, deliberately, split by elevation** — dark-ink for low ground, glass-mushroom for high ground/plateaus — rather than force one direction to win. Reasoning: this gives elevation a second, atmospheric readability channel beyond height alone (low ground grounded/hostile, high ground elevated/touched-by-something-stranger), and it directly fulfills `STYLE_BIBLE.md`'s existing but previously-unimplemented rule that high ground should be visibly separated from low ground.
+
+Documented as `wizard-rts/DARK_FOREST_FRONTIER_V2_ART_BIBLE.md` — the new locked reference (real sampled hex palettes for both tiers, a prompt template, image-to-3D cropping rules) every future prop/terrain prompt must be checked against. `tools/prop_pipeline/style_profiles/dark_forest_frontier_v2_props.json` now points at it and is explicitly scoped as the low-ground-tier profile only; no high-ground profile exists yet.
+
+**Not done yet, by design** — this was a documentation pass, not a generation pass: the high-ground tier has zero real assets (terrain material is still a tinted copy of low-ground), and the two weak props flagged in the prior entry weren't regenerated. Both are the clear next steps, not open questions.
+
 ### Open, not yet decided
 
 - **Wizard death vs. loss condition** — currently the tower absorbs a wizard's killing blow and the wizard respawns; dying doesn't end the game on its own. Andrew flagged this needs clarifying. See [01_Design](../01_Design/README.md).
