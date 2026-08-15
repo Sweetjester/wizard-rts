@@ -403,6 +403,9 @@ def run_blender(env: dict[str, str], spec: dict[str, Any], raw_model: Path, proc
         "--style-profile",
         str(style_profile_path(spec)),
     ]
+    material_override = str(spec.get("visual", {}).get("material", ""))
+    if material_override:
+        script_args.extend(["--material-override", material_override])
     bootstrap = (
         "import runpy, sys; "
         f"sys.argv = {[str(script), *script_args]!r}; "

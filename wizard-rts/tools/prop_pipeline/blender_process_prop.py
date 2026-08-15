@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import bpy
@@ -31,6 +32,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--target-polycount", type=int, default=0)
     parser.add_argument("--pivot", default="tile_center_at_ground")
     parser.add_argument("--style-profile", default="")
+    parser.add_argument(
+        "--material-override",
+        default="",
+        help="Force a specific material_palette entry (e.g. accent_corrupted) instead of "
+        "keyword-guessing from prop_id/category. Set visual.material in the spec to use this.",
+    )
     return parser.parse_args()
 
 
@@ -204,7 +211,7 @@ def cap_source_polycount(target_polycount: int, profile: dict) -> None:
         obj.select_set(False)
 
 
-def ensure_materials(profile: dict, prop_id: str, category: str) -> None:
+def ensure_materials(profile: dict, prop_id: str, category: str, material_override: str = "") -> None:
     palette = profile.get("material_palette", {})
     for name in MATERIAL_NAMES:
         material = bpy.data.materials.get(name) or bpy.data.materials.new(name)
@@ -241,7 +248,10 @@ def ensure_materials(profile: dict, prop_id: str, category: str) -> None:
             obj.data.materials.clear()
         rules = profile.get("assignment_rules", {})
         for obj in mesh_objects():
-            chosen_name = material_name_for_object(obj.name, prop_id, category, rules)
+            if material_override and material_override in MATERIAL_NAMES:
+                chosen_name = material_override
+            else:
+                chosen_name = material_name_for_object(obj.name, prop_id, category, rules)
             chosen = bpy.data.materials.get(chosen_name, bpy.data.materials["stone"])
             if not obj.material_slots:
                 obj.data.materials.append(chosen)
@@ -268,6 +278,11 @@ def material_name_for_object(object_name: str, prop_id: str, category: str, rule
         for keyword in rules.get(rule_key, []):
             if str(keyword).lower() in lower:
                 return material_name
+    print(
+        f"[warning] no assignment_rules keyword matched '{prop_id}'/'{category}' — falling back "
+        "to plain stone. Set visual.material in the spec to fix this explicitly.",
+        file=sys.stderr,
+    )
     return "stone"
 
 
@@ -343,7 +358,7 @@ def main() -> None:
     normalize_scale_and_pivot(args.scale_meters, args.pivot)
     process_geometry(profile)
     cap_source_polycount(args.target_polycount, profile)
-    ensure_materials(profile, args.prop_id, args.category)
+    ensure_materials(profile, args.prop_id, args.category, args.material_override)
     join_meshes_if_requested(profile, args.prop_id)
     clean_names(args.prop_id)
     create_outline_proxies(profile)

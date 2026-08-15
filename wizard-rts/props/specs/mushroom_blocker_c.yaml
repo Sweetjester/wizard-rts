@@ -7,6 +7,7 @@ role: blocker
 visual:
   style: darkest_dungeon_2_like_painterly_npr
   style_profile: tools/prop_pipeline/style_profiles/dark_forest_frontier_v2_props.json
+  material: accent_corrupted
   prompt: >
     a dense cluster of tall blood-red vampire mushrooms with bulbous caps, clearly filling and blocking a full gameplay tile, stylized vampiric dark fantasy RTS terrain prop, Darkest-Dungeon-2-like
     painterly inked rendering, bold black ink outline, strong readable silhouette, chunky

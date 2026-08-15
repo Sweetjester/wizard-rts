@@ -7,6 +7,7 @@ role: decor
 visual:
   style: darkest_dungeon_2_like_painterly_npr
   style_profile: tools/prop_pipeline/style_profiles/dark_forest_frontier_v2_props.json
+  material: stone
   prompt: >
     a small weathered stone shrine dais with a carved rune circle, moss growing in the grooves, stylized vampiric dark fantasy RTS terrain prop, Darkest-Dungeon-2-like
     painterly inked rendering, bold black ink outline, strong readable silhouette, chunky
