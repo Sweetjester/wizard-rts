@@ -231,6 +231,41 @@ prompts/models aren't authored in a way that fights it later:
 7. Category placement matches `CATEGORY_RUNTIME_FOLDER` in `create_prop.py` (trees/roots/
    mushrooms/rocks/ruins/decor/plot_markers) — don't let a new category silently fall to `misc/`.
 
+## Renderer contract (scanned 2026-08-12, don't guess this again)
+
+Andrew's direction after the full-coverage pass still "looked messed up": stop iterating blind
+on individual Meshy assets and go read `scripts/map/map_3d_renderer.gd` directly to see how the
+map actually places things. Real findings, not assumptions:
+
+- **Magenta was never an asset-palette problem.** `_add_magenta_glow()` (now
+  `_add_corruption_glow()`) spawns a hardcoded-color `OmniLight3D` at runtime for every
+  `MUSHROOM_CLUSTER_SMALL/LARGE`, `MUSHROOM_BLOCKER`, `GLOWING_MUSHROOM_RING`,
+  `CORRUPTED_ALTAR`, `RUINED_SHRINE`, `SHRINE_PROP` instance — completely independent of
+  the asset's own material color. This is why magenta kept showing up on every map
+  screenshot no matter how the material_palette was corrected. Fixed to `#C13030` (matches
+  `accent_hostile`). Same for `_add_torch_glow()` (`#FF9A42` → `#D9502A`) and the
+  `structure_rune` material. **If a color looks wrong in-game but right in the Asset Forge
+  gallery, check for a hardcoded runtime light/material in the renderer before touching the
+  Meshy pipeline again.**
+- **`RAMP_MESH` is a dead asset-pack category.** `_add_ramps()` always builds ramp geometry
+  procedurally via `_embedded_ramp_mesh_for_cell()` and never references `CAT_RAMP_MESH` or
+  `_try_add_category_scene` at all. Don't spend Meshy credit generating ramp props — they
+  cannot render in-game regardless of quality, this isn't a prompt/style problem.
+- **`CLIFF_SIDE`/`CLIFF_CORNER` are sparse decoration, not the structural wall.**
+  `_add_biome_cliff_edges()` places them on roughly 1-in-3 edge cells
+  (`_hash_cell(cell, 77) % 3 != 0`), layered on top of the solid procedural `HighPlateaus`
+  box-mesh wall (`HIGH_HEIGHT = 1.0`). A chunky rock/root/moss formation reads better here
+  than a flat wall panel — don't chase "wall geometry" for these two categories.
+- **Terrain scale contract**: `TILE_SIZE = 1.0`, `LOW_HEIGHT = 0.0`, `HIGH_HEIGHT = 1.0`,
+  ground box meshes are `0.98 × thickness × 0.98` (thin slab for low ground, full 1.0-tall
+  block for high plateaus). Any prop meant to sit convincingly on a tile should be sized
+  against this, not guessed from the asset alone.
+- **Biome fog/ambient genuinely mutes color at distance** —
+  `fog_density = 0.011`, `fog_light_color = #233A34`, `ambient_light_color = #4A6358`,
+  `ambient_light_energy = 0.58` (`_create_light()`). Confirmed by reading the values
+  directly, not guessed. Untouched so far — the next lever if the map still reads too muted
+  after the lighting-color fix above.
+
 ## Known deviations from this bible (as of 2026-08-12, updated after the full-coverage pass)
 
 - **Resolved same day.** Every one of the 33 categories in the asset pack now has exactly one
