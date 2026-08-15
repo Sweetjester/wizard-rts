@@ -299,10 +299,10 @@ func _create_materials() -> void:
 	_materials["structure_gap"] = _material(Color(0.0, 0.0, 0.0, 0.48))
 	_materials["structure_stair"] = _material(Color(0.95, 0.55, 0.18, 0.92))
 	_materials["structure_room"] = _material(Color(0.7, 0.25, 1.0, 0.22))
-	_materials["structure_rune"] = _material(Color(1.0, 0.08, 0.62, 0.95))
+	_materials["structure_rune"] = _material(Color(0.76, 0.11, 0.14, 0.95))
 	_make_material_emissive(_materials["probe_unit"], Color("#00DFFF"), 0.8)
 	_make_material_emissive(_materials["probe_beacon"], Color("#FF28B7"), 1.15)
-	_make_material_emissive(_materials["structure_rune"], Color("#FF1A9E"), 1.35)
+	_make_material_emissive(_materials["structure_rune"], Color("#C13030"), 1.35)
 	_make_material_no_depth(_materials["probe_unit"])
 	_make_material_no_depth(_materials["probe_unit_selected"])
 	_make_material_no_depth(_materials["probe_beacon"])
@@ -1418,7 +1418,7 @@ func _add_landmark_category_scene(category: StringName, cell: Vector2i, scale_mu
 	_prop_scale_count += 1
 	_biome_decor_count += 1
 	if _is_magical_glow_category(category) and _uses_biome_presentation():
-		_add_magenta_glow(_blocker_root, instance.position)
+		_add_corruption_glow(_blocker_root, instance.position)
 	return true
 
 
@@ -1887,7 +1887,7 @@ func _try_add_category_scene(category: StringName, parent: Node3D, cell: Vector2
 	if (category == CAT_TORCH_PROP or category == CAT_TORCH_OR_SOUL_LIGHT) and _uses_biome_presentation():
 		_add_torch_glow(parent, instance.position)
 	elif _is_magical_glow_category(category) and _uses_biome_presentation():
-		_add_magenta_glow(parent, instance.position)
+		_add_corruption_glow(parent, instance.position)
 	return true
 
 
@@ -1951,7 +1951,7 @@ func _add_torch_glow(parent: Node3D, position: Vector3) -> void:
 	var light := OmniLight3D.new()
 	light.name = "TorchGlow"
 	light.position = position + Vector3(0.0, 0.8, 0.0)
-	light.light_color = Color("#FF9A42")
+	light.light_color = Color("#D9502A")
 	light.light_energy = 0.65
 	light.omni_range = 4.25
 	light.shadow_enabled = false
@@ -1968,12 +1968,12 @@ func _is_magical_glow_category(category: StringName) -> bool:
 		or category == CAT_SHRINE_PROP
 
 
-func _add_magenta_glow(parent: Node3D, position: Vector3) -> void:
+func _add_corruption_glow(parent: Node3D, position: Vector3) -> void:
 	var light := OmniLight3D.new()
 	light.name = "MushroomOrRuinGlow"
 	light.position = position + Vector3(0.0, 0.72, 0.0)
-	light.light_color = Color("#FF2A67")
-	light.light_energy = 0.28
+	light.light_color = Color("#C13030")
+	light.light_energy = 0.32
 	light.omni_range = 2.55
 	light.shadow_enabled = false
 	parent.add_child(light)
