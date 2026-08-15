@@ -53,6 +53,12 @@ CATEGORY_RUNTIME_FOLDER = {
     "CONTENT_PLOT_MARKER": "plot_markers",
     "OUTPOST_MARKER": "plot_markers",
 }
+TERRAIN_ROOT = REPO_ROOT / "assets_game" / "terrain"
+TERRAIN_CATEGORY_FOLDER = {
+    "CLIFF_SIDE": "cliffs",
+    "CLIFF_CORNER": "cliffs",
+    "RAMP_MESH": "ramps",
+}
 REQUIRED_TOP_LEVEL = {
     "prop_id",
     "display_name",
@@ -197,6 +203,8 @@ def load_environment(require_meshy: bool, dry_run: bool) -> dict[str, str]:
 
 
 def runtime_dir_for_category(category: str) -> Path:
+    if category in TERRAIN_CATEGORY_FOLDER:
+        return TERRAIN_ROOT / TERRAIN_CATEGORY_FOLDER[category] / "dark_forest_frontier_v2"
     folder = CATEGORY_RUNTIME_FOLDER.get(category, "misc")
     return RUNTIME_ROOT / folder / "dark_forest_frontier_v2"
 

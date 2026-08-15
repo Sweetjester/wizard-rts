@@ -205,16 +205,16 @@
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
         {
-          "path": "res://assets_game/terrain/cliffs/dark_forest_frontier_v2/df_v2_cliff_side_a.glb",
+          "path": "res://assets_game/terrain/cliffs/dark_forest_frontier_v2/df_v2_cliff_side_c_a.glb",
           "footprint": [
             1,
             1
           ],
           "height_offset": 0.0,
-          "rotation_random": false,
+          "rotation_random": true,
           "scale_random": [
-            1.05,
-            1.18
+            0.98,
+            1.04
           ]
         }
       ]
@@ -223,16 +223,16 @@
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
         {
-          "path": "res://assets_game/terrain/cliffs/dark_forest_frontier_v2/df_v2_cliff_corner_a.glb",
+          "path": "res://assets_game/terrain/cliffs/dark_forest_frontier_v2/df_v2_cliff_corner_c_a.glb",
           "footprint": [
             1,
             1
           ],
           "height_offset": 0.0,
-          "rotation_random": false,
+          "rotation_random": true,
           "scale_random": [
-            1.05,
-            1.18
+            0.98,
+            1.04
           ]
         }
       ]
@@ -242,54 +242,23 @@
       "material_path": "res://resources/materials/dark_forest_v2_muddy_road.tres",
       "assets": [
         {
-          "path": "res://assets_game/terrain/ramps/dark_forest_frontier_v2/df_v2_root_mud_ramp_narrow_a.glb",
+          "path": "res://assets_game/terrain/ramps/dark_forest_frontier_v2/df_v2_ramp_mesh_c_a.glb",
           "footprint": [
             1,
-            2
+            1
           ],
           "height_offset": 0.0,
-          "rotation_random": false
-        },
-        {
-          "path": "res://assets_game/terrain/ramps/dark_forest_frontier_v2/df_v2_root_mud_ramp_wide_a.glb",
-          "footprint": [
-            2,
-            2
-          ],
-          "height_offset": 0.0,
-          "rotation_random": false
+          "rotation_random": true,
+          "scale_random": [
+            0.98,
+            1.04
+          ]
         }
       ]
     },
     "ANCIENT_TREE_BLOCKER": {
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
-        {
-          "path": "res://assets_game/props/trees/dark_forest_frontier_v2/df_v2_ancient_tree_blocker_a.glb",
-          "footprint": [
-            2,
-            2
-          ],
-          "height_offset": 0.0,
-          "rotation_random": true,
-          "scale_random": [
-            1.0,
-            1.18
-          ]
-        },
-        {
-          "path": "res://assets_game/props/trees/dark_forest_frontier_v2/df_v2_ancient_tree_blocker_b.glb",
-          "footprint": [
-            2,
-            2
-          ],
-          "height_offset": 0.0,
-          "rotation_random": true,
-          "scale_random": [
-            1.0,
-            1.16
-          ]
-        },
         {
           "path": "res://assets_game/props/trees/dark_forest_frontier_v2/df_v2_ancient_tree_hero_b_a.glb",
           "footprint": [
@@ -309,19 +278,6 @@
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
         {
-          "path": "res://assets_game/props/roots/dark_forest_frontier_v2/df_v2_twisted_root_blocker_a.glb",
-          "footprint": [
-            1,
-            1
-          ],
-          "height_offset": 0.0,
-          "rotation_random": true,
-          "scale_random": [
-            1.25,
-            1.55
-          ]
-        },
-        {
           "path": "res://assets_game/props/roots/dark_forest_frontier_v2/df_v2_twisted_root_blocker_b_a.glb",
           "footprint": [
             1,
@@ -339,19 +295,6 @@
     "DEAD_TREE_SPIKE": {
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
-        {
-          "path": "res://assets_game/props/trees/dark_forest_frontier_v2/df_v2_dead_tree_spike_a.glb",
-          "footprint": [
-            1,
-            1
-          ],
-          "height_offset": 0.0,
-          "rotation_random": true,
-          "scale_random": [
-            1.0,
-            1.22
-          ]
-        },
         {
           "path": "res://assets_game/props/trees/dark_forest_frontier_v2/df_v2_dead_tree_spike_b_a.glb",
           "footprint": [
@@ -371,19 +314,6 @@
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
         {
-          "path": "res://assets_game/props/mushrooms/dark_forest_frontier_v2/df_v2_mushroom_cluster_small_a.glb",
-          "footprint": [
-            1,
-            1
-          ],
-          "height_offset": 0.0,
-          "rotation_random": true,
-          "scale_random": [
-            1.05,
-            1.3
-          ]
-        },
-        {
           "path": "res://assets_game/props/mushrooms/dark_forest_frontier_v2/df_v2_mushroom_cluster_small_b_a.glb",
           "footprint": [
             1,
@@ -401,19 +331,6 @@
     "MUSHROOM_CLUSTER_LARGE": {
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
-        {
-          "path": "res://assets_game/props/mushrooms/dark_forest_frontier_v2/df_v2_mushroom_cluster_large_a.glb",
-          "footprint": [
-            2,
-            2
-          ],
-          "height_offset": 0.0,
-          "rotation_random": true,
-          "scale_random": [
-            1.0,
-            1.18
-          ]
-        },
         {
           "path": "res://assets_game/props/mushrooms/dark_forest_frontier_v2/df_v2_mushroom_cluster_large_b_a.glb",
           "footprint": [
@@ -433,19 +350,6 @@
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
         {
-          "path": "res://assets_game/props/rocks/dark_forest_frontier_v2/df_v2_rock_moss_cluster_a.glb",
-          "footprint": [
-            1,
-            1
-          ],
-          "height_offset": 0.0,
-          "rotation_random": true,
-          "scale_random": [
-            1.05,
-            1.28
-          ]
-        },
-        {
           "path": "res://assets_game/props/rocks/dark_forest_frontier_v2/df_v2_rock_moss_cluster_b_a.glb",
           "footprint": [
             1,
@@ -463,19 +367,6 @@
     "ROOT_WALL_BLOCKER": {
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
-        {
-          "path": "res://assets_game/props/roots/dark_forest_frontier_v2/df_v2_root_wall_blocker_a.glb",
-          "footprint": [
-            2,
-            1
-          ],
-          "height_offset": 0.0,
-          "rotation_random": true,
-          "scale_random": [
-            1.05,
-            1.24
-          ]
-        },
         {
           "path": "res://assets_game/props/roots/dark_forest_frontier_v2/df_v2_root_wall_hero_b_a.glb",
           "footprint": [
@@ -495,16 +386,16 @@
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
         {
-          "path": "res://assets_game/props/ruins/dark_forest_frontier_v2/df_v2_ruined_shrine_a.glb",
+          "path": "res://assets_game/props/ruins/dark_forest_frontier_v2/df_v2_ruined_shrine_c_a.glb",
           "footprint": [
-            2,
-            2
+            1,
+            1
           ],
           "height_offset": 0.0,
           "rotation_random": true,
           "scale_random": [
-            1.18,
-            1.38
+            0.98,
+            1.04
           ]
         }
       ]
@@ -513,16 +404,16 @@
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
         {
-          "path": "res://assets_game/props/ruins/dark_forest_frontier_v2/df_v2_corrupted_altar_a.glb",
+          "path": "res://assets_game/props/ruins/dark_forest_frontier_v2/df_v2_corrupted_altar_c_a.glb",
           "footprint": [
-            2,
-            2
+            1,
+            1
           ],
           "height_offset": 0.0,
           "rotation_random": true,
           "scale_random": [
-            1.12,
-            1.3
+            0.98,
+            1.04
           ]
         }
       ]
@@ -531,16 +422,16 @@
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
         {
-          "path": "res://assets_game/props/ruins/dark_forest_frontier_v2/df_v2_broken_stone_arch_a.glb",
+          "path": "res://assets_game/props/ruins/dark_forest_frontier_v2/df_v2_broken_stone_arch_c_a.glb",
           "footprint": [
-            2,
+            1,
             1
           ],
           "height_offset": 0.0,
           "rotation_random": true,
           "scale_random": [
-            1.12,
-            1.35
+            0.98,
+            1.04
           ]
         }
       ]
@@ -548,19 +439,6 @@
     "GLOWING_MUSHROOM_RING": {
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
-        {
-          "path": "res://assets_game/props/mushrooms/dark_forest_frontier_v2/df_v2_glowing_mushroom_ring_a.glb",
-          "footprint": [
-            2,
-            2
-          ],
-          "height_offset": 0.0,
-          "rotation_random": true,
-          "scale_random": [
-            1.05,
-            1.24
-          ]
-        },
         {
           "path": "res://assets_game/props/mushrooms/dark_forest_frontier_v2/df_v2_glowing_mushroom_ring_hero_b_a.glb",
           "footprint": [
@@ -580,7 +458,7 @@
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
         {
-          "path": "res://assets_game/props/decor/dark_forest_frontier_v2/df_v2_torch_or_soul_light_a.glb",
+          "path": "res://assets_game/props/decor/dark_forest_frontier_v2/df_v2_torch_or_soul_light_c_a.glb",
           "footprint": [
             1,
             1
@@ -588,8 +466,8 @@
           "height_offset": 0.0,
           "rotation_random": true,
           "scale_random": [
-            1.0,
-            1.15
+            0.98,
+            1.04
           ]
         }
       ]
@@ -598,16 +476,16 @@
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
         {
-          "path": "res://assets_game/props/decor/dark_forest_frontier_v2/df_v2_bone_decor_a.glb",
+          "path": "res://assets_game/props/decor/dark_forest_frontier_v2/df_v2_bone_decor_c_a.glb",
           "footprint": [
             1,
             1
           ],
-          "height_offset": 0.04,
+          "height_offset": 0.0,
           "rotation_random": true,
           "scale_random": [
-            1.05,
-            1.35
+            0.98,
+            1.04
           ]
         }
       ]
@@ -616,16 +494,16 @@
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
         {
-          "path": "res://assets_game/props/decor/dark_forest_frontier_v2/df_v2_road_edge_roots_a.glb",
+          "path": "res://assets_game/props/decor/dark_forest_frontier_v2/df_v2_road_edge_roots_c_a.glb",
           "footprint": [
             1,
             1
           ],
-          "height_offset": 0.05,
+          "height_offset": 0.0,
           "rotation_random": true,
           "scale_random": [
-            1.05,
-            1.35
+            0.98,
+            1.04
           ]
         }
       ]
@@ -691,32 +569,6 @@
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
         {
-          "path": "res://assets_game/props/trees/dark_forest_frontier_v2/df_v2_ancient_tree_blocker_a.glb",
-          "footprint": [
-            2,
-            2
-          ],
-          "height_offset": 0.0,
-          "rotation_random": true,
-          "scale_random": [
-            1.0,
-            1.18
-          ]
-        },
-        {
-          "path": "res://assets_game/props/trees/dark_forest_frontier_v2/df_v2_ancient_tree_blocker_b.glb",
-          "footprint": [
-            2,
-            2
-          ],
-          "height_offset": 0.0,
-          "rotation_random": true,
-          "scale_random": [
-            1.0,
-            1.16
-          ]
-        },
-        {
           "path": "res://assets_game/props/trees/dark_forest_frontier_v2/df_v2_tree_blocker_c_a.glb",
           "footprint": [
             1,
@@ -734,19 +586,6 @@
     "ROCK_BLOCKER": {
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
-        {
-          "path": "res://assets_game/props/rocks/dark_forest_frontier_v2/df_v2_rock_moss_cluster_a.glb",
-          "footprint": [
-            1,
-            1
-          ],
-          "height_offset": 0.0,
-          "rotation_random": true,
-          "scale_random": [
-            1.05,
-            1.28
-          ]
-        },
         {
           "path": "res://assets_game/props/rocks/dark_forest_frontier_v2/df_v2_rock_blocker_b_a.glb",
           "footprint": [
@@ -766,20 +605,7 @@
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
         {
-          "path": "res://assets_game/props/mushrooms/dark_forest_frontier_v2/df_v2_mushroom_cluster_large_a.glb",
-          "footprint": [
-            2,
-            2
-          ],
-          "height_offset": 0.0,
-          "rotation_random": true,
-          "scale_random": [
-            1.0,
-            1.18
-          ]
-        },
-        {
-          "path": "res://assets_game/props/mushrooms/dark_forest_frontier_v2/df_v2_mushroom_cluster_small_a.glb",
+          "path": "res://assets_game/props/mushrooms/dark_forest_frontier_v2/df_v2_mushroom_blocker_c_a.glb",
           "footprint": [
             1,
             1
@@ -787,8 +613,8 @@
           "height_offset": 0.0,
           "rotation_random": true,
           "scale_random": [
-            1.05,
-            1.3
+            0.98,
+            1.04
           ]
         }
       ]
@@ -797,7 +623,7 @@
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
         {
-          "path": "res://assets_game/props/roots/dark_forest_frontier_v2/df_v2_twisted_root_blocker_a.glb",
+          "path": "res://assets_game/props/roots/dark_forest_frontier_v2/df_v2_root_blocker_c_a.glb",
           "footprint": [
             1,
             1
@@ -805,21 +631,8 @@
           "height_offset": 0.0,
           "rotation_random": true,
           "scale_random": [
-            1.25,
-            1.55
-          ]
-        },
-        {
-          "path": "res://assets_game/props/roots/dark_forest_frontier_v2/df_v2_root_wall_blocker_a.glb",
-          "footprint": [
-            2,
-            1
-          ],
-          "height_offset": 0.0,
-          "rotation_random": true,
-          "scale_random": [
-            1.05,
-            1.24
+            0.98,
+            1.04
           ]
         }
       ]
@@ -828,29 +641,16 @@
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
         {
-          "path": "res://assets_game/props/ruins/dark_forest_frontier_v2/df_v2_ruined_shrine_a.glb",
+          "path": "res://assets_game/props/ruins/dark_forest_frontier_v2/df_v2_ruin_prop_c_a.glb",
           "footprint": [
-            2,
-            2
-          ],
-          "height_offset": 0.0,
-          "rotation_random": true,
-          "scale_random": [
-            1.18,
-            1.38
-          ]
-        },
-        {
-          "path": "res://assets_game/props/ruins/dark_forest_frontier_v2/df_v2_broken_stone_arch_a.glb",
-          "footprint": [
-            2,
+            1,
             1
           ],
           "height_offset": 0.0,
           "rotation_random": true,
           "scale_random": [
-            1.12,
-            1.35
+            0.98,
+            1.04
           ]
         }
       ]
@@ -859,29 +659,16 @@
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
         {
-          "path": "res://assets_game/structures/shrines/dark_forest_frontier_v2/df_v2_structure_shrine_a.glb",
+          "path": "res://assets_game/props/ruins/dark_forest_frontier_v2/df_v2_shrine_prop_c_a.glb",
           "footprint": [
-            2,
-            2
+            1,
+            1
           ],
           "height_offset": 0.0,
           "rotation_random": true,
           "scale_random": [
-            1.18,
-            1.42
-          ]
-        },
-        {
-          "path": "res://assets_game/props/ruins/dark_forest_frontier_v2/df_v2_corrupted_altar_a.glb",
-          "footprint": [
-            2,
-            2
-          ],
-          "height_offset": 0.0,
-          "rotation_random": true,
-          "scale_random": [
-            1.12,
-            1.3
+            0.98,
+            1.04
           ]
         }
       ]
@@ -890,7 +677,7 @@
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
         {
-          "path": "res://assets_game/props/decor/dark_forest_frontier_v2/df_v2_torch_or_soul_light_a.glb",
+          "path": "res://assets_game/props/decor/dark_forest_frontier_v2/df_v2_torch_prop_c_a.glb",
           "footprint": [
             1,
             1
@@ -898,8 +685,8 @@
           "height_offset": 0.0,
           "rotation_random": true,
           "scale_random": [
-            1.0,
-            1.15
+            0.98,
+            1.04
           ]
         }
       ]
@@ -908,29 +695,16 @@
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
         {
-          "path": "res://assets_game/props/decor/dark_forest_frontier_v2/df_v2_road_edge_roots_a.glb",
+          "path": "res://assets_game/props/decor/dark_forest_frontier_v2/df_v2_road_decor_c_a.glb",
           "footprint": [
             1,
             1
           ],
-          "height_offset": 0.05,
+          "height_offset": 0.0,
           "rotation_random": true,
           "scale_random": [
-            1.05,
-            1.35
-          ]
-        },
-        {
-          "path": "res://assets_game/props/decor/dark_forest_frontier_v2/df_v2_bone_decor_a.glb",
-          "footprint": [
-            1,
-            1
-          ],
-          "height_offset": 0.04,
-          "rotation_random": true,
-          "scale_random": [
-            1.05,
-            1.35
+            0.98,
+            1.04
           ]
         }
       ]
@@ -939,7 +713,7 @@
       "biome": "DARK_FOREST_FRONTIER_V2",
       "assets": [
         {
-          "path": "res://assets_game/props/roots/dark_forest_frontier_v2/df_v2_twisted_root_blocker_a.glb",
+          "path": "res://assets_game/props/decor/dark_forest_frontier_v2/df_v2_water_edge_decor_c_a.glb",
           "footprint": [
             1,
             1
@@ -947,21 +721,8 @@
           "height_offset": 0.0,
           "rotation_random": true,
           "scale_random": [
-            0.95,
-            1.2
-          ]
-        },
-        {
-          "path": "res://assets_game/props/mushrooms/dark_forest_frontier_v2/df_v2_mushroom_cluster_small_a.glb",
-          "footprint": [
-            1,
-            1
-          ],
-          "height_offset": 0.0,
-          "rotation_random": true,
-          "scale_random": [
-            0.85,
-            1.05
+            0.98,
+            1.04
           ]
         }
       ]
