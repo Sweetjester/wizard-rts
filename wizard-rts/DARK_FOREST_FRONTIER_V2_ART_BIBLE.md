@@ -54,22 +54,59 @@ all 10 new props) was built entirely from the dark-ink set. `HIGH_GROUND_TILE`'s
 brightness-tinted copy of the *low-ground* texture, not a real glass-mushroom-tier asset. That's
 the top of the follow-up list, not something this pass fixed.
 
+## Palette correction — 2026-08-12
+
+Andrew's review of the first batch: workable pipeline, but wrong style entirely. Two corrections,
+both now applied in `tools/prop_pipeline/style_profiles/dark_forest_frontier_v2_props.json`:
+
+1. **"Vampiric forest, full of life, sinister red — not a desaturated dead one."** The palette
+   below was always dark, but leaned too far toward muted/near-black with only sparse accent dots.
+   Living green (moss, fern, undergrowth) should be a dominant, generous color, not a rare accent —
+   and the recurring accent color across the whole low-ground tier is now **blood red**, not
+   magenta/pink. Magenta is dropped entirely; cyan remains the one exception, reserved for
+   KON-owned assets only, so it stays meaningful by contrast.
+2. **A real bug, not just a direction problem.** `ensure_materials()` in `blender_process_prop.py`
+   only ever assigned the curated palette to mesh geometry when `discard_imported_materials` was
+   `true`. It was `false` the whole first batch — meaning every generated asset kept Meshy's raw
+   PBR texture untouched and the palette below was **never actually applied to anything**. That's
+   the real explanation for the flat grey-blue look in the first map screenshot, not just "needs
+   more painterly polish." Flipped to `true`. Also raised `outline_scale` from `1.03` to `1.05` —
+   the DD2 ink line needs to be the primary source of silhouette definition now that fill colors
+   are flat, and `1.03` read as too thin at RTS camera distance.
+
+One more real gap found while testing the fix: the keyword-based material-assignment rules
+(`assignment_rules` in the style profile) had **no mushroom-related keywords at all** — every
+mushroom category was silently falling through to the plain grey `stone` fallback, the single
+worst possible result for the most vampiric-forest-defining asset type in the whole biome. Added
+`mushroom`, `fungal`, `fungus`, `toadstool`, `glowing`, `spore` to `accent_corrupted_keywords`.
+Also had to tune emission strength down (1.4 → 0.75 for `accent_corrupted`) after the first
+re-test rendered as bright coral-pink rather than deep sinister red — Blender EEVEE's `Standard`
+view transform doesn't roll off emission highlights the way `Filmic` would, so the raw hex value
+alone doesn't predict the rendered brightness; always check a real render, not just the hex.
+
+All 13 assets from the first batch were reprocessed through Blender with the corrected profile
+(`tools/prop_pipeline/reprocess_batch.sh`, `--skip-meshy` — no new Meshy spend) rather than
+regenerated from scratch, since the underlying meshes were fine; only material assignment was
+broken.
+
 ## Locked palette
 
-### Low-ground tier (dark-ink forest)
+### Low-ground tier (dark-ink forest, full of life)
 
-Sourced from the dark-ink reference set and `tools/prop_pipeline/style_profiles/dark_forest_frontier_v2_props.json`'s existing material_palette (they agree; this is not a new palette, it's the confirmed one):
+Sourced from the dark-ink reference set and `tools/prop_pipeline/style_profiles/dark_forest_frontier_v2_props.json`'s material_palette (kept in sync — this table should always match the JSON):
 
 | Role | Hex | Notes |
 | --- | --- | --- |
-| Abyss / black bark | `#0A1612` | Darkest value in the scene — trunk cores, deep shadow |
+| Abyss / black bark | `#0A1612` – `#120F0D` | Darkest value in the scene — trunk cores, deep shadow, primary silhouette color |
 | Wet bark | `#161311` – `#332820` | Primary trunk/root material, near-black with a hint of warmth |
 | Damp floor | `#142420` | Base ground value |
 | Forest floor green | `#1E3A2D` | Ground midtone |
-| Moss green | `#2D5A3E` – `#3F5A3C` | Moss patches on bark/stone |
-| Fern / spore accent | `#4A8A5C` – `#7BC47F` | Small live-plant highlights, used sparingly |
+| **Moss / living green** | `#3E7A46` | **Vivid, not desaturated — the primary "full of life" color. Use generously, not as a rare accent.** |
+| Fern / spore accent | `#4A8A5C` – `#7BC47F` | Small live-plant highlights on top of the moss base |
 | Old bone | `#5C5648` – `#8A7560` | Bone/ruin material |
 | Bone highlight | `#D6C7AE` | Bone specular only, never a fill color |
+| **Sinister blood red (ambient)** | `#4A0E14` base / `#8B1A1F` emission | The recurring vampiric accent — mushrooms, corruption, content-coded assets. Deep and brooding, not bright — keep emission strength low (~0.75), a hex value alone reads brighter once lit than it looks on paper. |
+| **Sinister blood red (hostile)** | `#3A1210` base / `#C13030` emission | Same red family, hotter/brighter — outposts, danger, hostile-coded only. Distinguished from the ambient red by intensity, not hue. |
 
 ### High-ground tier (glowing-glass mushroom) — new, not yet built
 
@@ -93,12 +130,19 @@ stone row. Re-run the sampling script in
 This is a **second, independent color axis** — ownership/threat semantics, not elevation. Do not
 conflate the two. A high-ground base marker is still cyan; it just sits on brighter surroundings.
 
+**As of 2026-08-12 this is a two-color system, not three** — magenta/pink is retired. Everything
+that isn't KON-owned reads as some intensity of red; that's the whole point of "sinister red" as
+the biome's signature.
+
 - **Cyan** (`#1A6D72` base / `#34D9E8` emission) — reserved for `BASE_PLOT_MARKER` and other
-  KON-owned/base-adjacent assets only. Never use generically.
-- **Magenta/pink** (`#6B1A55` base / `#F23FB0` emission) — the biome's corruption/mystery accent.
-  Content plots, corrupted features, the low-ground tier's ambient accent dots.
-- **Dull red/ember** (`#3A1210` base / `#B23A2C` emission) — hostile/Deom-coded only (outpost
-  markers, enemy structures).
+  KON-owned/base-adjacent assets only. Never use generically. The *only* non-red accent in the
+  entire biome, which is what makes it read as meaningful when the player sees it.
+- **Blood red, ambient** (`#4A0E14` base / `#8B1A1F` emission) — the default vampiric accent.
+  Mushrooms, corruption, content-plots, anything sinister-but-not-actively-hostile. Keep emission
+  strength low (~0.75) — this should brood, not glow like a warning light.
+- **Blood red, hostile** (`#3A1210` base / `#C13030` emission) — same family, hotter and brighter.
+  Outpost markers, enemy structures, active danger. The intensity difference from the ambient red
+  *is* the signal — don't reach for a different hue to mark "more dangerous."
 
 ## Silhouette & volume rules (the lesson from today's batch)
 
@@ -122,19 +166,20 @@ movement, avoid long thin protrusions unless role-defining, clusters should use 
 ## Prompt template (use this scaffold for every new spec)
 
 ```text
-[SUBJECT], stylized dark fantasy RTS terrain prop, Darkest-Dungeon-2-like painterly inked
-rendering, strong black silhouette, chunky readable shapes, matte [MATERIAL WORDS from the
-locked palette table above], [AT MOST ONE] controlled [cyan/magenta/red — pick per the
-gameplay accent rules, or omit for a fully neutral prop] bioluminescent or ember accent,
-orthographic top-down game asset reference, high contrast shadows, no photorealism
+[SUBJECT], stylized vampiric dark fantasy RTS terrain prop, Darkest-Dungeon-2-like painterly
+inked rendering, bold black ink outline, strong readable silhouette, chunky shapes, matte
+[MATERIAL WORDS from the locked palette table above — lean on living moss/fern green, this
+forest is full of life, not dead], [AT MOST ONE] controlled [cyan, KON-owned only / sinister
+blood red — never magenta or pink] bioluminescent or ember accent, orthographic top-down game
+asset reference, high contrast shadows, no photorealism
 ```
 
 Negative prompt (always include, don't rewrite per-asset):
 
 ```text
 photorealistic, glossy plastic, noisy AI texture, tiny surface detail, soft low-contrast
-silhouette, bright cheerful colors, modern materials, sci-fi, UI, text, watermark, realistic
-photo-scan look
+silhouette, desaturated dead colors, magenta, pink, purple, bright cheerful colors, modern
+materials, sci-fi, UI, text, watermark, realistic photo-scan look
 ```
 
 Every `visual.prompt` in a spec should read as this template filled in, not a freehand
@@ -172,17 +217,35 @@ prompts/models aren't authored in a way that fights it later:
 1. Prompt was built from the template above, not written freehand.
 2. Palette matches its tier (low-ground dark-ink vs high-ground glass) — check against the hex
    tables, not by eye.
-3. Any emissive accent follows the ownership/threat rule (cyan/magenta/red), or has none.
-4. Silhouette reads correctly for its role at a glance in the rendered thumbnail (compare against
-   `tools/prop_pipeline/blender_process_prop.py`'s output, e.g. via the Bell gallery at
-   `~/bell/emit_gallery_html.py`) — not just "did Meshy return a mesh without erroring."
-5. If generated via image_to_3d, the source crop was compact/frontal, not a wide scenic slice.
-6. Category placement matches `CATEGORY_RUNTIME_FOLDER` in `create_prop.py` (trees/roots/
+3. Any emissive accent follows the ownership/threat rule (cyan for KON-owned, red for everything
+   else — no magenta), or has none.
+4. Silhouette AND color read correctly for its role in an actual render — check the Asset Forge
+   gallery (`asset-forge`'s Asset Gallery tab, synced via `scripts/sync_gallery.py`), not just "did
+   Meshy return a mesh without erroring." A hex value on paper is not what it looks like lit and
+   emissive in Blender — always check the real render (this bit us on 2026-08-12: `#8B1A1F`
+   emission at strength 1.4 rendered as bright coral-pink, not the intended deep blood red).
+5. If a category has no visual result in the gallery, check `assignment_rules` actually has a
+   keyword that matches the category/prop_id — the keyword-matching fallback is `stone` (flat
+   grey), the single least-vampiric result possible, and it fails silently.
+6. If generated via image_to_3d, the source crop was compact/frontal, not a wide scenic slice.
+7. Category placement matches `CATEGORY_RUNTIME_FOLDER` in `create_prop.py` (trees/roots/
    mushrooms/rocks/ruins/decor/plot_markers) — don't let a new category silently fall to `misc/`.
 
-## Known deviations from this bible (as of 2026-08-11)
+## Known deviations from this bible (as of 2026-08-12)
 
-- `ancient_tree_hero_b` and `twisted_root_blocker_b` don't meet the silhouette rule above. Worth
+- **The live map still doesn't visually reflect this bible, even after the 2026-08-12 palette
+  fix.** All 13 new-pipeline assets were reprocessed and individually verified correct (real blood
+  red, real living green, real ink outlines — see the Asset Forge gallery). But a fresh in-game
+  screenshot after reimporting looks almost unchanged from before the fix. Why: the majority of
+  what's actually placed on the map — the dense `ROCK_MOSS_CLUSTER`/`TWISTED_ROOT_BLOCKER`/etc.
+  clusters that dominate the visual field — are still the **original procedural assets** from
+  `tools/blender/create_dark_forest_v2_assets.py`, generated long before this style profile
+  existed. That script has its own separately-authored materials and never runs through
+  `ensure_materials()` at all, so nothing in this bible touches it. Fixing the pipeline's newest
+  assets was necessary but not sufficient — the procedural script is the next real lever if the
+  goal is changing what the map actually looks like, not just what new individual props look like.
+- `ancient_tree_hero_b` and `twisted_root_blocker_b` still don't meet the silhouette rule from
+  earlier — the 2026-08-12 pass fixed material/color, not the underlying mesh shape issue. Worth
   regenerating with tighter crops before they're relied on further — they're currently the two
   most frequently *placed* categories on the live map (`ANCIENT_TREE_BLOCKER` and
   `TWISTED_ROOT_BLOCKER`), so their weakness is disproportionately visible.

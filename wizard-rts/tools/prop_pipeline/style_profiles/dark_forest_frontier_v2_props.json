@@ -1,21 +1,22 @@
 {
   "profile_id": "dark_forest_frontier_v2_props",
-  "display_name": "Dark Forest Frontier V2 — Terrain & Props (low-ground tier)",
+  "display_name": "Dark Forest Frontier V2 \u2014 Terrain & Props (low-ground tier)",
   "art_bible": "DARK_FOREST_FRONTIER_V2_ART_BIBLE.md",
   "tier": "low_ground",
-  "tier_note": "This profile covers the dark-ink low-ground tier only. Per the art bible's 'Two deliberate tiers' decision (2026-08-11), high-ground/plateau assets should use a brighter glass-mushroom palette instead — no sibling high-ground profile exists yet; write prompts by hand against the art bible's high-ground palette table until one does.",
-  "style_reference": "Darkest Dungeon 2 inspired painterly NPR. Do not copy specific assets; use the value structure and readability language. Sibling profile to darkest_dungeon_2_like_kon.json (units) — same rendering language, different palette family for environment vs. player-faction assets.",
-  "goal": "Readable dark-fantasy RTS terrain and props with inked silhouettes, matte painterly materials, and the biome's established corrupted-forest accent language (magenta/pink for corruption, dull red for hostile markers, cyan reserved for KON-owned/base-adjacent elements only). Every prompt should be built from the template in the art bible, not written freehand.",
+  "tier_note": "This profile covers the dark-ink low-ground tier only. Per the art bible's 'Two deliberate tiers' decision (2026-08-11), high-ground/plateau assets should use a brighter glass-mushroom palette instead \u2014 no sibling high-ground profile exists yet; write prompts by hand against the art bible's high-ground palette table until one does.",
+  "style_reference": "Darkest Dungeon 2 painterly NPR, executed for real this time: bold black ink outlines (inverted-hull proxy) plus flat/matte fill colors actually assigned to the mesh, not Meshy's raw PBR texture left untouched.",
+  "goal": "A vampiric forest that is full of life, not a desaturated dead one \u2014 rich living greens (moss, fern, undergrowth) as the dominant environmental color, black bark for structure and silhouette, and sinister blood red as the one recurring accent family (not magenta/pink). Cyan stays reserved for KON-owned/base-adjacent elements only, the single non-red accent in the whole biome. Every prompt should be built from the template in the art bible, not written freehand. See DARK_FOREST_FRONTIER_V2_ART_BIBLE.md 'Palette correction \u2014 2026-08-12' for the full reasoning.",
   "meshy_guidance": {
     "prompt_requirements": [
       "orthographic or three-quarter top-down game-asset reference framing",
       "clean isolated silhouette, no ground plane clutter beyond the asset itself",
-      "large readable shapes — must be identifiable at RTS zoomed-out camera distance",
+      "large readable shapes \u2014 must be identifiable at RTS zoomed-out camera distance",
       "no UI, text, frame, heavy background, or tiny surface detail",
-      "dark painterly values with at most one controlled emissive accent color per asset"
+      "rich living green foliage where the subject calls for it \u2014 this is a forest full of life, not a dead husk",
+      "at most one controlled red-family emissive accent per asset (or none) \u2014 never magenta/pink, cyan only for KON-owned assets"
     ],
-    "positive_prompt": "stylized dark fantasy RTS terrain prop, Darkest-Dungeon-2-like painterly inked rendering, strong black silhouette, chunky readable shapes, matte moss, bark, stone and bone, controlled single-color bioluminescent or ember accent, orthographic game asset reference, high contrast shadows, no photorealism",
-    "negative_prompt": "photorealistic, glossy plastic, noisy AI texture, tiny surface detail, soft low-contrast silhouette, bright cheerful colors, modern materials, sci-fi, UI, text, watermark, realistic photo-scan look"
+    "positive_prompt": "stylized vampiric dark fantasy RTS terrain prop, Darkest-Dungeon-2-like painterly inked rendering, bold black ink outline, strong readable silhouette, chunky shapes, matte black bark and vivid living moss/fern green, sinister blood-red accent where appropriate, orthographic game asset reference, high contrast shadows, no photorealism",
+    "negative_prompt": "photorealistic, glossy plastic, noisy AI texture, tiny surface detail, soft low-contrast silhouette, desaturated dead colors, magenta, pink, purple, bright cheerful colors, modern materials, sci-fi, UI, text, watermark, realistic photo-scan look"
   },
   "mesh_processing": {
     "join_meshes": true,
@@ -24,9 +25,11 @@
     "flat_shading": true,
     "weighted_normals": true,
     "decimate_ratio": 1.0,
-    "discard_imported_materials": false,
+    "discard_imported_materials": true,
+    "_discard_imported_materials_note": "Was false through 2026-08-11 \u2014 the actual bug behind the flat grey-blue look Andrew flagged: ensure_materials() in blender_process_prop.py only assigns the palette to the mesh when this is true. With it false, Meshy's raw PBR texture rendered untouched and the curated palette below was never applied to any visible geometry at all.",
     "create_outline_proxy": true,
-    "outline_scale": 1.03
+    "outline_scale": 1.05,
+    "_outline_scale_note": "Raised from 1.03 \u2014 too subtle to read as a real DD2 ink line at RTS camera distance, especially now that flat-color fill will make the outline the main source of silhouette definition."
   },
   "material_palette": {
     "stone": {
@@ -35,14 +38,16 @@
       "metallic": 0.0
     },
     "moss": {
-      "base_color": "#3F5A3C",
-      "roughness": 0.92,
-      "metallic": 0.0
+      "base_color": "#3E7A46",
+      "roughness": 0.85,
+      "metallic": 0.0,
+      "note": "vivid living green, not desaturated \u2014 this is the primary 'full of life' color, use generously"
     },
     "wood_bark": {
-      "base_color": "#161311",
+      "base_color": "#120F0D",
       "roughness": 0.9,
-      "metallic": 0.0
+      "metallic": 0.0,
+      "note": "near-black, the primary silhouette/structure color \u2014 bark, trunks, roots, twisted wood"
     },
     "bone": {
       "base_color": "#5C5648",
@@ -59,45 +64,97 @@
       "roughness": 0.8,
       "metallic": 0.0,
       "emission_color": "#34D9E8",
-      "emission_strength": 1.4,
-      "note": "cyan — reserve for BASE_PLOT_MARKER and other KON-owned/base-adjacent assets only, do not use generically"
+      "emission_strength": 0.9,
+      "note": "cyan \u2014 the ONLY non-red accent in the biome. Reserve for BASE_PLOT_MARKER and other KON-owned/base-adjacent assets only, do not use generically."
     },
     "accent_corrupted": {
-      "base_color": "#6B1A55",
-      "roughness": 0.8,
+      "base_color": "#4A0E14",
+      "roughness": 0.75,
       "metallic": 0.0,
-      "emission_color": "#F23FB0",
-      "emission_strength": 1.5,
-      "note": "magenta/pink — the biome's established corrupted-mushroom accent, use for content/mystery/corruption-coded assets"
+      "emission_color": "#8B1A1F",
+      "emission_strength": 0.75,
+      "note": "deep sinister blood red (was magenta/pink through 2026-08-11 \u2014 corrected per Andrew's 'sinister red, not magenta' direction). Use for content/mystery/vampiric-corruption-coded assets \u2014 the ambient, brooding red."
     },
     "accent_hostile": {
       "base_color": "#3A1210",
-      "roughness": 0.85,
+      "roughness": 0.8,
       "metallic": 0.0,
-      "emission_color": "#B23A2C",
-      "emission_strength": 1.1,
-      "note": "dull red/ember — hostile/Deom-coded assets only (outpost markers, enemy structures)"
+      "emission_color": "#C13030",
+      "emission_strength": 0.7,
+      "note": "hot ember/blood red, brighter and more saturated than accent_corrupted \u2014 hostile/Deom-coded assets, outpost markers, danger. Same red family as accent_corrupted, distinguished by intensity not hue."
     },
     "outline_proxy": {
-      "base_color": "#050604",
+      "base_color": "#030302",
       "roughness": 1.0,
       "metallic": 0.0
     }
   },
   "assignment_rules": {
-    "stone_keywords": ["stone", "dais", "ritual", "rock", "cliff"],
-    "moss_keywords": ["moss", "mossy", "lichen", "overgrown"],
-    "wood_bark_keywords": ["wood", "bark", "root", "tree", "twisted"],
-    "bone_keywords": ["bone", "skull", "stake"],
-    "iron_keywords": ["iron", "metal", "chain"],
-    "accent_base_keywords": ["cyan", "base plot", "kon rune"],
-    "accent_corrupted_keywords": ["pink", "magenta", "corrupted", "mushroom glow", "content plot"],
-    "accent_hostile_keywords": ["red", "ember", "outpost", "hostile"]
+    "stone_keywords": [
+      "stone",
+      "dais",
+      "ritual",
+      "rock",
+      "cliff"
+    ],
+    "moss_keywords": [
+      "moss",
+      "mossy",
+      "lichen",
+      "overgrown",
+      "fern",
+      "vine",
+      "foliage",
+      "undergrowth",
+      "living"
+    ],
+    "wood_bark_keywords": [
+      "wood",
+      "bark",
+      "root",
+      "tree",
+      "twisted"
+    ],
+    "bone_keywords": [
+      "bone",
+      "skull",
+      "stake"
+    ],
+    "iron_keywords": [
+      "iron",
+      "metal",
+      "chain"
+    ],
+    "accent_base_keywords": [
+      "cyan",
+      "base plot",
+      "kon rune"
+    ],
+    "accent_corrupted_keywords": [
+      "blood",
+      "sinister",
+      "corrupted",
+      "content plot",
+      "vampiric",
+      "mushroom",
+      "fungal",
+      "fungus",
+      "toadstool",
+      "glowing",
+      "spore"
+    ],
+    "accent_hostile_keywords": [
+      "red",
+      "ember",
+      "outpost",
+      "hostile",
+      "danger"
+    ]
   },
   "godot_expectations": {
-    "lighting": "cool moonlit key light, magenta fill near corrupted features per DARK_FOREST_FRONTIER_V2_STATUS.md",
+    "lighting": "cool moonlit key light, blood-red fill near corrupted/vampiric features (was documented as magenta \u2014 correct to red per the 2026-08-12 palette fix)",
     "camera": "orthographic top-down preview plus in-game readability check at default RTS zoom",
-    "pivot_convention": "per BLENDER_EXPORT_GUIDE.md by category — tile-center-at-top-surface for ground markers/terrain tiles, tile-center-at-ground for props/blockers, trunk-base for trees",
-    "animation_status": "not applicable — static props/terrain, no rig or animation needed"
+    "pivot_convention": "per BLENDER_EXPORT_GUIDE.md by category \u2014 tile-center-at-top-surface for ground markers/terrain tiles, tile-center-at-ground for props/blockers, trunk-base for trees",
+    "animation_status": "not applicable \u2014 static props/terrain, no rig or animation needed"
   }
 }
