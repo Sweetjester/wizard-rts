@@ -1,0 +1,37 @@
+prop_id: cliff_side_g
+display_name: Cliff Side G (Mushroom-Fringed)
+category: CLIFF_SIDE
+biome: dark_forest_frontier_v2
+role: terrain
+
+visual:
+  style: darkest_dungeon_2_like_painterly_npr
+  style_profile: tools/prop_pipeline/style_profiles/dark_forest_frontier_v2_props.json
+  material: stone
+  prompt: >
+    a vertical cliff wall face of black wet bark-like stone with small blood-red vampiric
+    mushrooms growing in a fringe along the base, a moss lip along the top edge, clearly
+    unwalkable, stylized vampiric dark fantasy RTS terrain prop, Darkest-Dungeon-2-like
+    painterly inked rendering, bold black ink outline, strong readable silhouette, chunky
+    shapes, matte materials, orthographic top-down game asset reference, high contrast
+    shadows, no photorealism
+  negative_prompt: >
+    photorealistic, glossy plastic, noisy AI texture, tiny surface detail, soft low-contrast silhouette, desaturated dead colors, magenta, bright cheerful colors, modern materials, sci-fi, UI, text, watermark, realistic photo-scan look
+  colors:
+    palette: near-black wet stone, vivid moss lip, blood red mushroom fringe
+  outline: true
+  design_intent: >
+    Throughput/volume pass (2026-08-16, wave 3). Mushroom-fringed variant of cliff_side, for
+    full-coverage cliff decoration variety.
+
+model:
+  generator: meshy
+  source: text_to_3d
+  target_polycount: 9000
+  scale_meters: 1.0
+  footprint_note: cliff wall segment, one full elevation step tall per ASSET_SCALE_GUIDE.md
+  export: glb
+
+placement:
+  pivot: tile_center_at_ground
+  height_offset: 0.0

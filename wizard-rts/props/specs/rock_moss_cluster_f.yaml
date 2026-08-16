@@ -1,0 +1,33 @@
+prop_id: rock_moss_cluster_f
+display_name: Mossy Rock Cluster (Split Boulder)
+category: ROCK_MOSS_CLUSTER
+biome: dark_forest_frontier_v2
+role: decor
+
+visual:
+  style: darkest_dungeon_2_like_painterly_npr
+  style_profile: tools/prop_pipeline/style_profiles/dark_forest_frontier_v2_props.json
+  material: moss
+  prompt: >
+    a boulder split cleanly in two with moss growing in the crack between the halves, distinct silhouette from other rock cluster variants, stylized vampiric dark fantasy RTS terrain prop, Darkest-Dungeon-2-like painterly inked rendering, bold black ink outline, strong readable silhouette, matte materials, orthographic top-down game asset reference, high contrast shadows, no photorealism
+  negative_prompt: >
+    photorealistic, glossy plastic, noisy AI texture, tiny surface detail, soft low-contrast silhouette, desaturated dead colors, magenta, bright cheerful colors, modern materials, sci-fi, UI, text, watermark, realistic photo-scan look
+  colors:
+    palette: dark stone, vivid living green moss
+  outline: true
+  design_intent: >
+    Throughput/volume pass (2026-08-16, wave 3, final). Prioritizes high-placement-frequency
+    categories (blockers/decor instanced many times per map) over one-off landmarks, given
+    limited remaining Meshy budget.
+
+model:
+  generator: meshy
+  source: text_to_3d
+  target_polycount: 7000
+  scale_meters: 0.8
+  footprint_note: 1x1 gameplay tile, ground decor tier per ASSET_SCALE_GUIDE.md
+  export: glb
+
+placement:
+  pivot: tile_center_at_ground
+  height_offset: 0.0

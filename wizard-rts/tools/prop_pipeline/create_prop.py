@@ -29,6 +29,7 @@ CATEGORY_RUNTIME_FOLDER = {
     "ANCIENT_TREE_BLOCKER": "trees",
     "TREE_BLOCKER": "trees",
     "DEAD_TREE_SPIKE": "trees",
+    "LANTERN_TREE_BLOCKER": "trees",
     "TWISTED_ROOT_BLOCKER": "roots",
     "ROOT_WALL_BLOCKER": "roots",
     "ROOT_BLOCKER": "roots",

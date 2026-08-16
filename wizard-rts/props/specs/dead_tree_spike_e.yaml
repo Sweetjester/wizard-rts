@@ -1,0 +1,32 @@
+prop_id: dead_tree_spike_e
+display_name: Dead Tree Spike (Forked Twin)
+category: DEAD_TREE_SPIKE
+biome: dark_forest_frontier_v2
+role: blocker
+
+visual:
+  style: darkest_dungeon_2_like_painterly_npr
+  style_profile: tools/prop_pipeline/style_profiles/dark_forest_frontier_v2_props.json
+  material: wood_bark
+  prompt: >
+    a dead tree trunk that splits into two bare forked spikes near the top, distinct silhouette from other dead tree spike variants, stylized vampiric dark fantasy RTS terrain prop, Darkest-Dungeon-2-like painterly inked rendering, bold black ink outline, strong readable silhouette, matte materials, orthographic top-down game asset reference, high contrast shadows, no photorealism
+  negative_prompt: >
+    photorealistic, glossy plastic, noisy AI texture, tiny surface detail, soft low-contrast silhouette, desaturated dead colors, magenta, bright cheerful colors, modern materials, sci-fi, UI, text, watermark, realistic photo-scan look
+  colors:
+    palette: near-black dead wood, faint moss
+  outline: true
+  design_intent: >
+    Throughput/volume pass (2026-08-16, wave 2) toward broader per-category coverage.
+    Explicit material override to avoid silent fallback-to-stone.
+
+model:
+  generator: meshy
+  source: text_to_3d
+  target_polycount: 8000
+  scale_meters: 1.6
+  footprint_note: 1x1 gameplay tile, dead tree tier per ASSET_SCALE_GUIDE.md
+  export: glb
+
+placement:
+  pivot: tile_center_at_ground
+  height_offset: 0.0

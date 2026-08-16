@@ -76,6 +76,7 @@ const CAT_GLOWING_MUSHROOM_RING := &"GLOWING_MUSHROOM_RING"
 const CAT_TORCH_OR_SOUL_LIGHT := &"TORCH_OR_SOUL_LIGHT"
 const CAT_BONE_DECOR := &"BONE_DECOR"
 const CAT_ROAD_EDGE_ROOTS := &"ROAD_EDGE_ROOTS"
+const CAT_LANTERN_TREE_BLOCKER := &"LANTERN_TREE_BLOCKER"
 
 @export var seed := 20260425
 @export_file("*.json", "*.tres") var asset_pack_config_path := ACTIVE_ASSET_PACK_CONFIG_PATH
@@ -431,6 +432,7 @@ func _replacement_categories() -> Array[StringName]:
 		CAT_TORCH_OR_SOUL_LIGHT,
 		CAT_BONE_DECOR,
 		CAT_ROAD_EDGE_ROOTS,
+		CAT_LANTERN_TREE_BLOCKER,
 	]
 
 
@@ -1119,6 +1121,9 @@ func _add_ramps(cells: Array[Vector2i]) -> void:
 		ramp.material_override = _materials["ramp"]
 		_ramp_root.add_child(ramp)
 		_ramp_visual_count += 1
+		# Procedural ramp mesh stays the ground truth for slope/collision; RAMP_MESH is a
+		# stone-step/rubble accent laid on top of the low end, same pattern as cliff edges.
+		_try_add_category_scene(CAT_RAMP_MESH, _ramp_root, cell, LOW_HEIGHT, _rotation_for_direction(uphill))
 		_ramp_debug_records.append("%s dir=%s top=%.2f bottom=%.2f missing_high=%s" % [str(cell), str(uphill), HIGH_HEIGHT, LOW_HEIGHT, str(_find_high_neighbor_direction(cell) == Vector2i.ZERO)])
 
 
@@ -1280,6 +1285,8 @@ func _cluster_category_for_cell(cell: Vector2i, primary_category: StringName) ->
 		return _first_available_category([CAT_TWISTED_ROOT_BLOCKER, CAT_ROOT_BLOCKER])
 	if roll < 7:
 		return _first_available_category([CAT_MUSHROOM_CLUSTER_SMALL, CAT_MUSHROOM_BLOCKER])
+	if roll == 9:
+		return _first_available_category([CAT_LANTERN_TREE_BLOCKER, CAT_ANCIENT_TREE_BLOCKER, CAT_TREE_BLOCKER])
 	return _first_available_category([CAT_ANCIENT_TREE_BLOCKER, CAT_TREE_BLOCKER])
 
 
@@ -1289,8 +1296,6 @@ func _add_biome_cliff_edges(cells: Array[Vector2i]) -> void:
 	for cell in cells:
 		if _is_ramp_opening_cliff_cell(cell):
 			_ramp_opening_carve_count += 1
-			continue
-		if _hash_cell(cell, 77) % 3 != 0:
 			continue
 		var direction := _first_low_neighbor_direction(cell)
 		var category := CAT_CLIFF_CORNER if _is_cliff_corner_cell(cell) else CAT_CLIFF_SIDE

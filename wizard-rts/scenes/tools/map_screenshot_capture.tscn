@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=4]
+
+[ext_resource type="Script" path="res://scripts/tools/map_screenshot_capture.gd" id="1_capture"]
+
+[node name="MapScreenshotCapture" type="Node"]
+script = ExtResource("1_capture")

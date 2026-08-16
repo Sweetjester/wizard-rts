@@ -1,0 +1,31 @@
+prop_id: base_plot_marker_b
+display_name: Base Plot Marker (Variant B)
+category: BASE_PLOT_MARKER
+biome: dark_forest_frontier_v2
+role: marker
+
+visual:
+  style: darkest_dungeon_2_like_painterly_npr
+  style_profile: tools/prop_pipeline/style_profiles/dark_forest_frontier_v2_props.json
+  material: accent_base
+  prompt: >
+    a low flat glowing cyan rune-stone marker set into the ground, a small clean geometric disc shape, distinct silhouette from the first base plot marker variant, stylized vampiric dark fantasy RTS UI-adjacent terrain prop, Darkest-Dungeon-2-like painterly inked rendering, bold black ink outline, strong readable silhouette, matte materials, orthographic top-down game asset reference, high contrast shadows, no photorealism
+  negative_prompt: >
+    photorealistic, glossy plastic, noisy AI texture, tiny surface detail, soft low-contrast silhouette, desaturated dead colors, magenta, bright cheerful colors, modern materials, sci-fi, UI, text, watermark, realistic photo-scan look
+  colors:
+    palette: near-black stone, cyan rune glow
+  outline: true
+  design_intent: >
+    Second BASE_PLOT_MARKER variant, throughput pass toward broader coverage.
+
+model:
+  generator: meshy
+  source: text_to_3d
+  target_polycount: 5000
+  scale_meters: 0.6
+  footprint_note: 1x1 gameplay tile, low-profile marker tier per ASSET_SCALE_GUIDE.md
+  export: glb
+
+placement:
+  pivot: tile_center_at_ground
+  height_offset: 0.0

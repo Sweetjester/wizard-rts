@@ -1,0 +1,37 @@
+prop_id: cliff_corner_d
+display_name: Cliff Corner D (Root-Veined)
+category: CLIFF_CORNER
+biome: dark_forest_frontier_v2
+role: terrain
+
+visual:
+  style: darkest_dungeon_2_like_painterly_npr
+  style_profile: tools/prop_pipeline/style_profiles/dark_forest_frontier_v2_props.json
+  material: stone
+  prompt: >
+    a vertical cliff corner chunk matching a black wet bark-like stone cliff wall, with thick
+    gnarled roots spilling down the rock face and a heavy moss lip along the top edge,
+    stylized vampiric dark fantasy RTS terrain prop, Darkest-Dungeon-2-like painterly inked
+    rendering, bold black ink outline, strong readable silhouette, chunky shapes, matte
+    materials, orthographic top-down game asset reference, high contrast shadows, no
+    photorealism
+  negative_prompt: >
+    photorealistic, glossy plastic, noisy AI texture, tiny surface detail, soft low-contrast silhouette, desaturated dead colors, magenta, pink, purple, bright cheerful colors, modern materials, sci-fi, UI, text, watermark, realistic photo-scan look
+  colors:
+    palette: near-black wet stone, vivid moss lip, dark root veins
+  outline: true
+  design_intent: >
+    Volume/variety pass (2026-08-16). Root-veined variant of cliff_corner_c, matching
+    cliff_side_d, for full-coverage cliff decoration variety.
+
+model:
+  generator: meshy
+  source: text_to_3d
+  target_polycount: 9000
+  scale_meters: 1.0
+  footprint_note: cliff corner segment, must visually match the cliff side per ASSET_SCALE_GUIDE.md
+  export: glb
+
+placement:
+  pivot: tile_center_at_ground
+  height_offset: 0.0

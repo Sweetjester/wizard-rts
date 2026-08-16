@@ -1,0 +1,31 @@
+prop_id: lantern_tree_hero_f
+display_name: Lantern Tree (Landmark Elder)
+category: LANTERN_TREE_BLOCKER
+biome: dark_forest_frontier_v2
+role: landmark
+
+visual:
+  style: darkest_dungeon_2_like_painterly_npr
+  style_profile: tools/prop_pipeline/style_profiles/dark_forest_frontier_v2_props.json
+  material: accent_corrupted
+  prompt: >
+    an ancient massive dark lantern tree, landmark scale, thick gnarled trunk with sprawling heavy branches, large lantern pods of many different sizes hanging throughout, a clear centerpiece silhouette distinct from all the smaller lantern tree variants, stylized vampiric dark fantasy RTS terrain prop, Darkest-Dungeon-2-like painterly inked rendering, bold black ink outline, strong readable silhouette, chunky shapes, matte materials, orthographic top-down game asset reference, high contrast shadows, no photorealism
+  negative_prompt: >
+    photorealistic, glossy plastic, noisy AI texture, tiny surface detail, soft low-contrast silhouette, desaturated dead colors, magenta, bright cheerful colors, modern materials, sci-fi, UI, text, watermark, realistic photo-scan look
+  colors:
+    palette: near-black bark and branches, blood red glowing lantern pods
+  outline: true
+  design_intent: >
+    Landmark-scale LANTERN_TREE_BLOCKER hero variant for use as a map centerpiece/landmark, matching the ancient_tree_hero_b precedent.
+
+model:
+  generator: meshy
+  source: text_to_3d
+  target_polycount: 14000
+  scale_meters: 3.4
+  footprint_note: landmark-scale tree, matches ancient_tree_hero_b footprint per ASSET_SCALE_GUIDE.md
+  export: glb
+
+placement:
+  pivot: tile_center_at_ground
+  height_offset: 0.0
