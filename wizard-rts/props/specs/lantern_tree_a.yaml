@@ -7,13 +7,13 @@ role: blocker
 visual:
   style: darkest_dungeon_2_like_painterly_npr
   style_profile: tools/prop_pipeline/style_profiles/dark_forest_frontier_v2_props.json
-  material: accent_corrupted
+  material: wood_bark
   prompt: >
     a tall gnarled dark tree where the leaves have been replaced by dozens of smooth oval hanging lanterns of varying size dangling from thin stems off every branch, each lantern a clean rounded teardrop shape, strong silhouette contrast between the thin black branches and the plump rounded lanterns, stylized vampiric dark fantasy RTS terrain prop, Darkest-Dungeon-2-like painterly inked rendering, bold black ink outline, strong readable silhouette, chunky shapes, matte materials, orthographic top-down game asset reference, high contrast shadows, no photorealism
   negative_prompt: >
     photorealistic, glossy plastic, noisy AI texture, tiny surface detail, soft low-contrast silhouette, desaturated dead colors, magenta, bright cheerful colors, modern materials, sci-fi, UI, text, watermark, realistic photo-scan look
   colors:
-    palette: near-black bark and branches, blood red glowing lantern pods
+    palette: near-black bark, branches, and lantern pods (all one dark wood_bark tone)
   outline: true
   design_intent: >
     First LANTERN_TREE_BLOCKER: a brand new prop category, trees whose leaves are lantern pods. Wired into map_3d_renderer.gd's tree placement roll (10% of tree-slot clusters) and CATEGORY_RUNTIME_FOLDER so it actually renders in-game, unlike the earlier RAMP_MESH mistake.
