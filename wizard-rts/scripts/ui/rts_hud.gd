@@ -72,6 +72,11 @@ func _ready() -> void:
 		kon_vertical_slice.defeat_triggered.connect(func(reason: String) -> void:
 			_start_defeat_return_countdown(reason)
 		)
+	if kon_vertical_slice != null and kon_vertical_slice.has_signal("objective_completed"):
+		kon_vertical_slice.objective_completed.connect(func(reason: String) -> void:
+			status_label.text = reason.capitalize()
+			_start_victory_return_countdown()
+		)
 	if economy_manager != null:
 		economy_manager.resources_changed.connect(_on_resources_changed)
 	if wave_director != null:

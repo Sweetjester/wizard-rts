@@ -6,8 +6,11 @@ const OUTPOST_ARCHETYPE := &"enemy_outpost"
 const PLAYER_ID := 1
 const ENEMY_ID := 2
 const WIZARD_ARCHETYPES: Array[StringName] = [&"life_wizard", &"fire_wizard", &"evangalion_wizard"]
+const OBJECTIVE_DEFEAT_BOSS := "defeat_boss"
+const OBJECTIVE_DESTROY_OUTPOSTS := "destroy_outposts"
 
 signal defeat_triggered(reason: String)
+signal objective_completed(reason: String)
 
 @export var enabled: bool = true
 @export var map_generator_path: NodePath = NodePath("../MapGenerator")
@@ -42,6 +45,8 @@ var _outposts: Array[Dictionary] = []
 var _outpost_blockers: Dictionary = {}
 var _boss_triggered_by_slice := false
 var _defeat := false
+var _victory := false
+var _objective_id := OBJECTIVE_DEFEAT_BOSS
 var _last_debug_print_msec := 0
 var _last_damage_event := "none"
 var _slice_update_elapsed := 0.0
@@ -68,6 +73,7 @@ func _process(delta: float) -> void:
 		_check_content_clear()
 		_check_boss_gate()
 		_check_defeat()
+		_check_objective_victory()
 	if _overlay_update_elapsed >= overlay_update_interval:
 		_overlay_update_elapsed = 0.0
 		_update_overlay()
@@ -89,6 +95,9 @@ func _initialize() -> void:
 	if str(map_generator.get("map_type_id")) != "seeded_grid_frontier":
 		visible = false
 		return
+	var session := get_node_or_null("/root/GameSession")
+	if session != null:
+		_objective_id = str(session.get("objective_id"))
 	_collect_content_and_outposts()
 	_spawn_outpost_objectives()
 	_configure_boss_gate()
@@ -324,6 +333,20 @@ func _check_defeat() -> void:
 	print("[KonVerticalSlice] DEFEAT: ", reason, ".")
 	defeat_triggered.emit(reason)
 
+func _check_objective_victory() -> void:
+	if _victory or _defeat:
+		return
+	if _objective_id != OBJECTIVE_DESTROY_OUTPOSTS:
+		return
+	if _required_outposts_total() <= 0 or _outposts_remaining() > 0:
+		return
+	_victory = true
+	if wave_director != null:
+		wave_director.enabled = false
+	var reason := "all outpost garrisons destroyed"
+	print("[KonVerticalSlice] VICTORY: ", reason, ".")
+	objective_completed.emit(reason)
+
 func _update_overlay() -> void:
 	if _label == null:
 		return
@@ -331,8 +354,9 @@ func _update_overlay() -> void:
 	var income_count := economy_manager.economy_buildings.size() if economy_manager != null else 0
 	var base_id := _chosen_base_plot_id()
 	var state := _victory_defeat_state()
-	_label.text = "KON VERTICAL SLICE\nBiome: %s\nPhase: %s\nBase: %s\nIncome active: %s (%s absorbers)\nWave: %s\nOutposts remaining: %s/%s\nContent cleared: %s/%s\nBoss triggered: %s\nState: %s\nBio %s | Essence %s" % [
+	_label.text = "KON VERTICAL SLICE\nBiome: %s\nObjective: %s\nPhase: %s\nBase: %s\nIncome active: %s (%s absorbers)\nWave: %s\nOutposts remaining: %s/%s\nContent cleared: %s/%s\nBoss triggered: %s\nState: %s\nBio %s | Essence %s" % [
 		BIOME_ID,
+		_objective_id,
 		_slice_phase(),
 		base_id if not base_id.is_empty() else "unclaimed",
 		"yes" if income_count > 0 else "no",
@@ -412,7 +436,7 @@ func _slice_phase() -> String:
 func _victory_defeat_state() -> String:
 	if _defeat:
 		return "defeat"
-	if wave_director != null and wave_director.boss_has_been_defeated:
+	if _victory or (wave_director != null and wave_director.boss_has_been_defeated):
 		return "victory"
 	if wave_director != null and wave_director.boss_has_spawned:
 		return "boss_active"

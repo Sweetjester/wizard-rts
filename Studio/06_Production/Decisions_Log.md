@@ -118,6 +118,16 @@ New smoke test `scripts/core/class_unit_roster_smoke_test.gd` boots all 3 classe
 
 **Explicitly not done here, and shouldn't be read as "classes are finished"**: each class still only has 2 of the design template's suggested 5-6 unit slots (core/defensive/advanced/elite) — going further needs either creative reuse of what exists or new units, which runs straight into §37's art/animation bottleneck. Buildings, economy twists, and defensive styles are still shared across all classes. This is a first differentiation pass, not the full §16 target.
 
+### 2026-08-23 — Engineering: added a second win-objective type (destroy the outpost garrisons)
+
+Continuing down the roguelike-run-structure gap after the class-roster pass: only one win path existed (`wave_director.boss_has_been_defeated`), against a design doc (§9, §28) that expects the run objective to vary. The needed pieces already existed and just weren't wired to a win condition — `KonVerticalSliceController` already tracks two required outposts and their destruction state (`_outposts_remaining()`), used only to gate the boss spawn, never as a victory condition in its own right.
+
+Added `GameSession.objective_id` (`"defeat_boss"` default, `"destroy_outposts"` new), randomly chosen per new game unless a caller pins one explicitly (matches §8's "randomized or semi-randomized objective," and keeps every existing smoke-test call site working unchanged since the 4th param is optional). `KonVerticalSliceController._check_objective_victory()` fires when `objective_id == "destroy_outposts"` and all required outposts are destroyed, emitting a new `objective_completed(reason)` signal that `rts_hud.gd` wires into the existing victory-return-to-menu flow (the same one [[2026-08-23 — Engineering: wizard death now ends the run, independent of tower state]] generalized for defeat). The boss-defeat path is untouched — the new check only ever acts when the outpost objective is active, and boss defeat still wins independently regardless of which objective is currently selected.
+
+New smoke test `destroy_outposts_objective_smoke_test.gd` pins the objective explicitly, destroys both required outposts, and confirms victory + the signal fire. Ran alongside all 5 other core smoke tests — no regressions (including the pre-existing `kon_vertical_slice_smoke_test.gd`, which now gets a randomized objective per run since it doesn't pin one; confirmed none of its assertions depend on which objective is active).
+
+**Not done**: only 2 of the ~9 objective types §9/§28 describe exist. The remaining ones (seal portals, recover relics, defend a siege, cleanse landmarks) would need new content-plot types or map state that doesn't exist yet — this pass only picked the one objective type buildable entirely from state the game already tracks.
+
 ### Open, not yet decided
 
 - **AI-test army mix** — confirm whether the stress-test mode spawning KON-vs-KON is intentional before anyone "fixes" it as a bug.
