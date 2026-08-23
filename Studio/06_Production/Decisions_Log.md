@@ -52,7 +52,37 @@ Documented as `wizard-rts/DARK_FOREST_FRONTIER_V2_ART_BIBLE.md` — the new lock
 
 **Not done yet, by design** — this was a documentation pass, not a generation pass: the high-ground tier has zero real assets (terrain material is still a tinted copy of low-ground), and the two weak props flagged in the prior entry weren't regenerated. Both are the clear next steps, not open questions.
 
+### 2026-08-16 to 08-19 — Terrain/props: full-coverage volume pass, new Lantern Tree category
+
+Ran three generation batches (60 new assets on top of the 39 from 2026-08-11) covering nearly every prop/terrain category that still had 1-3 variants: mushrooms, rocks, roots, ruins, shrines, altars, arches, torches, bone decor, dead trees, road/water decor, cliffs, and ramps. Added a new category, `LANTERN_TREE_BLOCKER` (trees with lantern-shaped hanging pods), wired into `map_3d_renderer.gd`'s placement roll — deliberately routed through the real category-registration path this time, not repeating the earlier `RAMP_MESH` mistake where an asset category existed but was never referenced by the renderer. Every asset's material was verified by reading each GLB's embedded `baseColorFactor` directly against the style profile, not by eyeballing thumbnails; zero material-fallback bugs across all 60.
+
+Also fixed along the way: the Asset Forge gallery's thumbnail renderer was crushing every dark-stone/blood-red prop into an unreadable flat blob (near-black background + weak lights); a stale-row bug left purged procedural placeholders as permanent ghost entries in the dashboard.
+
+Meshy credit balance ended at 50 (from 1810 at the start of this pass) — that's the real ceiling on this pipeline for now, not a stopping choice.
+
+### 2026-08-19 — Architecture: confirmed `map_3d_renderer.gd` is not the shipping renderer, and everything generated against it was invisible in the real game
+
+Andrew pushed back hard on the volume pass above: results were "mid," nothing was visibly changing in the actual game, and it didn't match the reference art style. All three were fair. Root cause, confirmed against `PROJECT_BRIEF.md` (already dated 2026-08-08, quoted verbatim): *"Live gameplay is 2D ... `map_3d_renderer.gd`/`map_3d_preview.gd` is a prototyping tool, not the shipping renderer ... Don't confuse 'there's a polished 3D renderer' with 'the game is 3D.'"* Every prop generated this session (and some from 2026-08-11) went into that non-shipping scene. This was always documented — nobody had re-read it against what the terrain/prop pipeline work was actually doing.
+
+This reframes the terrain/prop pipeline's whole target: assets need to reach `scripts/map/main_map.tscn` (the real 2D game), not `map_3d_renderer.gd`.
+
+### 2026-08-19 — Terrain/props: real 2D art pipeline found already built and already stocked, just never wired up
+
+Investigation of `scripts/map/main_map.tscn`'s actual rendering found two things nobody had reconciled:
+
+1. `scripts/map/map_generator.gd` already has a working terrain-autotile + `Sprite2D` prop-placement system (`_paint_square_grid_map()`, `_apply_connected_ground_and_roads()`, `_paint_visual_props()`/`_try_place_visual_prop()`) — it was just pointed at a placeholder third-party tileset ("Tiny Swords") and had almost no real prop art to draw from.
+2. A PixelLab-generated isometric terrain-tile batch for this exact biome — fully scoped, correctly prompted, genuinely good quality, matte-painted and on-palette — had been sitting completely generated and completely unreviewed (`review_status.todo.json: "decision": "unreviewed"`) since roughly 2026-04-26. Nearly four months of paid-for, on-style art doing nothing because generation and review had drifted into two separate, disconnected cycles.
+
+Salvaged the existing PixelLab foliage art plus this session's tree billboard sprites (already flat, transparent, painted PNGs from an earlier attempt) directly into the folders `asset_registry.gd`'s existing `TREE`/`ROCK` mappings already scanned — **zero new asset-pack wiring needed**. Verified live in the actual shipping scene (launched through the real `GameSession.start_new_game` path, not a shortcut): 212 tree props and 710 rock props confirmed rendering, via engine log counts and a direct screenshot. Ground/road/water are still the Tiny Swords placeholder colors — that's the next piece, blocked on a `PIXELLAB_API_KEY` that isn't set anywhere yet.
+
+Also found and fixed a real, live bug while sorting art into those folders: the 3D GLB pipeline and the 2D sprite scanner write into the *same* folder names (`assets_game/props/{trees,rocks,ruins,decor}`), and leftover Meshy debug textures (normal maps, raw JPEG exports) were sitting there getting picked up by the 2D scanner as if they were flat sprite art. Cleaned up this instance; nothing currently stops it recurring on the next 3D-pipeline run — flagged in the new Master Design Doc (§37) as a needed permanent fix, not just a one-off cleanup.
+
+### 2026-08-19 — Design: Master Design Doc adopted
+
+Andrew supplied a full master design doc, hosted at `Studio/01_Design/MASTER_DESIGN_DOC.md`. It sets explicit design targets for both items previously logged as open below — wizard death **and** tower destruction both end the run (§9), and a real roguelike run structure is the literal target: class selection, procedural map, randomized objective, map-discovered upgrades researched back at the tower (§8, §17-18) — not just the procedural/evolution "texture" already in place. Also added §37, flagging the artwork generation pipeline (see the two entries above) as needing structural rework, with animation coverage called out as the single largest gap: only one unit (Oaven Spear) has ever been manually bridged from any generation pipeline into real working 2D gameplay animation.
+
+**Design is now settled on both points; implementation is not yet updated to match** — see Roadmap.
+
 ### Open, not yet decided
 
-- **Wizard death vs. loss condition** — currently the tower absorbs a wizard's killing blow and the wizard respawns; dying doesn't end the game on its own. Andrew flagged this needs clarifying. See [01_Design](../01_Design/README.md).
-- **Actual roguelike run structure** — no permadeath/meta-progression/mid-run choices exist. Is "roguelike" meant literally (needs designing) or as a vibe (procedural + build-evolving, already satisfied)?
+- **AI-test army mix** — confirm whether the stress-test mode spawning KON-vs-KON is intentional before anyone "fixes" it as a bug.

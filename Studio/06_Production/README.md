@@ -4,10 +4,11 @@ Roadmap, decisions log, status tracking — the glue. What's the state of things
 
 **Owner**: Bell (status/tracking, cross-session memory), Andrew (priorities, final call on sequencing).
 
-## The two files that matter most here
+## The files that matter most here
 
 - **[Roadmap.md](Roadmap.md)** — everything currently open, prioritized. Start here if you're asking "what's next."
 - **[Decisions_Log.md](Decisions_Log.md)** — append-only record of major calls and why they were made. Start here if you're asking "why does it work this way."
+- **[Unattended_Work_Definition_of_Done.md](Unattended_Work_Definition_of_Done.md)** — the checklist any task run with less active supervision (Bell's task-mode loop, batch generation cycles, scheduled agents) must pass before it's marked done. Written directly off this project's own track record of what goes wrong without it — read the 2026-08-19 Decisions Log entries first for why it exists.
 
 ## Live status
 

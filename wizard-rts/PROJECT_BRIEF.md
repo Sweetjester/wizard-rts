@@ -2,6 +2,8 @@
 
 Living reference for anyone (human or AI) picking up this project. Last synthesized: 2026-08-08, from a full read of the codebase and design docs. Update this file when major systems change — don't let it go stale like some of the asset-pipeline status docs have.
 
+**Design vision**: this brief documents current implementation status. For the full intended design — core loop, classes, roguelike upgrade/research loop, procedural map generation, enemy pressure, day/night, weather, bosses, design priorities and explicit non-goals — read `Studio/01_Design/MASTER_DESIGN_DOC.md` (2026-08-19) first. It's written for agents picking this project up cold; where it's ahead of what's built here, that's tracked work, not a conflict between the two docs.
+
 ## What the game is
 
 A **Godot 4.6** real-time strategy game (confirmed via `project.godot`'s `config/features`). The player controls **KON**, led by a persistent, controllable **hero wizard unit** (not just a base — the wizard walks around, fights, and can die/respawn), commanding an evolving roster of creature units against **Deom Legion**, a tiered enemy faction, across procedurally generated 96×96 maps. Structurally it's closer to an RTS/hero-unit hybrid (WarCraft III-ish) than a pure base-builder.
