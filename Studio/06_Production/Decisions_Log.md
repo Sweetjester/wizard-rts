@@ -193,6 +193,17 @@ New smoke test `day_night_cycle_smoke_test.gd` drives the cycle with large synth
 
 **Not done**: this doesn't touch vision/fog, enemy type unlocks, merchant activity, or any of §25's other listed effects — those need either fog of war (a separate, currently-disabled system) or merchants/quests (which don't exist yet at all, see §23). Flagged as future depth, not attempted here.
 
+### 2026-08-23 — Bugfix: two real performance regressions from this session's wizard-leveling work, caught while Andrew was live-testing
+
+Andrew reported lag after playing a run with everything from this session's roguelike-upgrade push. Two genuine regressions found, both from the wizard-leveling feature specifically:
+
+1. **`RTSUnit.take_damage()`** (fires on every hit, every unit, the hottest path in the whole combat sim) called `source.has_method("_gain_wizard_xp")` unconditionally. First fix attempt (`class_name Wizard` + an `is Wizard` type check, expected to be cheaper than reflection) **broke the game outright** — a base class referencing a subclass's `class_name` created a circular class-resolution failure that failed to parse *every* unit script, not just the wizard's. Caught immediately by the smoke suite (parse errors, a hung test run) before it was ever committed. Fixed instead with a plain `StringName` property read (`source.get("unit_archetype")` against the 3 known wizard archetypes) — no cross-class reference needed, and `has_method()` now only runs for the rare actual-wizard case.
+2. **`rts_hud.gd`'s `_selection_signature()`** — the change-detection check behind the HUD's selection panel, runs every frame for every currently-selected unit. Had a `_has_property()` call added to detect wizards, which does a full `get_property_list()` reflection scan. This one is worse than #1: it fires constantly regardless of whether anything is even happening, scaling with selection size, not combat activity. Replaced with the archetype check the function already computed anyway.
+
+Neither would have been caught by the existing smoke suite on their own merits — smoke tests check correctness (does the right thing happen), not performance (how expensive is it). This is exactly the gap `Unattended_Work_Definition_of_Done.md`'s evidence check doesn't cover yet for code changes; noted as a real gap, not fixed here — the current bar is "smoke tests pass," and passing correctly while being slow is invisible to that bar.
+
+**Lesson for future sessions**: this project already has a documented performance culture (LOD rendering, batched movement, ~3000-unit stress tests) — any new hook added to `RTSUnit`'s combat resolution or per-frame HUD update paths needs to be evaluated for hot-path cost, not just correctness, before it ships. `has_method()`/`get_property_list()` reflection is the specific pattern to watch for; a plain property read or an already-computed value is almost always available instead.
+
 ### Open, not yet decided
 
 - **AI-test army mix** — confirm whether the stress-test mode spawning KON-vs-KON is intentional before anyone "fixes" it as a bug.
