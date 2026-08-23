@@ -124,37 +124,7 @@ func take_damage(amount: int, source: Node = null, damage_type: StringName = &"p
 	_gain_evolution_xp(float(actual_damage) * 0.35)
 	queue_redraw()
 	if health <= 0:
-		_handle_lethal_damage(source)
-
-func _handle_lethal_damage(_source: Node = null) -> void:
-	var tower := _player_wizard_tower()
-	if tower == null:
-		queue_free()
-		return
-	tower.take_damage(120, self)
-	if not is_instance_valid(tower) or int(tower.get("health")) <= 0:
-		queue_free()
-		return
-	_respawn_at_wizard_tower(tower)
-
-func _respawn_at_wizard_tower(tower: Node2D) -> void:
-	var respawn_pos := tower.global_position + Vector2(92, 42)
-	if terrain != null:
-		var cell: Vector2i = terrain.world_to_cell(respawn_pos)
-		respawn_pos = terrain.cell_to_world(terrain.nearest_walkable_cell(cell, 8))
-	global_position = respawn_pos
-	target_pos = respawn_pos
-	path.clear()
-	moving = false
-	attack_target = null
-	health = maxi(1, int(float(max_health) * 0.4))
-	stun_for_seconds(4.0)
-
-func _player_wizard_tower() -> Node2D:
-	for structure in get_tree().get_nodes_in_group("structures"):
-		if is_instance_valid(structure) and int(structure.get("owner_player_id")) == owner_player_id and str(structure.get("archetype")) == "wizard_tower":
-			return structure
-	return null
+		_die(source)
 
 func _draw() -> void:
 	if has_node("ArtSprite"):

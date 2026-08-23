@@ -8,7 +8,7 @@ Everything currently open, roughly prioritized. Not a schedule — a backlog. Up
 
 ## Design targets set, implementation not yet updated (from `MASTER_DESIGN_DOC.md`, landed 2026-08-19)
 
-- **Wizard death/loss condition** — design target: wizard death **and** tower destruction both end the run (§9). Current code: the tower absorbs the killing blow and the wizard respawns at 40% HP with a stun; dying doesn't end the game on its own. This is now an engineering task to bring the code in line with the design doc, not an open design question.
+- ~~Wizard death/loss condition~~ — **done 2026-08-23**. Wizard death and tower destruction are now independent loss triggers per §9 (previously required both, and only matched the `life_wizard` archetype). See Decisions Log.
 - **Roguelike run structure** — design target: class selection, procedural map, randomized objective, map-discovered upgrades researched back at the tower (§8, §17-18). Current code has procedural maps + evolution-through-combat (roguelike *texture*) but none of the actual run-structure loop (class select, per-run objective, upgrade discovery/research). Real scope of work — not a small task.
 
 ## Engineering, prioritized (from `PERFORMANCE_CRITIQUE.md`)

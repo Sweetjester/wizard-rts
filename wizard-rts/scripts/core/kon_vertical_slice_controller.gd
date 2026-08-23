@@ -5,6 +5,9 @@ const BIOME_ID := "DARK_FOREST_FRONTIER"
 const OUTPOST_ARCHETYPE := &"enemy_outpost"
 const PLAYER_ID := 1
 const ENEMY_ID := 2
+const WIZARD_ARCHETYPES: Array[StringName] = [&"life_wizard", &"fire_wizard", &"evangalion_wizard"]
+
+signal defeat_triggered(reason: String)
 
 @export var enabled: bool = true
 @export var map_generator_path: NodePath = NodePath("../MapGenerator")
@@ -309,15 +312,17 @@ func _check_defeat() -> void:
 			has_tower = true
 			break
 	for unit in _player_units():
-		if is_instance_valid(unit) and str(unit.get("unit_archetype")) == "life_wizard":
+		if is_instance_valid(unit) and StringName(str(unit.get("unit_archetype"))) in WIZARD_ARCHETYPES:
 			has_wizard = true
 			break
-	if has_tower or has_wizard:
+	if has_tower and has_wizard:
 		return
 	_defeat = true
 	if wave_director != null:
 		wave_director.enabled = false
-	print("[KonVerticalSlice] DEFEAT: no wizard tower or KON wizard remains.")
+	var reason := "wizard tower destroyed" if not has_tower else "the KON wizard has fallen"
+	print("[KonVerticalSlice] DEFEAT: ", reason, ".")
+	defeat_triggered.emit(reason)
 
 func _update_overlay() -> void:
 	if _label == null:

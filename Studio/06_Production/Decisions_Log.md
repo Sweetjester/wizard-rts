@@ -83,6 +83,17 @@ Andrew supplied a full master design doc, hosted at `Studio/01_Design/MASTER_DES
 
 **Design is now settled on both points; implementation is not yet updated to match** — see Roadmap.
 
+### 2026-08-23 — Engineering: wizard death now ends the run, independent of tower state
+
+First concrete implementation pass against [[2026-08-19 — Design: Master Design Doc adopted]]'s §9 target. Two bugs, found together by tracing the actual code path with a subagent before touching anything:
+
+1. `scripts/wizard.gd`'s lethal-damage handler didn't let the wizard die at all — it redirected 120 damage onto the wizard tower and respawned the wizard at 40% HP with a stun. Wizard death was structurally impossible.
+2. `scripts/core/kon_vertical_slice_controller.gd`'s `_check_defeat()` required *both* the tower destroyed *and* no life-archetype wizard alive (`has_tower or has_wizard: return`) — the opposite of the design target, where either loss condition alone should end the run. It also only ever matched `unit_archetype == "life_wizard"`, so the fire and evangalion wizard classes could never satisfy `has_wizard` — a second, independent latent bug masked by the first (as long as the tower stood, defeat never fired regardless).
+
+Fix: `wizard.gd`'s lethal-damage path now calls the inherited `RTSUnit._die()` directly (real death FX/passives, `queue_free()`) instead of the tower-absorb-and-respawn detour. `_check_defeat()` now fires on either trigger going independently, checks all three wizard archetypes via a `WIZARD_ARCHETYPES` const, and emits a new `defeat_triggered(reason)` signal — previously defeat had zero player-facing feedback (a debug print only), asymmetric with victory's `boss_defeated` → HUD countdown. `rts_hud.gd` now listens and reuses the existing victory-return-to-menu countdown, generalized to carry a title/prefix instead of being hardcoded to "Victory."
+
+New smoke test: `scripts/core/wizard_death_defeat_smoke_test.gd` — covers wizard death ending the run while the tower still stands (proves the independent-trigger fix) and a fire-wizard boot not false-triggering defeat at spawn (proves the archetype-matching fix; under the new OR-based logic, that bug would have caused instant defeat on boot for any non-life_wizard class). Ran against the existing `kon_vertical_slice_smoke_test.gd` and `wizard_movement_smoke_test.gd` too — no regressions.
+
 ### Open, not yet decided
 
 - **AI-test army mix** — confirm whether the stress-test mode spawning KON-vs-KON is intentional before anyone "fixes" it as a bug.

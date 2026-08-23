@@ -14,6 +14,7 @@ const VICTORY_RETURN_SECONDS := 5.0
 @export var map_generator_path: NodePath = NodePath("../MapGenerator")
 @export var rts_world_path: NodePath = NodePath("../RTSWorld")
 @export var combat_system_path: NodePath = NodePath("../CombatSystem")
+@export var kon_vertical_slice_path: NodePath = NodePath("../KonVerticalSliceController")
 
 var economy_manager: EconomyManager
 var wave_director: WaveDirector
@@ -22,6 +23,7 @@ var build_system: Node
 var map_generator: Node
 var rts_world: RTSWorld
 var combat_system: Node
+var kon_vertical_slice: Node
 var resource_label: Label
 var phase_label: Label
 var selection_label: Label
@@ -43,6 +45,8 @@ var _alert_until_msec: int = 0
 var _boss_warning_shown := false
 var _victory_return_remaining := -1.0
 var _last_victory_second := -1
+var _return_phase_title := "Victory"
+var _return_alert_prefix := "VICTORY"
 var _telemetry_elapsed := 0.0
 
 func _ready() -> void:
@@ -54,7 +58,12 @@ func _ready() -> void:
 	map_generator = get_node_or_null(map_generator_path)
 	rts_world = get_node_or_null(rts_world_path)
 	combat_system = get_node_or_null(combat_system_path)
+	kon_vertical_slice = get_node_or_null(kon_vertical_slice_path)
 	_build_ui()
+	if kon_vertical_slice != null and kon_vertical_slice.has_signal("defeat_triggered"):
+		kon_vertical_slice.defeat_triggered.connect(func(reason: String) -> void:
+			_start_defeat_return_countdown(reason)
+		)
 	if economy_manager != null:
 		economy_manager.resources_changed.connect(_on_resources_changed)
 	if wave_director != null:
@@ -922,6 +931,16 @@ func _show_alert(text: String) -> void:
 	_alert_until_msec = Time.get_ticks_msec() + 7000
 
 func _start_victory_return_countdown() -> void:
+	_return_phase_title = "Victory"
+	_return_alert_prefix = "VICTORY"
+	_victory_return_remaining = VICTORY_RETURN_SECONDS
+	_last_victory_second = -1
+	_update_victory_return_countdown(0.0)
+
+func _start_defeat_return_countdown(reason: String) -> void:
+	_return_phase_title = "Defeat"
+	_return_alert_prefix = "DEFEAT"
+	status_label.text = reason.capitalize()
 	_victory_return_remaining = VICTORY_RETURN_SECONDS
 	_last_victory_second = -1
 	_update_victory_return_countdown(0.0)
@@ -931,9 +950,9 @@ func _update_victory_return_countdown(delta: float) -> void:
 	var seconds_left := maxi(0, ceili(_victory_return_remaining))
 	if seconds_left != _last_victory_second:
 		_last_victory_second = seconds_left
-		phase_label.text = "Victory"
+		phase_label.text = _return_phase_title
 		status_label.text = "Returning to main menu in %s" % seconds_left
-		_show_alert("VICTORY - RETURNING IN %s" % seconds_left)
+		_show_alert("%s - RETURNING IN %s" % [_return_alert_prefix, seconds_left])
 	if _victory_return_remaining <= 0.0:
 		_victory_return_remaining = -1.0
 		get_tree().change_scene_to_file(MAIN_MENU_SCENE)
