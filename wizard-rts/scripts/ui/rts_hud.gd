@@ -6,6 +6,14 @@ const BIO_MEND_FX: Texture2D = preload("res://assets/fx/kon/bio_mend_spell_sheet
 const SEAL_AWAY_FX: Texture2D = preload("res://assets/fx/kon/seal_away_spell_sheet.png")
 const MAIN_MENU_SCENE := "res://scenes/ui/main_menu.tscn"
 const VICTORY_RETURN_SECONDS := 5.0
+const BARRACKS_UNIT_BUTTONS := [
+	{"archetype": &"terrible_thing", "label": "Thing"},
+	{"archetype": &"oaven_spear", "label": "Oaven"},
+	{"archetype": &"horror", "label": "Horror"},
+	{"archetype": &"apex", "label": "Apex"},
+	{"archetype": &"spawner", "label": "Spawner"},
+	{"archetype": &"stone_face_serpent", "label": "Serpent"},
+]
 
 @export var economy_manager_path: NodePath = NodePath("../EconomyManager")
 @export var wave_director_path: NodePath = NodePath("../WaveDirector")
@@ -809,12 +817,7 @@ func _rebuild_context_commands(selected: Array[Node]) -> void:
 		_add_button(command_container, "Seal Away", _seal_away)
 		_add_button(command_container, "Observer Aura", func() -> void: _activate_selected("activate_observer_aura", "Observer Aura"))
 	elif _selection_has_archetype(selected, &"barracks"):
-		_add_button(command_container, "Thing", func() -> void: _produce_from_selected(&"terrible_thing"))
-		_add_button(command_container, "Oaven", func() -> void: _produce_from_selected(&"oaven_spear"))
-		_add_button(command_container, "Horror", func() -> void: _produce_from_selected(&"horror"))
-		_add_button(command_container, "Apex", func() -> void: _produce_from_selected(&"apex"))
-		_add_button(command_container, "Spawner", func() -> void: _produce_from_selected(&"spawner"))
-		_add_button(command_container, "Serpent", func() -> void: _produce_from_selected(&"stone_face_serpent"))
+		_add_barracks_training_buttons()
 	elif _selection_has_archetype(selected, &"bio_absorber"):
 		_add_button(command_container, "Heal Aura", func() -> void: _absorber_upgrade(&"heal_aura"))
 		_add_button(command_container, "Bio Turret", func() -> void: _absorber_upgrade(&"bio_launcher"))
@@ -835,6 +838,15 @@ func _selection_has_archetype(selected: Array[Node], archetype: StringName) -> b
 		if _archetype_for(node) == archetype:
 			return true
 	return false
+
+func _add_barracks_training_buttons() -> void:
+	var session := get_node_or_null("/root/GameSession")
+	var wizard_class_id := str(session.get("wizard_class_id")) if session != null else ""
+	for entry in BARRACKS_UNIT_BUTTONS:
+		var archetype: StringName = entry["archetype"]
+		if not UnitCatalog.is_unit_allowed_for_class(archetype, wizard_class_id):
+			continue
+		_add_button(command_container, str(entry["label"]), func() -> void: _produce_from_selected(archetype))
 
 func _archetype_for(node: Node) -> StringName:
 	if _has_property(node, "unit_archetype"):

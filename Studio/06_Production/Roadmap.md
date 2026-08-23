@@ -9,7 +9,8 @@ Everything currently open, roughly prioritized. Not a schedule — a backlog. Up
 ## Design targets set, implementation not yet updated (from `MASTER_DESIGN_DOC.md`, landed 2026-08-19)
 
 - ~~Wizard death/loss condition~~ — **done 2026-08-23**. Wizard death and tower destruction are now independent loss triggers per §9 (previously required both, and only matched the `life_wizard` archetype). See Decisions Log.
-- **Roguelike run structure** — design target: class selection, procedural map, randomized objective, map-discovered upgrades researched back at the tower (§8, §17-18). Current code has procedural maps + evolution-through-combat (roguelike *texture*) but none of the actual run-structure loop (class select, per-run objective, upgrade discovery/research). Real scope of work — not a small task.
+- ~~Class unit rosters~~ — **first pass done 2026-08-23**. All 3 wizard classes trained from one identical shared roster (zero differentiation — a direct violation of §16). Now gated per class using only existing units (no new art commissioned). See Decisions Log for the split and what's still missing (full 5-6-unit rosters per class, class-specific buildings/economy twists).
+- **Roguelike run structure** — design target: class selection, procedural map, randomized objective, map-discovered upgrades researched back at the tower (§8, §17-18). Current code has procedural maps + evolution-through-combat (roguelike *texture*) but none of the actual run-structure loop (per-run objective, upgrade discovery/research as a player choice — the existing "research" at the Terrible Vault is real but is 4 hardcoded flat stat buffs, not upgrade discovery). Real scope of work — not a small task.
 
 ## Engineering, prioritized (from `PERFORMANCE_CRITIQUE.md`)
 
@@ -39,4 +40,4 @@ Everything currently open, roughly prioritized. Not a schedule — a backlog. Up
 - `ASSET_REPLACEMENT_STATUS.md` is superseded by `DARK_FOREST_FRONTIER_V2_STATUS.md` — consider archiving the stale one rather than leaving both live.
 - No audio/SFX plan exists yet — see [04_Audio](../04_Audio/README.md).
 - No narrative bible exists yet — see [05_Narrative](../05_Narrative/README.md).
-- A stray, unmerged `worktree-agent-...` branch exists in the repo (found while planning unattended-work safety, see `Unattended_Work_Definition_of_Done.md`) — looks like a dropped prior attempt at exactly the worktree-per-task pattern that doc now formalizes. Worth checking what it contains before deleting it.
+- ~~Stray `worktree-agent-...` branch~~ — **checked and deleted 2026-08-23**. It pointed at the same commit already in `main`'s history (the 2026-08-17 Lantern Tree recolor) — zero unique commits, nothing to salvage. Confirmed local-only (not on `origin`) before deleting.

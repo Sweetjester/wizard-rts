@@ -793,6 +793,16 @@ const DEFINITIONS := {
 	},
 }
 
+const CLASS_UNIT_ROSTERS := {
+	"bad_kon_willow": [&"apex", &"champion", &"oaven_spear", &"oaven_jumper"],
+	"hellfire_baby": [&"terrible_thing", &"gripper", &"spawner", &"winged_spawner", &"spawner_drone"],
+	"evangalion": [&"horror", &"hunter", &"stone_face_serpent"],
+}
+
+static func is_unit_allowed_for_class(archetype: StringName, wizard_class_id: String) -> bool:
+	var roster: Array = CLASS_UNIT_ROSTERS.get(wizard_class_id, [])
+	return roster.is_empty() or roster.has(archetype)
+
 static func get_definition(archetype: StringName) -> Dictionary:
 	return DEFINITIONS.get(archetype, {})
 

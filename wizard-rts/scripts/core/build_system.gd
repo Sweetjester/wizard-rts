@@ -214,6 +214,12 @@ func _place_vinewall_drag(player_id: int, start: Vector2i, end: Vector2i) -> voi
 		build_rejected.emit("No valid Vinewall cells")
 	queue_redraw()
 
+func _current_wizard_class_id() -> String:
+	var session := get_node_or_null("/root/GameSession")
+	if session == null:
+		return ""
+	return str(session.get("wizard_class_id"))
+
 func produce_unit(player_id: int, archetype: StringName) -> bool:
 	var producer := _first_structure_with_production(archetype, player_id)
 	if producer.is_empty():
@@ -221,6 +227,9 @@ func produce_unit(player_id: int, archetype: StringName) -> bool:
 			build_rejected.emit("Barracks is still building")
 		else:
 			build_rejected.emit("Requires completed Barracks")
+		return false
+	if not UnitCatalog.is_unit_allowed_for_class(archetype, _current_wizard_class_id()):
+		build_rejected.emit("Not available for this class")
 		return false
 	var costs := {&"bio": UnitCatalog.cost_bio(archetype)}
 	if economy_manager == null or not economy_manager.spend(player_id, costs):
@@ -278,6 +287,9 @@ func produce_unit_from_structure(player_id: int, archetype: StringName, producer
 	var definition := UnitCatalog.get_definition(producer["archetype"])
 	if not definition.get("production", []).has(archetype):
 		build_rejected.emit("This building cannot train that unit")
+		return false
+	if not UnitCatalog.is_unit_allowed_for_class(archetype, _current_wizard_class_id()):
+		build_rejected.emit("Not available for this class")
 		return false
 	var costs := {&"bio": UnitCatalog.cost_bio(archetype)}
 	if economy_manager == null or not economy_manager.spend(player_id, costs):

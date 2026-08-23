@@ -94,6 +94,30 @@ Fix: `wizard.gd`'s lethal-damage path now calls the inherited `RTSUnit._die()` d
 
 New smoke test: `scripts/core/wizard_death_defeat_smoke_test.gd` — covers wizard death ending the run while the tower still stands (proves the independent-trigger fix) and a fire-wizard boot not false-triggering defeat at spawn (proves the archetype-matching fix; under the new OR-based logic, that bug would have caused instant defeat on boot for any non-life_wizard class). Ran against the existing `kon_vertical_slice_smoke_test.gd` and `wizard_movement_smoke_test.gd` too — no regressions.
 
+### 2026-08-23 — Design/Engineering: audited the "evolution," "research," and class-roster systems against §16-18, found two of three were disguised
+
+Before picking the next engineering target after the wizard-death fix, audited what the design doc's Priority 2 items (§17 Roguelike Upgrade System, §18 Research, §16 Classes) actually map to in code, rather than assuming from names alone:
+
+- **"Evolution"** (`_gain_evolution_xp()` in `rts_unit.gd`, the evolution bar in the HUD) is automatic per-unit stat/archetype swapping triggered by dealing combat damage (e.g. Terrible Thing → Gripper at an XP threshold) — no player choice, nothing found in the world, no trip to the tower. It reads like the roguelike upgrade system at a glance but isn't one; it's closer to a leveling mechanic.
+- **"Research"** (`build_system.gd`'s `research_upgrade()`, gated behind a completed Terrible Vault) is real but shallow: exactly 4 hardcoded flat stat buffs (thorned vines, accelerated evolution, hardened horrors, launcher bile), no choices, no tree, not tied to anything found on the map.
+- **Class rosters** (§16, Pillar 7 "Classes Change How You Play") were the actual gap, and a clean one: `barracks`'s `production` list in `unit_catalog.gd` was a single hardcoded array of 6 unit families, identical regardless of which of the 3 wizard classes (`bad_kon_willow`/`hellfire_baby`/`evangalion`) the player picked. Choosing a class only ever changed the wizard's own sprite and combat stats — the entire army was always the same army. Confirmed via grep: no `wizard_class`/`class_id` filter existed anywhere in `unit_catalog.gd` or `build_system.gd`.
+
+Class rosters were picked as the next target over deepening research/evolution: it's a core identity pillar that was **completely** unbuilt (not partially), it's the base a real roguelike upgrade system (future work) would need to differentiate against anyway, and — critically — it's fixable using only the 6 unit families that already exist and already have working art, with zero new art or animation required. Deepening "research" into real upgrade discovery, or "evolution" into a player-facing choice system, would both be real value but are follow-on work, not blocked by this pass.
+
+### 2026-08-23 — Engineering: wizard classes now train different armies
+
+Added `UnitCatalog.CLASS_UNIT_ROSTERS` (`scripts/core/unit_catalog.gd`) splitting the 6 existing KON unit families 2-per-class along their existing flavor text, no new units or art:
+
+- **Bad Kon Willow** (life, the only builder/healer wizard — Bio Mend, tankiest HP): Apex/Champion ("combat healing" already in its role text) + Oaven Spear/Jumper (taunt-based frontline protector).
+- **Hellfire Baby** (fire, highest raw damage/lowest HP, aggressive glass cannon): Terrible Thing/Gripper (explosive, sacrificial swarm) + Spawner/Winged Spawner (heavy AoE cannon).
+- **Evangalion** (highest sight radius, scout-flavored): Horror/Hunter (fast ranged skirmisher) + Stone Face Serpent (defensive/utility wall-former).
+
+Enforced in both `build_system.gd` production entry points (`produce_unit()`, `produce_unit_from_structure()` — rejects with "Not available for this class") and in `rts_hud.gd`'s barracks button list (out-of-roster units simply don't show a button, rather than showing then rejecting). Buildings (barracks, bio absorber, vault, vinewall, bio launcher) stay universal for this pass — the violation found was specifically about army composition, not base infrastructure, and buildings weren't in scope. AI-owned production (enemy waves, the fortress-arena test mode) is unaffected — confirmed by grep that every real call site of `produce_unit`/`produce_unit_from_structure` hardcodes `player_id=1`; AI factions spawn through an entirely separate path (`WaveDirector._spawn_enemy`).
+
+New smoke test `scripts/core/class_unit_roster_smoke_test.gd` boots all 3 classes and confirms each can train its in-roster units and is rejected for another class's units. Ran alongside `kon_vertical_slice_smoke_test.gd`, `menu_start_smoke_test.gd`, `wizard_death_defeat_smoke_test.gd`, `fortress_ai_arena_smoke_test.gd`, and `kon_outpost_combat_smoke_test.gd` — no regressions.
+
+**Explicitly not done here, and shouldn't be read as "classes are finished"**: each class still only has 2 of the design template's suggested 5-6 unit slots (core/defensive/advanced/elite) — going further needs either creative reuse of what exists or new units, which runs straight into §37's art/animation bottleneck. Buildings, economy twists, and defensive styles are still shared across all classes. This is a first differentiation pass, not the full §16 target.
+
 ### Open, not yet decided
 
 - **AI-test army mix** — confirm whether the stress-test mode spawning KON-vs-KON is intentional before anyone "fixes" it as a bug.
