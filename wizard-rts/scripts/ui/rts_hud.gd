@@ -709,12 +709,18 @@ func _valid_selection() -> Array[Node]:
 	return selected
 
 func _selection_signature(selected: Array[Node]) -> String:
+	# Runs every frame for every selected unit -- must stay allocation/reflection-light.
+	# _has_property()'s get_property_list() scan was here originally and is real,
+	# measurable per-frame cost with a large selection; archetype is already computed
+	# below and a wizard's archetype is one of exactly 3 known values, so a plain
+	# string check plus a couple of safe (reflection-free) get() reads replaces it.
 	var parts: Array[String] = []
 	for node in selected:
+		var archetype := _archetype_for(node)
 		var extra := ""
-		if _has_property(node, "pending_level_up"):
+		if archetype == &"life_wizard" or archetype == &"fire_wizard" or archetype == &"evangalion_wizard":
 			extra = ":lvl%s:%s" % [str(node.get("wizard_level")), str(node.get("pending_level_up"))]
-		parts.append("%s:%s%s" % [node.get_instance_id(), str(_archetype_for(node)), extra])
+		parts.append("%s:%s%s" % [node.get_instance_id(), str(archetype), extra])
 	return "|".join(parts)
 
 func _update_selection_details(selected: Array[Node]) -> void:
