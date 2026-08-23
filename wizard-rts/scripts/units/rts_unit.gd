@@ -952,7 +952,8 @@ func _observer_aura_range_bonus() -> float:
 		if _owner_id_for_node(ally) != owner_player_id:
 			continue
 		if ally.has_method("is_observer_aura_enabled") and bool(ally.call("is_observer_aura_enabled")):
-			return 64.0
+			var rank := int(ally.call("wizard_upgrade_rank", "observer_aura")) if ally.has_method("wizard_upgrade_rank") else 0
+			return 64.0 + float(rank) * 16.0
 	return 0.0
 
 func _update_animation_action() -> void:
@@ -1115,6 +1116,8 @@ func take_damage(amount: int, source: Node = null, damage_type: StringName = &"p
 		rts_world.record_damage(source, self, actual_damage)
 	health = maxi(0, health - actual_damage)
 	_gain_evolution_xp(float(actual_damage) * 0.35)
+	if source != null and is_instance_valid(source) and source.has_method("_gain_wizard_xp"):
+		source.call("_gain_wizard_xp", float(actual_damage) * 0.5 + (40.0 if health <= 0 else 0.0))
 	if not _mass_performance_mode() or selected or health <= 0:
 		_queue_unit_redraw(health <= 0)
 	if health <= 0:

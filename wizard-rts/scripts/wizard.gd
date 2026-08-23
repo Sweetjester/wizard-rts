@@ -4,12 +4,27 @@ const LIFE_WIZARD_SHEET: Texture2D = preload("res://assets/units/kon/bad_kon_wil
 const FIRE_WIZARD_SHEET: Texture2D = preload("res://assets/units/vampire_mushroom_forest/fire_wizard_sheet.png")
 const EVANGALION_PORTRAIT: Texture2D = preload("res://assets/ui/characters/evangalion.png")
 
+# WC3-style hero leveling: the wizard gains XP from combat, and each level lets
+# the player choose one upgrade rather than applying it automatically (unlike
+# the generic per-unit "evolution" system, which is automatic with no choice).
+const WIZARD_MAX_LEVEL := 6
+const WIZARD_XP_BASE := 220.0
+const WIZARD_XP_GROWTH := 1.35
+const SPELL_UPGRADE_OPTIONS: Array[String] = ["bio_mend", "seal_away", "observer_aura"]
+const STAT_UPGRADE_OPTIONS: Array[String] = ["power", "vitality", "swiftness"]
+
+signal leveled_up(new_level: int, options: Array)
+
 @onready var art_sprite: Sprite2D = get_node_or_null("ArtSprite")
 
 var _anim_elapsed := 0.0
 var _anim_frame := 0
 var _wizard_class_id := "bad_kon_willow"
 var _art_base_position := Vector2.ZERO
+var wizard_level := 1
+var wizard_xp := 0.0
+var pending_level_up := false
+var wizard_upgrade_ranks: Dictionary = {}
 
 func _ready() -> void:
 	match _get_session_wizard_class():
@@ -125,6 +140,43 @@ func take_damage(amount: int, source: Node = null, damage_type: StringName = &"p
 	queue_redraw()
 	if health <= 0:
 		_die(source)
+
+func _xp_required_for_level(level: int) -> float:
+	return WIZARD_XP_BASE * pow(WIZARD_XP_GROWTH, float(level - 1))
+
+func _gain_wizard_xp(amount: float) -> void:
+	if _dying or wizard_level >= WIZARD_MAX_LEVEL or amount <= 0.0:
+		return
+	wizard_xp += amount
+	while wizard_level < WIZARD_MAX_LEVEL and wizard_xp >= _xp_required_for_level(wizard_level):
+		wizard_xp -= _xp_required_for_level(wizard_level)
+		wizard_level += 1
+		pending_level_up = true
+		leveled_up.emit(wizard_level, wizard_upgrade_options())
+
+func wizard_upgrade_options() -> Array:
+	return SPELL_UPGRADE_OPTIONS if _wizard_class_id == "bad_kon_willow" else STAT_UPGRADE_OPTIONS
+
+func wizard_upgrade_rank(option: String) -> int:
+	return int(wizard_upgrade_ranks.get(option, 0))
+
+func choose_wizard_upgrade(option: String) -> bool:
+	if not pending_level_up or not wizard_upgrade_options().has(option):
+		return false
+	wizard_upgrade_ranks[option] = wizard_upgrade_rank(option) + 1
+	pending_level_up = false
+	match option:
+		"power":
+			attack_damage += 4
+		"vitality":
+			max_health += 40
+			health += 40
+		"swiftness":
+			move_speed += 12.0
+		_:
+			pass
+	print("[Wizard] Level ", wizard_level, " upgrade chosen: ", option, " (rank ", wizard_upgrade_rank(option), ")")
+	return true
 
 func _draw() -> void:
 	if has_node("ArtSprite"):

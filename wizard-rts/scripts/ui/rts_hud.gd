@@ -711,7 +711,10 @@ func _valid_selection() -> Array[Node]:
 func _selection_signature(selected: Array[Node]) -> String:
 	var parts: Array[String] = []
 	for node in selected:
-		parts.append("%s:%s" % [node.get_instance_id(), str(_archetype_for(node))])
+		var extra := ""
+		if _has_property(node, "pending_level_up"):
+			extra = ":lvl%s:%s" % [str(node.get("wizard_level")), str(node.get("pending_level_up"))]
+		parts.append("%s:%s%s" % [node.get_instance_id(), str(_archetype_for(node)), extra])
 	return "|".join(parts)
 
 func _update_selection_details(selected: Array[Node]) -> void:
@@ -812,6 +815,8 @@ func _rebuild_context_commands(selected: Array[Node]) -> void:
 	_clear_commands()
 	if selected.is_empty():
 		return
+	if _add_wizard_level_up_buttons(selected):
+		return
 	if _selection_has_archetype(selected, &"life_wizard"):
 		_add_button(command_container, "Bio Absorber", func() -> void: _start_build(&"bio_absorber"))
 		_add_button(command_container, "Barracks", func() -> void: _start_build(&"barracks"))
@@ -837,6 +842,28 @@ func _rebuild_context_commands(selected: Array[Node]) -> void:
 			_add_button(command_container, "Level Up", _debug_level_up_selected)
 		_add_button(command_container, "Bio Mend", _bio_mend)
 		_add_button(command_container, "Seal Away", _seal_away)
+
+func _add_wizard_level_up_buttons(selected: Array[Node]) -> bool:
+	var wizard: Node = null
+	for node in selected:
+		if is_instance_valid(node) and node.has_method("choose_wizard_upgrade") and bool(node.get("pending_level_up")):
+			wizard = node
+			break
+	if wizard == null:
+		return false
+	var options: Array = wizard.call("wizard_upgrade_options")
+	for option in options:
+		var option_id := str(option)
+		_add_button(command_container, option_id.capitalize(), func() -> void: _choose_wizard_upgrade(wizard, option_id))
+	status_label.text = "Wizard reached level %s -- choose an upgrade" % str(wizard.get("wizard_level"))
+	return true
+
+func _choose_wizard_upgrade(wizard: Node, option: String) -> void:
+	if not is_instance_valid(wizard):
+		return
+	if bool(wizard.call("choose_wizard_upgrade", option)):
+		status_label.text = "Wizard upgraded: %s" % option.capitalize()
+		_update_selection_panel(true)
 
 func _selection_has_archetype(selected: Array[Node], archetype: StringName) -> bool:
 	for node in selected:
@@ -1062,20 +1089,32 @@ func _produce_from_selected(archetype: StringName) -> void:
 	if build_system.has_method("produce_unit_from_structure"):
 		build_system.call("produce_unit_from_structure", 1, archetype, producer)
 
+func _player_wizard() -> Node:
+	for unit in get_tree().get_nodes_in_group("units"):
+		if is_instance_valid(unit) and int(unit.get("owner_player_id")) == 1 and unit.has_method("wizard_upgrade_rank"):
+			return unit
+	return null
+
 func _bio_mend() -> void:
 	if selection_controller == null:
 		return
+	var wizard := _player_wizard()
+	var rank := int(wizard.call("wizard_upgrade_rank", "bio_mend")) if wizard != null else 0
+	var heal_amount := 45 + rank * 25
 	var healed := 0
 	for unit in selection_controller.selected_units:
 		if is_instance_valid(unit) and unit.has_method("heal_damage"):
-			unit.heal_damage(45)
+			unit.heal_damage(heal_amount)
 			_spawn_spell_fx(unit, BIO_MEND_FX, Vector2(1.15, 1.15), Vector2(0, -10))
 			healed += 1
-	status_label.text = "Bio Mend healed %s selected allies" % healed
+	status_label.text = "Bio Mend healed %s selected allies for %s" % [healed, heal_amount]
 
 func _seal_away() -> void:
 	if selection_controller == null or economy_manager == null:
 		return
+	var wizard := _player_wizard()
+	var rank := int(wizard.call("wizard_upgrade_rank", "seal_away")) if wizard != null else 0
+	var stun_seconds := 6.0 + float(rank) * 1.5
 	var refunded := 0
 	var stunned := 0
 	for unit in selection_controller.selected_units.duplicate():
@@ -1083,7 +1122,7 @@ func _seal_away() -> void:
 			continue
 		if int(unit.get("owner_player_id")) != 1:
 			if unit.has_method("stun_for_seconds"):
-				unit.stun_for_seconds(6.0)
+				unit.stun_for_seconds(stun_seconds)
 				_spawn_spell_fx(unit, SEAL_AWAY_FX, Vector2(1.25, 1.25), Vector2(0, -12))
 				stunned += 1
 			continue
@@ -1095,7 +1134,7 @@ func _seal_away() -> void:
 			unit.queue_free()
 	if refunded > 0:
 		economy_manager.add_resource(1, &"bio", refunded)
-	status_label.text = "Seal Away returned %s Bio and stunned %s enemies" % [refunded, stunned]
+	status_label.text = "Seal Away returned %s Bio and stunned %s enemies for %ss" % [refunded, stunned, stun_seconds]
 
 func _spawn_spell_fx(target: Node, texture: Texture2D, visual_scale: Vector2, offset: Vector2) -> void:
 	if target == null or not is_instance_valid(target) or not (target is Node2D):

@@ -128,6 +128,23 @@ New smoke test `destroy_outposts_objective_smoke_test.gd` pins the objective exp
 
 **Not done**: only 2 of the ~9 objective types §9/§28 describe exist. The remaining ones (seal portals, recover relics, defend a siege, cleanse landmarks) would need new content-plot types or map state that doesn't exist yet — this pass only picked the one objective type buildable entirely from state the game already tracks.
 
+### 2026-08-23 — Design: told to default to WC3 design logic when a call is needed and Andrew isn't around to weigh in
+
+Andrew's instruction, given as a standing default rather than a one-off: **"if in doubt, follow WC3 design logic."** Applied immediately to the next open question (how to build the roguelike upgrade layer §17-18 asks for). WC3's actual hero model is XP from combat → level up → player picks which of the hero's own abilities to rank up (or a generic stat option if the hero has no more to pick from) — a materially different shape than "buy any of 4 flat buffs outright with resources" (the existing Terrible Vault research) or "random loot drops." Used that shape, not a from-scratch design, for the pass below.
+
+### 2026-08-23 — Engineering: wizard hero leveling, WC3-style — first real player-choice-driven progression for the wizard
+
+The [[2026-08-23 — Design/Engineering: audited the "evolution," "research," and class-roster systems against §16-18, found two of three were disguised]] audit found the wizard itself (the actual hero, §10) had zero progression of its own — the "evolution" system only ever applied to trained mob units, automatically, with no choice. Fixed by adding a separate, hero-specific leveling system to `wizard.gd` rather than overloading the generic per-unit evolution field (that field's automatic-swap semantics don't fit a player-choice mechanic, and reusing it would have put hero leveling at risk of interference from unrelated evolution-tuning changes elsewhere in the catalog):
+
+- Wizard gains XP from its own combat (damage dealt and kills, via a new 2-line hook in `rts_unit.gd`'s shared `take_damage()` that credits any source exposing a `_gain_wizard_xp` method — generic and inert for every other unit, not wizard-specific plumbing bolted into the base class).
+- Levels 1-6, WC3-shaped exponential XP curve. Each level-up sets a pending choice rather than applying anything automatically — the player must act, mirroring WC3's hero skill-point panel.
+- **Bad Kon Willow** (the only class with named spells — Bio Mend, Seal Away, Observer Aura) picks one of its three spells to rank up per level, scaling real existing numbers: Bio Mend's heal (+25/rank), Seal Away's stun duration (+1.5s/rank), Observer Aura's ally range bonus (+16/rank). **Hellfire Baby and Evangalion** (no named spells in the catalog — a real, pre-existing content gap, not something this pass could fix without inventing new spell behavior) fall back to a generic 3-way stat choice (Power/Vitality/Swiftness), matching WC3's own "no more ranks available, take +stats" fallback pattern rather than leaving those two classes without any progression at all.
+- HUD shows the choice as buttons when the wizard is selected and a choice is pending (mirrors the existing barracks-button pattern); the buttons disappear once chosen. Wired into the existing per-frame selection poll rather than a new signal-driven UI path, since one already existed and worked.
+
+New smoke test `wizard_leveling_smoke_test.gd` covers both the spell-choice and stat-choice paths, and specifically exercises the real combat hook (spawns a Deom enemy and calls `take_damage` on it) rather than only calling the XP function directly, so a regression in that wiring would be caught. Ran alongside all 7 other core smoke tests — no regressions.
+
+**Known limitations, not fixed here**: `pending_level_up` is a single flag, not a queue — an XP grant large enough to cross multiple level thresholds at once collapses into one pending choice, not several (realistic gradual combat XP won't hit this; only relevant to artificial mass-XP testing/debug tools). Damaging enemy *structures* doesn't grant wizard XP yet (`KonStructure` has its own separate `take_damage()`, not the `RTSUnit` one the hook lives in) — only unit kills/damage do. Fire Wizard and Evangalion still have no spell identity of their own, so their "upgrades" are stats-only until they get real named abilities — a content gap, not something patchable at the engineering layer.
+
 ### Open, not yet decided
 
 - **AI-test army mix** — confirm whether the stress-test mode spawning KON-vs-KON is intentional before anyone "fixes" it as a bug.
