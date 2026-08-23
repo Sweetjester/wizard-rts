@@ -51,12 +51,25 @@ func _run() -> void:
 		return
 	total_ranks_before = _total_ranks(wizard)
 
-	# Content plot clear should also grant a relic.
+	# Content plot clear should also grant a relic. Content plots now have a
+	# differentiated, per-archetype relic chance (see content_plot_reward_variety_smoke_test.gd)
+	# rather than a guaranteed drop, so target a shrine/landmark plot specifically --
+	# those are the two archetypes with a 100% relic_chance -- to keep this
+	# deterministic instead of flaky on whatever plot happens to be first.
 	var content_plots: Array = controller.get("_content_plots")
 	if content_plots.is_empty():
 		_fail("Expected at least one content plot")
 		return
-	var anchor: Vector2i = content_plots[0].get("anchor", Vector2i.ZERO)
+	var guaranteed_plot: Dictionary = {}
+	for plot in content_plots:
+		var archetype := str((plot as Dictionary).get("content_archetype", "")).to_lower()
+		if archetype.contains("shrine") or archetype.contains("landmark"):
+			guaranteed_plot = plot
+			break
+	if guaranteed_plot.is_empty():
+		_fail("Expected at least one shrine or landmark content plot for a deterministic relic check")
+		return
+	var anchor: Vector2i = guaranteed_plot.get("anchor", Vector2i.ZERO)
 	var map_generator: Node = scene.get_node("MapGenerator")
 	wizard.global_position = map_generator.call("cell_to_world", anchor)
 	controller.call("_check_content_clear")

@@ -289,14 +289,44 @@ func _check_content_clear() -> void:
 				continue
 			if unit.global_position.distance_to(world) <= content_clear_radius:
 				_cleared_content_ids[id] = true
+				var reward := _content_reward_for_plot(str(plot.get("content_archetype", "")))
 				if economy_manager != null:
-					economy_manager.add_resource(PLAYER_ID, &"bio", content_reward_bio)
-					economy_manager.add_resource(PLAYER_ID, &"essence", 1)
+					economy_manager.add_resource(PLAYER_ID, &"bio", int(reward["bio"]))
+					economy_manager.add_resource(PLAYER_ID, &"essence", int(reward["essence"]))
 				print("[KonVerticalSlice] Content cleared id=", id,
-					" reward_bio=", content_reward_bio,
+					" archetype=", plot.get("content_archetype", ""),
+					" reward_bio=", reward["bio"],
+					" reward_essence=", reward["essence"],
 					" cleared=", _cleared_content_ids.size(), "/", _content_plots.size())
-				_grant_wizard_relic("content plot %s cleared" % id)
+				if randf() <= float(reward["relic_chance"]):
+					_grant_wizard_relic("content plot %s cleared (%s)" % [id, plot.get("content_archetype", "")])
 				break
+
+func _content_reward_for_plot(archetype: String) -> Dictionary:
+	# Content plots already carry distinct narrative-flavor archetype tags from
+	# map generation (ruin/shrine/cache/crossroad/camp/ambush/landmark/encounter)
+	# that were previously discarded -- every plot paid the exact same flat
+	# reward regardless of what it actually was. §22 wants "risk, reward,
+	# choice, narrative flavor" per plot type; this reads the tag that already
+	# exists instead of inventing new map-gen work.
+	var lower := archetype.to_lower()
+	if lower.contains("landmark"):
+		return {"bio": 450, "essence": 3, "relic_chance": 1.0}
+	if lower.contains("shrine"):
+		return {"bio": 90, "essence": 2, "relic_chance": 1.0}
+	if lower.contains("cache"):
+		return {"bio": 320, "essence": 1, "relic_chance": 0.0}
+	if lower.contains("ruin"):
+		return {"bio": 180, "essence": 1, "relic_chance": 0.6}
+	if lower.contains("camp"):
+		return {"bio": 270, "essence": 2, "relic_chance": 0.4}
+	if lower.contains("crossroad"):
+		return {"bio": 135, "essence": 1, "relic_chance": 0.0}
+	if lower.contains("ambush"):
+		return {"bio": 216, "essence": 1, "relic_chance": 0.3}
+	if lower.contains("encounter"):
+		return {"bio": 180, "essence": 1, "relic_chance": 0.25}
+	return {"bio": content_reward_bio, "essence": 1, "relic_chance": 1.0}
 
 func _check_boss_gate() -> void:
 	if wave_director == null or _boss_triggered_by_slice or wave_director.boss_has_spawned:

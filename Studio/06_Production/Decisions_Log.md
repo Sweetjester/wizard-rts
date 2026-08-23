@@ -165,6 +165,16 @@ New smoke test `tiered_research_smoke_test.gd` checks escalating cost across 3 r
 
 **Not done**: only 3 of the 4 existing research upgrades got tiers (by design, see above) — this doesn't add new research *categories*, just depth to what already existed. The bigger remaining gap, not attempted here, is unifying the now-4 separate progression systems (evolution, wizard leveling, wizard relics, tower research) into something closer to §17's actual examples of upgrades that "change what you want to build next" rather than stack flat numbers — a design lift, not an engineering task.
 
+### 2026-08-23 — Engineering: content plots now pay differentiated rewards by their existing archetype tag
+
+Andrew: "just keep building off the master doc." Picked this next because it was a confirmed, cheap-to-close gap from the earlier systems audit: `_check_content_clear()` paid every content plot the exact same flat 180 Bio / 1 Essence / guaranteed relic, regardless of type — despite map generation already tagging each plot with a real narrative-flavor archetype (`content_archetype`: ruin, shrine, cache, crossroad, camp, ambush, landmark, encounter) that was being read for placement and then thrown away at reward time. §22 wants "risk, reward, choice, narrative flavor" per plot; this uses data that already exists rather than inventing new map-gen work.
+
+Added `_content_reward_for_plot(archetype)` in `kon_vertical_slice_controller.gd`, string-matched against the existing tag: landmark (the plot with a real 3-floor dungeon structure already) pays the most and always grants a relic; shrine is relic-guaranteed but Bio-light (a magical site, not a resource site); cache is the opposite (heavy Bio, never a relic — it's just loot); ruin/camp/ambush/encounter sit in between with partial relic odds; crossroad is a deliberately minor waypoint reward. Unrecognized archetypes fall back to the old flat default, so nothing breaks if map generation ever adds a plot kind this table doesn't know about yet.
+
+**A stale test assumption surfaced immediately, not a game bug**: `wizard_relic_smoke_test.gd` (from earlier this session) assumed content-plot clears always granted a relic, which was true before this change and is no longer true by design (cache/crossroad now never do, others are probabilistic). Fixed the test to target a shrine/landmark plot specifically (the two archetypes with a guaranteed relic) instead of asserting on whatever plot happened to be first — this is the correct fix, not a workaround, since the test's actual job is verifying the relic-granting *hook* fires, not re-asserting the old flat-reward behavior this same session just replaced on purpose.
+
+New smoke test `content_plot_reward_variety_smoke_test.gd` checks the reward table's relative ordering (landmark > cache in Bio, shrine/cache have opposite relic odds, crossroad is minor, unknown archetypes fall back) and one real end-to-end plot clear paying exactly its expected reward. Ran alongside all 11 other core smoke tests, including the fixed relic test 3x to confirm it's no longer flaky — no regressions.
+
 ### Open, not yet decided
 
 - **AI-test army mix** — confirm whether the stress-test mode spawning KON-vs-KON is intentional before anyone "fixes" it as a bug.
