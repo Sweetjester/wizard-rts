@@ -1101,6 +1101,18 @@ func _apply_owner_art_tint() -> void:
 			tint = Color(1.16, 1.02, 0.72, 1.0)
 	art.modulate = tint
 
+const _WIZARD_ARCHETYPES := {&"life_wizard": true, &"fire_wizard": true, &"evangalion_wizard": true}
+
+# Cheap check for the hot combat-resolution path (take_damage fires on every hit
+# from every unit in the simulation). A class_name-based "is Wizard" check was
+# tried first but caused a circular class-resolution failure across every unit
+# script (RTSUnit referencing a subclass's class_name deadlocked Godot's global
+# class cache) -- a plain StringName property read has no such issue and is
+# also cheaper than has_method()'s reflection, which only ever needs to run for
+# the rare case (an actual wizard) instead of on every single damage event.
+func _is_wizard_archetype(archetype: String) -> bool:
+	return _WIZARD_ARCHETYPES.has(StringName(archetype))
+
 func take_damage(amount: int, source: Node = null, damage_type: StringName = &"physical") -> void:
 	if _dying:
 		return
@@ -1116,7 +1128,7 @@ func take_damage(amount: int, source: Node = null, damage_type: StringName = &"p
 		rts_world.record_damage(source, self, actual_damage)
 	health = maxi(0, health - actual_damage)
 	_gain_evolution_xp(float(actual_damage) * 0.35)
-	if source != null and is_instance_valid(source) and source.has_method("_gain_wizard_xp"):
+	if source != null and is_instance_valid(source) and _is_wizard_archetype(str(source.get("unit_archetype"))):
 		source.call("_gain_wizard_xp", float(actual_damage) * 0.5 + (40.0 if health <= 0 else 0.0))
 	if not _mass_performance_mode() or selected or health <= 0:
 		_queue_unit_redraw(health <= 0)
