@@ -163,8 +163,23 @@ func wizard_upgrade_rank(option: String) -> int:
 func choose_wizard_upgrade(option: String) -> bool:
 	if not pending_level_up or not wizard_upgrade_options().has(option):
 		return false
-	wizard_upgrade_ranks[option] = wizard_upgrade_rank(option) + 1
 	pending_level_up = false
+	_apply_wizard_upgrade(option)
+	print("[Wizard] Level ", wizard_level, " upgrade chosen: ", option, " (rank ", wizard_upgrade_rank(option), ")")
+	return true
+
+# WC3-style creep-camp item drop: found on the map (outpost/content-plot clear),
+# applied immediately with no player choice -- distinct from choose_wizard_upgrade(),
+# which is the level-up decision the player actively makes.
+func grant_relic_upgrade(option: String = "") -> String:
+	var options := wizard_upgrade_options()
+	var chosen: String = option if options.has(option) else str(options[randi() % options.size()])
+	_apply_wizard_upgrade(chosen)
+	print("[Wizard] Relic found: ", chosen, " (rank ", wizard_upgrade_rank(chosen), ")")
+	return chosen
+
+func _apply_wizard_upgrade(option: String) -> void:
+	wizard_upgrade_ranks[option] = wizard_upgrade_rank(option) + 1
 	match option:
 		"power":
 			attack_damage += 4
@@ -175,8 +190,6 @@ func choose_wizard_upgrade(option: String) -> bool:
 			move_speed += 12.0
 		_:
 			pass
-	print("[Wizard] Level ", wizard_level, " upgrade chosen: ", option, " (rank ", wizard_upgrade_rank(option), ")")
-	return true
 
 func _draw() -> void:
 	if has_node("ArtSprite"):

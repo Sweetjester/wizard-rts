@@ -270,6 +270,7 @@ func _on_outpost_destroyed(structure: KonStructure, source: Node, plot_id: Strin
 		break
 	_last_damage_event = "outpost %s destroyed by %s" % [plot_id, source.name if source != null and is_instance_valid(source) else "<unknown>"]
 	print("[KonVerticalSlice] Outpost destroyed via combat id=", plot_id, " remaining=", _outposts_remaining())
+	_grant_wizard_relic("outpost %s destroyed" % plot_id)
 
 func _check_content_clear() -> void:
 	if _content_plots.is_empty() or map_generator == null:
@@ -294,6 +295,7 @@ func _check_content_clear() -> void:
 				print("[KonVerticalSlice] Content cleared id=", id,
 					" reward_bio=", content_reward_bio,
 					" cleared=", _cleared_content_ids.size(), "/", _content_plots.size())
+				_grant_wizard_relic("content plot %s cleared" % id)
 				break
 
 func _check_boss_gate() -> void:
@@ -332,6 +334,17 @@ func _check_defeat() -> void:
 	var reason := "wizard tower destroyed" if not has_tower else "the KON wizard has fallen"
 	print("[KonVerticalSlice] DEFEAT: ", reason, ".")
 	defeat_triggered.emit(reason)
+
+func _grant_wizard_relic(reason: String) -> void:
+	var wizard: Node = null
+	for unit in _player_units():
+		if is_instance_valid(unit) and StringName(str(unit.get("unit_archetype"))) in WIZARD_ARCHETYPES:
+			wizard = unit
+			break
+	if wizard == null or not wizard.has_method("grant_relic_upgrade"):
+		return
+	var chosen := str(wizard.call("grant_relic_upgrade"))
+	print("[KonVerticalSlice] Relic found (", reason, "): ", chosen)
 
 func _check_objective_victory() -> void:
 	if _victory or _defeat:

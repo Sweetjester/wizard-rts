@@ -145,6 +145,16 @@ New smoke test `wizard_leveling_smoke_test.gd` covers both the spell-choice and 
 
 **Known limitations, not fixed here**: `pending_level_up` is a single flag, not a queue — an XP grant large enough to cross multiple level thresholds at once collapses into one pending choice, not several (realistic gradual combat XP won't hit this; only relevant to artificial mass-XP testing/debug tools). Damaging enemy *structures* doesn't grant wizard XP yet (`KonStructure` has its own separate `take_damage()`, not the `RTSUnit` one the hook lives in) — only unit kills/damage do. Fire Wizard and Evangalion still have no spell identity of their own, so their "upgrades" are stats-only until they get real named abilities — a content gap, not something patchable at the engineering layer.
 
+### 2026-08-23 — Engineering: map-discovered wizard relics, WC3-style creep-camp item drops
+
+Closed the other half of §17's "found on the map" language (the leveling pass above covers the "player chooses" half). Reused WC3's own shape rather than the level-up mechanic's shape: destroying a required outpost or clearing a content plot now automatically grants the wizard a permanent upgrade via `wizard.grant_relic_upgrade()` — no player choice, applied immediately, exactly like picking up a WC3 Tome of Strength off a dead creep camp. This is deliberately a different interaction than [[2026-08-23 — Engineering: wizard hero leveling, WC3-style — first real player-choice-driven progression for the wizard]]'s level-up choice: leveling is a decision the player actively makes; relics are automatic rewards for going out and clearing the map, directly reinforcing §13's "the player should want to leave the base because the best resources, upgrades... are outside the starting area."
+
+Hooked into `KonVerticalSliceController._on_outpost_destroyed()` and `_check_content_clear()` via a new `_grant_wizard_relic(reason)` helper — every one of the ~8 map objectives on the current vertical slice grants a relic, no drop-chance roll (the map only has a small, curated set of objectives, not a spammy loot table, so a guaranteed drop was the right call rather than inventing a percentage).
+
+**A real bug was caught here, not just written and shipped**: the first version of `grant_relic_upgrade()` had a GDScript static-typing error (`var chosen := option if options.has(option) else options[randi() % ...]` — mixing a `String` with an untyped `Array`'s `Variant` result, which GDScript's `:=` inference can't resolve). This wasn't a subtle behavioral bug — it was a **script compile failure that broke wizard spawning entirely**, caught immediately by the new smoke test for this feature (not by the 8 other smoke tests, none of which happened to touch the changed function) before it was committed. Fixed by explicitly typing the variable. Directly the scenario `Unattended_Work_Definition_of_Done.md` exists to prevent — a change that looked reasonable wasn't actually run until its own dedicated test existed.
+
+New smoke test `wizard_relic_smoke_test.gd`. Ran alongside all 9 other core smoke tests after the fix — no regressions.
+
 ### Open, not yet decided
 
 - **AI-test army mix** — confirm whether the stress-test mode spawning KON-vs-KON is intentional before anyone "fixes" it as a bug.
