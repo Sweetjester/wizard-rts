@@ -8,6 +8,8 @@ const ENEMY_ID := 2
 const WIZARD_ARCHETYPES: Array[StringName] = [&"life_wizard", &"fire_wizard", &"evangalion_wizard"]
 const OBJECTIVE_DEFEAT_BOSS := "defeat_boss"
 const OBJECTIVE_DESTROY_OUTPOSTS := "destroy_outposts"
+const OBJECTIVE_SURVIVE_SIEGE := "survive_siege"
+const SIEGE_SURVIVAL_SECONDS := 90.0
 
 signal defeat_triggered(reason: String)
 signal objective_completed(reason: String)
@@ -47,6 +49,8 @@ var _boss_triggered_by_slice := false
 var _defeat := false
 var _victory := false
 var _objective_id := OBJECTIVE_DEFEAT_BOSS
+var _siege_started := false
+var _siege_started_msec := 0
 var _last_debug_print_msec := 0
 var _last_damage_event := "none"
 var _slice_update_elapsed := 0.0
@@ -379,14 +383,30 @@ func _grant_wizard_relic(reason: String) -> void:
 func _check_objective_victory() -> void:
 	if _victory or _defeat:
 		return
-	if _objective_id != OBJECTIVE_DESTROY_OUTPOSTS:
-		return
-	if _required_outposts_total() <= 0 or _outposts_remaining() > 0:
-		return
+	match _objective_id:
+		OBJECTIVE_DESTROY_OUTPOSTS:
+			if _required_outposts_total() <= 0 or _outposts_remaining() > 0:
+				return
+			_trigger_victory("all outpost garrisons destroyed")
+		OBJECTIVE_SURVIVE_SIEGE:
+			if wave_director == null or not wave_director.boss_has_spawned:
+				return
+			if not _siege_started:
+				_siege_started = true
+				_siege_started_msec = Time.get_ticks_msec()
+				print("[KonVerticalSlice] Siege begins -- survive ", int(SIEGE_SURVIVAL_SECONDS), "s to win.")
+				return
+			if Time.get_ticks_msec() - _siege_started_msec < int(SIEGE_SURVIVAL_SECONDS * 1000.0):
+				return
+			_trigger_victory("the siege was survived")
+
+func siege_survival_seconds() -> float:
+	return SIEGE_SURVIVAL_SECONDS
+
+func _trigger_victory(reason: String) -> void:
 	_victory = true
 	if wave_director != null:
 		wave_director.enabled = false
-	var reason := "all outpost garrisons destroyed"
 	print("[KonVerticalSlice] VICTORY: ", reason, ".")
 	objective_completed.emit(reason)
 

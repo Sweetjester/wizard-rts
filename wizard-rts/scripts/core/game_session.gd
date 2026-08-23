@@ -2,7 +2,7 @@ extends Node
 
 const DEFAULT_MAP_TYPE := "seeded_grid_frontier"
 const DEFAULT_OBJECTIVE_ID := "defeat_boss"
-const OBJECTIVE_IDS := ["defeat_boss", "destroy_outposts"]
+const OBJECTIVE_IDS := ["defeat_boss", "destroy_outposts", "survive_siege"]
 
 var map_type_id: String = DEFAULT_MAP_TYPE
 var map_seed_text: String = ""

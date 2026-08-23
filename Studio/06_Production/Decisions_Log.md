@@ -175,6 +175,14 @@ Added `_content_reward_for_plot(archetype)` in `kon_vertical_slice_controller.gd
 
 New smoke test `content_plot_reward_variety_smoke_test.gd` checks the reward table's relative ordering (landmark > cache in Bio, shrine/cache have opposite relic odds, crossroad is minor, unknown archetypes fall back) and one real end-to-end plot clear paying exactly its expected reward. Ran alongside all 11 other core smoke tests, including the fixed relic test 3x to confirm it's no longer flaky — no regressions.
 
+### 2026-08-23 — Engineering: a third win-objective type, "survive the siege" — and a real bug caught in the test, not the game
+
+Added `OBJECTIVE_SURVIVE_SIEGE` ("survive_siege") alongside defeat_boss/destroy_outposts: win by surviving `SIEGE_SURVIVAL_SECONDS` (90s) after the boss spawns, instead of needing to kill it — §9's own "survive a final siege" example, and a genuinely different *feel* (defensive/passive) from the other two (proactive/offensive), directly serving §28's "the same map should feel different with different objectives." Reuses all existing boss-gate/spawn infrastructure unchanged; only what counts as "win" after the boss arrives is new. `GameSession.OBJECTIVE_IDS` now has 3 entries.
+
+**Caught a real design flaw in the implementation while writing its test, before it shipped**: the first version used `_siege_started_msec: int = -1` as both the timestamp *and* the "has it started" sentinel (`< 0` meant not-started). That's fine for real gameplay, but it meant the value could never legitimately be tested by simulating elapsed time without accidentally going negative and being misread as "not started" again — which surfaced as an actual infinite mini-loop in the smoke test (the siege keeps "beginning" every check instead of ever completing). Rather than write a more contorted test to route around it, decoupled the state into a separate `_siege_started: bool` flag plus a plain `_siege_started_msec: int` that no longer carries dual meaning — the correct fix, since the original design conflated "has this started" with "what value does this timestamp hold," which is exactly the kind of bug that's invisible until something actually exercises the boundary.
+
+New smoke test `survive_siege_objective_smoke_test.gd` triggers the boss directly (`trigger_boss_now`), confirms the timer doesn't start early, confirms it doesn't win prematurely, then simulates the survival duration elapsing and confirms victory + the signal fire. Ran alongside all 12 other core smoke tests — no regressions.
+
 ### Open, not yet decided
 
 - **AI-test army mix** — confirm whether the stress-test mode spawning KON-vs-KON is intentional before anyone "fixes" it as a bug.
