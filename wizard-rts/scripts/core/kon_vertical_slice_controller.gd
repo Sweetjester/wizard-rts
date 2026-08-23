@@ -10,6 +10,12 @@ const OBJECTIVE_DEFEAT_BOSS := "defeat_boss"
 const OBJECTIVE_DESTROY_OUTPOSTS := "destroy_outposts"
 const OBJECTIVE_SURVIVE_SIEGE := "survive_siege"
 const SIEGE_SURVIVAL_SECONDS := 90.0
+const DAY_SECONDS := 120.0
+const NIGHT_SECONDS := 90.0
+const DAY_ECONOMY_MULTIPLIER := 1.15
+const NIGHT_ECONOMY_MULTIPLIER := 0.85
+const DAY_HEAVY_DEFENDER_CHANCE := 1.0 / 3.0
+const NIGHT_HEAVY_DEFENDER_CHANCE := 0.55
 
 signal defeat_triggered(reason: String)
 signal objective_completed(reason: String)
@@ -51,6 +57,8 @@ var _victory := false
 var _objective_id := OBJECTIVE_DEFEAT_BOSS
 var _siege_started := false
 var _siege_started_msec := 0
+var _day_night_elapsed := 0.0
+var _is_night := false
 var _last_debug_print_msec := 0
 var _last_damage_event := "none"
 var _slice_update_elapsed := 0.0
@@ -78,6 +86,7 @@ func _process(delta: float) -> void:
 		_check_boss_gate()
 		_check_defeat()
 		_check_objective_victory()
+		_update_day_night(step_delta)
 	if _overlay_update_elapsed >= overlay_update_interval:
 		_overlay_update_elapsed = 0.0
 		_update_overlay()
@@ -105,6 +114,7 @@ func _initialize() -> void:
 	_collect_content_and_outposts()
 	_spawn_outpost_objectives()
 	_configure_boss_gate()
+	_apply_day_night_economy()
 	_initialized = true
 	print("[KonVerticalSlice] Initialized KON slice | biome=", BIOME_ID,
 		" | content=", _content_plots.size(),
@@ -211,7 +221,7 @@ func _spawn_outpost_defender(outpost_index: int) -> void:
 	var spawn_cell: Vector2i = map_generator.nearest_walkable_cell(outpost_cell + Vector2i(outpost_index + 1, 2), outpost_spawn_radius)
 	var target := _player_target_world()
 	var spawn_count := int(_outposts[outpost_index].get("spawned", 0))
-	var archetype := &"deom_crosshirran" if spawn_count % 3 == 2 else &"deom_blade"
+	var archetype := &"deom_crosshirran" if randf() < heavy_defender_chance() else &"deom_blade"
 	var enemy: Node = wave_director.call("_spawn_enemy", archetype, spawn_cell, get_parent(), target)
 	_outposts[outpost_index]["spawned"] = spawn_count + 1
 	_log_combat_entity("outpost_defender_spawned", enemy)
@@ -403,6 +413,28 @@ func _check_objective_victory() -> void:
 func siege_survival_seconds() -> float:
 	return SIEGE_SURVIVAL_SECONDS
 
+# §25: day/night should affect gameplay meaningfully, not just cosmetically.
+# Deliberately avoids touching wave-director spawn cadence (already tuned/
+# performance-tested) or fog of war (intentionally disabled on this map type
+# per PROJECT_BRIEF.md) -- hooks into two already-existing, low-risk knobs
+# instead: economy income rate and outpost-defender composition.
+func _update_day_night(delta: float) -> void:
+	_day_night_elapsed += delta
+	var phase_length := NIGHT_SECONDS if _is_night else DAY_SECONDS
+	if _day_night_elapsed < phase_length:
+		return
+	_day_night_elapsed = 0.0
+	_is_night = not _is_night
+	_apply_day_night_economy()
+	print("[KonVerticalSlice] ", "Night falls -- enemies grow bolder, income slows." if _is_night else "Day breaks -- income recovers.")
+
+func _apply_day_night_economy() -> void:
+	if economy_manager != null and economy_manager.has_method("set_income_multiplier"):
+		economy_manager.call("set_income_multiplier", NIGHT_ECONOMY_MULTIPLIER if _is_night else DAY_ECONOMY_MULTIPLIER)
+
+func heavy_defender_chance() -> float:
+	return NIGHT_HEAVY_DEFENDER_CHANCE if _is_night else DAY_HEAVY_DEFENDER_CHANCE
+
 func _trigger_victory(reason: String) -> void:
 	_victory = true
 	if wave_director != null:
@@ -417,9 +449,12 @@ func _update_overlay() -> void:
 	var income_count := economy_manager.economy_buildings.size() if economy_manager != null else 0
 	var base_id := _chosen_base_plot_id()
 	var state := _victory_defeat_state()
-	_label.text = "KON VERTICAL SLICE\nBiome: %s\nObjective: %s\nPhase: %s\nBase: %s\nIncome active: %s (%s absorbers)\nWave: %s\nOutposts remaining: %s/%s\nContent cleared: %s/%s\nBoss triggered: %s\nState: %s\nBio %s | Essence %s" % [
+	var day_night_remaining := int((NIGHT_SECONDS if _is_night else DAY_SECONDS) - _day_night_elapsed)
+	_label.text = "KON VERTICAL SLICE\nBiome: %s\nObjective: %s\n%s (%ss left)\nPhase: %s\nBase: %s\nIncome active: %s (%s absorbers)\nWave: %s\nOutposts remaining: %s/%s\nContent cleared: %s/%s\nBoss triggered: %s\nState: %s\nBio %s | Essence %s" % [
 		BIOME_ID,
 		_objective_id,
+		"Night" if _is_night else "Day",
+		day_night_remaining,
 		_slice_phase(),
 		base_id if not base_id.is_empty() else "unclaimed",
 		"yes" if income_count > 0 else "no",

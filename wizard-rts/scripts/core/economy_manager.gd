@@ -12,7 +12,11 @@ signal economy_building_registered(player_id: int, plot_id: String, cell: Vector
 var map_generator: Node
 var resources: Dictionary = {}
 var economy_buildings: Array[Dictionary] = []
+var income_multiplier: float = 1.0
 var _elapsed := 0.0
+
+func set_income_multiplier(multiplier: float) -> void:
+	income_multiplier = multiplier
 
 func _ready() -> void:
 	map_generator = get_node_or_null(map_generator_path)
@@ -69,7 +73,7 @@ func _apply_income() -> void:
 	for building in economy_buildings:
 		var player_id := int(building["player_id"])
 		var definition := UnitCatalog.get_definition(building.get("archetype", &"bio_absorber"))
-		var income := int(definition.get("income_per_tick", fallback_absorber_income))
+		var income := int(round(float(definition.get("income_per_tick", fallback_absorber_income)) * income_multiplier))
 		income_by_player[player_id] = int(income_by_player.get(player_id, 0)) + income
 	for player_id in income_by_player.keys():
 		add_resource(int(player_id), &"bio", int(income_by_player[player_id]))

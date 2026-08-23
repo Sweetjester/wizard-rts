@@ -183,6 +183,16 @@ Added `OBJECTIVE_SURVIVE_SIEGE` ("survive_siege") alongside defeat_boss/destroy_
 
 New smoke test `survive_siege_objective_smoke_test.gd` triggers the boss directly (`trigger_boss_now`), confirms the timer doesn't start early, confirms it doesn't win prematurely, then simulates the survival duration elapsing and confirms victory + the signal fire. Ran alongside all 12 other core smoke tests — no regressions.
 
+### 2026-08-23 — Engineering: a first Day/Night cycle, deliberately narrow in scope
+
+§25 was entirely unbuilt — `PROJECT_BRIEF.md` already listed it as "documented intent only." Rather than build the full effect list §25 describes (vision, merchant activity, undead strength, special resources, bosses/events), picked two low-risk, already-existing knobs to avoid destabilizing tuned systems: **economy income rate** (Day +15%, Night -15%, via a new `EconomyManager.income_multiplier` applied in `_apply_income()`) and **outpost-defender composition** (Day 1/3 chance of the tougher `deom_crosshirran`, Night 55% — replacing a fixed `spawn_count % 3 == 2` pattern with a day/night-weighted roll that preserves the old average during Day). Deliberately did **not** touch `WaveDirector`'s spawn cadence (already tuned and stress-tested this project's own performance work depends on) or re-enable fog of war (explicitly flagged in `PROJECT_BRIEF.md` as intentionally disabled on `seeded_grid_frontier`) — both would have been real design/perf risk for a first pass, not just an engineering change.
+
+Directly serves §25's actual design intent even at this scope: "Night should feel dangerous but rewarding. The player should prepare for night and use day to make progress" — Day now literally rewards banking economy, Night literally punishes turtling through it. 120s Day / 90s Night cycle, shown in the existing overlay label.
+
+New smoke test `day_night_cycle_smoke_test.gd` drives the cycle with large synthetic deltas (no need to wait 210 real seconds) and confirms both hooked multipliers flip correctly in both directions. Ran alongside all 13 other core smoke tests — no regressions.
+
+**Not done**: this doesn't touch vision/fog, enemy type unlocks, merchant activity, or any of §25's other listed effects — those need either fog of war (a separate, currently-disabled system) or merchants/quests (which don't exist yet at all, see §23). Flagged as future depth, not attempted here.
+
 ### Open, not yet decided
 
 - **AI-test army mix** — confirm whether the stress-test mode spawning KON-vs-KON is intentional before anyone "fixes" it as a bug.

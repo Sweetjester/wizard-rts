@@ -36,6 +36,8 @@ Everything currently open, roughly prioritized. Not a schedule — a backlog. Up
 - High-ground tier (`HIGH_GROUND_TILE`, glass-mushroom palette per the Art Bible) — still not built; still just a tinted low-ground texture. Unchanged from 2026-08-11.
 - Environmental animation (wind-sway trees, glow-pulse on emissive materials) — still documented intent only, not implemented. Now subsumed into the broader animation gap logged in §37 above.
 
+- ~~Day/Night cycle~~ — **first pass done 2026-08-23**, §25. Was fully absent. Now a real, tested effect: Day boosts economy income (+15%) and biases outposts toward weaker defenders (2/3), Night does the opposite (-15% income, 55% heavy defenders) — deliberately doesn't touch wave-spawn cadence (already tuned/perf-tested) or fog of war (intentionally disabled on this map type). See Decisions Log.
+
 ## Multiplayer / Co-op
 
 - Andrew confirmed the game needs co-op. Current `SimulationState` lockstep scaffolding isn't authoritative and coherent multiplayer is unproven. Scope this as its own piece of work once core single-player performance/design items above settle — don't build on top of a foundation likely to change (see item 4 above).
