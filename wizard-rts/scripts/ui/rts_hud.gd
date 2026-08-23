@@ -832,10 +832,10 @@ func _rebuild_context_commands(selected: Array[Node]) -> void:
 		_add_button(command_container, "Heal Aura", func() -> void: _absorber_upgrade(&"heal_aura"))
 		_add_button(command_container, "Bio Turret", func() -> void: _absorber_upgrade(&"bio_launcher"))
 	elif _selection_has_archetype(selected, &"terrible_vault"):
-		_add_button(command_container, "Thorned Vines", func() -> void: _research_upgrade(&"thorned_vines"))
-		_add_button(command_container, "Fast Evolution", func() -> void: _research_upgrade(&"accelerated_evolution"))
-		_add_button(command_container, "Harden Horrors", func() -> void: _research_upgrade(&"hardened_horrors"))
-		_add_button(command_container, "Launcher Bile", func() -> void: _research_upgrade(&"launcher_bile"))
+		_add_research_button(&"thorned_vines", "Thorned Vines")
+		_add_research_button(&"accelerated_evolution", "Fast Evolution")
+		_add_research_button(&"hardened_horrors", "Harden Horrors")
+		_add_research_button(&"launcher_bile", "Launcher Bile")
 	else:
 		_add_unit_active_buttons(selected)
 		if _is_testing_mode() and _selection_has_evolvable_kon_unit(selected):
@@ -1153,9 +1153,21 @@ func _absorber_upgrade(upgrade_id: StringName) -> void:
 	if build_system != null and build_system.has_method("apply_first_absorber_upgrade") and bool(build_system.call("apply_first_absorber_upgrade", upgrade_id)):
 		status_label.text = "Bio Absorber upgrade selected: %s" % str(upgrade_id).capitalize()
 
+func _add_research_button(upgrade_id: StringName, label: String) -> void:
+	if build_system == null:
+		return
+	var rank := int(build_system.call("upgrade_rank", upgrade_id))
+	var max_rank := int(build_system.call("upgrade_max_rank", upgrade_id))
+	var text := "%s (%s/%s)" % [label, rank, max_rank] if max_rank > 1 else label
+	var button := _add_button(command_container, text, func() -> void: _research_upgrade(upgrade_id))
+	button.disabled = rank >= max_rank
+
 func _research_upgrade(upgrade_id: StringName) -> void:
 	if build_system != null and build_system.has_method("research_upgrade") and bool(build_system.call("research_upgrade", 1, upgrade_id)):
-		status_label.text = "Researching complete: %s" % _upgrade_name(upgrade_id)
+		var rank := int(build_system.call("upgrade_rank", upgrade_id))
+		var max_rank := int(build_system.call("upgrade_max_rank", upgrade_id))
+		status_label.text = "Researched %s (rank %s/%s)" % [_upgrade_name(upgrade_id), rank, max_rank]
+		_update_selection_panel(true)
 
 func _upgrade_name(upgrade_id: StringName) -> String:
 	match upgrade_id:

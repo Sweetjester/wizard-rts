@@ -155,6 +155,16 @@ Hooked into `KonVerticalSliceController._on_outpost_destroyed()` and `_check_con
 
 New smoke test `wizard_relic_smoke_test.gd`. Ran alongside all 9 other core smoke tests after the fix — no regressions.
 
+### 2026-08-23 — Engineering: Terrible Vault research is now tiered, WC3-style
+
+Last piece of this session's roguelike-upgrade push. The Terrible Vault's research was a one-shot boolean per upgrade (`researched_upgrades: Dictionary`, `has(upgrade_id)`) — buy it once, done forever, no depth. WC3's actual Blacksmith/Arsenal upgrades are tiered instead: Melee Weapons/Armor go through 3 ranks, each strictly better and more expensive, each requiring the previous rank. Converted `hardened_horrors`, `thorned_vines`, and `launcher_bile` to 3-rank upgrades this way (escalating cost: rank *1.0/1.6/2.2*); left `accelerated_evolution` as a single-rank upgrade since a repeatable "grant flat XP" doesn't have a natural tiered shape, matching WC3's own mix of tiered upgrades alongside one-shot unlocks (e.g. Runed Bracers).
+
+`researched_upgrades` (boolean dict) was replaced outright with `researched_upgrade_ranks` (int dict) rather than kept alongside it — grepped every usage first and confirmed all of them were internal to `build_system.gd`, so there was no external caller to preserve compatibility for. The three live-read effect sites (vinewall regen, bio launcher damage/radius, both computed fresh each tick/shot) needed only a one-line change each to scale by rank instead of a flat bonus. The one baked-once-per-unit effect (`hardened_horrors`'s +HP/+damage to Horrors) needed real care to stay idempotent across multiple rank purchases: tracks the *rank already applied* per unit via `set_meta`, not a boolean, and applies only the delta between the last-applied rank and the current one — verified in the new smoke test by calling the apply function twice in a row and confirming the bonus isn't double-counted.
+
+New smoke test `tiered_research_smoke_test.gd` checks escalating cost across 3 ranks, rejection past max rank, that the single-rank upgrade still rejects a second purchase, and the idempotent-application behavior directly. Ran alongside all 10 other core smoke tests — no regressions.
+
+**Not done**: only 3 of the 4 existing research upgrades got tiers (by design, see above) — this doesn't add new research *categories*, just depth to what already existed. The bigger remaining gap, not attempted here, is unifying the now-4 separate progression systems (evolution, wizard leveling, wizard relics, tower research) into something closer to §17's actual examples of upgrades that "change what you want to build next" rather than stack flat numbers — a design lift, not an engineering task.
+
 ### Open, not yet decided
 
 - **AI-test army mix** — confirm whether the stress-test mode spawning KON-vs-KON is intentional before anyone "fixes" it as a bug.

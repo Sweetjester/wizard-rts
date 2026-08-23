@@ -38,7 +38,14 @@ var pending_archetype: StringName = &""
 var _dragging_wall := false
 var _wall_drag_start := Vector2i.ZERO
 var _wall_drag_end := Vector2i.ZERO
-var researched_upgrades: Dictionary = {}
+const UPGRADE_MAX_RANK := {
+	&"thorned_vines": 3,
+	&"hardened_horrors": 3,
+	&"launcher_bile": 3,
+	&"accelerated_evolution": 1,
+}
+
+var researched_upgrade_ranks: Dictionary = {}
 var _launcher_elapsed := 0.0
 
 func _ready() -> void:
@@ -131,23 +138,32 @@ func try_place_structure(player_id: int, archetype: StringName, cell: Vector2i) 
 	return true
 
 func research_upgrade(player_id: int, upgrade_id: StringName) -> bool:
-	if researched_upgrades.has(upgrade_id):
-		build_rejected.emit("Upgrade already researched")
+	var current_rank := upgrade_rank(upgrade_id)
+	var max_rank := int(UPGRADE_MAX_RANK.get(upgrade_id, 1))
+	if current_rank >= max_rank:
+		build_rejected.emit("Upgrade already at max rank")
 		return false
 	if not _has_completed_structure(player_id, &"terrible_vault"):
 		build_rejected.emit("Requires completed Terrible Vault")
 		return false
-	var cost := _upgrade_cost(upgrade_id)
+	var next_rank := current_rank + 1
+	var cost := _upgrade_cost(upgrade_id, next_rank)
 	if economy_manager == null or not economy_manager.spend(player_id, {&"bio": cost}):
 		build_rejected.emit("Not enough Bio")
 		return false
-	researched_upgrades[upgrade_id] = true
+	researched_upgrade_ranks[upgrade_id] = next_rank
 	_apply_upgrade_to_existing_units(upgrade_id)
 	upgrade_researched.emit(player_id, upgrade_id)
 	return true
 
+func upgrade_rank(upgrade_id: StringName) -> int:
+	return int(researched_upgrade_ranks.get(upgrade_id, 0))
+
+func upgrade_max_rank(upgrade_id: StringName) -> int:
+	return int(UPGRADE_MAX_RANK.get(upgrade_id, 1))
+
 func has_upgrade(upgrade_id: StringName) -> bool:
-	return researched_upgrades.has(upgrade_id)
+	return upgrade_rank(upgrade_id) > 0
 
 func _make_structure_data(player_id: int, archetype: StringName, cell: Vector2i, plot_id: String, definition: Dictionary) -> Dictionary:
 	var hp := int(definition.get("max_hp", 200))
@@ -428,8 +444,8 @@ func _update_structure_regeneration(delta: float) -> void:
 			continue
 		var definition := UnitCatalog.get_definition(structure["archetype"])
 		var regen := float(definition.get("regeneration_per_second", 0.0))
-		if researched_upgrades.has(&"thorned_vines") and structure["archetype"] == &"vinewall":
-			regen += 3.0
+		if structure["archetype"] == &"vinewall":
+			regen += 3.0 * float(upgrade_rank(&"thorned_vines"))
 		if regen <= 0.0:
 			continue
 		structure["hp"] = mini(int(structure["max_hp"]), int(float(structure["hp"]) + regen * delta))
@@ -497,9 +513,9 @@ func _fire_bio_launcher(structure: Dictionary, target: Node2D) -> void:
 	var definition := UnitCatalog.get_definition(&"bio_launcher")
 	var damage := int(definition.get("attack_damage", 24))
 	var radius := float(definition.get("aoe_radius", 92.0))
-	if researched_upgrades.has(&"launcher_bile"):
-		damage += 8
-		radius += 34.0
+	var bile_rank := upgrade_rank(&"launcher_bile")
+	damage += 8 * bile_rank
+	radius += 34.0 * float(bile_rank)
 	var raw_source = structure.get("node", null)
 	var source_node: Node = raw_source if raw_source != null and is_instance_valid(raw_source) and raw_source is Node else null
 	if rts_world != null and source_node is Node2D:
@@ -653,17 +669,20 @@ func _has_completed_structure(player_id: int, archetype: StringName) -> bool:
 			return true
 	return false
 
-func _upgrade_cost(upgrade_id: StringName) -> int:
+func _upgrade_cost(upgrade_id: StringName, rank: int) -> int:
+	var base_cost := 0
 	match upgrade_id:
 		&"thorned_vines":
-			return 120
+			base_cost = 120
 		&"accelerated_evolution":
-			return 150
+			base_cost = 150
 		&"hardened_horrors":
-			return 140
+			base_cost = 140
 		&"launcher_bile":
-			return 160
-	return 99999
+			base_cost = 160
+		_:
+			return 99999
+	return int(round(float(base_cost) * (1.0 + float(rank - 1) * 0.6)))
 
 func _apply_upgrade_to_existing_units(upgrade_id: StringName) -> void:
 	for unit in get_tree().get_nodes_in_group("units"):
@@ -685,12 +704,16 @@ func _apply_upgrades_to_unit(unit: Node) -> void:
 	if not _node_has_property(unit, "unit_archetype"):
 		return
 	var archetype: StringName = unit.get("unit_archetype")
-	if researched_upgrades.has(&"hardened_horrors") and archetype == &"horror" and not bool(unit.get_meta("hardened_horrors_applied", false)):
-		unit.set("max_health", int(unit.get("max_health")) + 20)
-		unit.set("health", int(unit.get("health")) + 20)
-		unit.set("attack_damage", int(unit.get("attack_damage")) + 2)
-		unit.set_meta("hardened_horrors_applied", true)
-	if researched_upgrades.has(&"accelerated_evolution") and _node_has_property(unit, "evolution_xp") and not bool(unit.get_meta("accelerated_evolution_applied", false)):
+	var horrors_rank := upgrade_rank(&"hardened_horrors")
+	if archetype == &"horror" and horrors_rank > 0:
+		var applied_rank := int(unit.get_meta("hardened_horrors_rank_applied", 0))
+		if applied_rank < horrors_rank:
+			var delta := horrors_rank - applied_rank
+			unit.set("max_health", int(unit.get("max_health")) + 20 * delta)
+			unit.set("health", int(unit.get("health")) + 20 * delta)
+			unit.set("attack_damage", int(unit.get("attack_damage")) + 2 * delta)
+			unit.set_meta("hardened_horrors_rank_applied", horrors_rank)
+	if upgrade_rank(&"accelerated_evolution") > 0 and _node_has_property(unit, "evolution_xp") and not bool(unit.get_meta("accelerated_evolution_applied", false)):
 		unit.set("evolution_xp", float(unit.get("evolution_xp")) + 28.0)
 		unit.set_meta("accelerated_evolution_applied", true)
 
