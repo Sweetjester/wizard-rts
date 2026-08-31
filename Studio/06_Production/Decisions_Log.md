@@ -204,6 +204,12 @@ Neither would have been caught by the existing smoke suite on their own merits �
 
 **Lesson for future sessions**: this project already has a documented performance culture (LOD rendering, batched movement, ~3000-unit stress tests) — any new hook added to `RTSUnit`'s combat resolution or per-frame HUD update paths needs to be evaluated for hot-path cost, not just correctness, before it ships. `has_method()`/`get_property_list()` reflection is the specific pattern to watch for; a plain property read or an already-computed value is almost always available instead.
 
+### 2026-08-26 — Design: corrected — Wizard RTS targets hundreds of units, not dozens
+
+`MASTER_DESIGN_DOC.md` §5 said "Dozens of units, not hundreds" since it was first pasted into the vault. Andrew corrected this directly: the actual target is hundreds of units on screen, the opposite of what was written. Fixed §5 to say so, and reframed the accompanying "tactical, not high-APM" line — at hundreds of units that now means leaning on strong control tooling (control groups, army-wide orders, smart formations) to keep it manageable, not treating scale itself as the thing to avoid.
+
+**No new engineering risk here** — this doesn't require new work to become possible. The existing LOD/rendering fix (2026-08-09) was already stress-tested to ~3000 units with a worst-case frame stall of 40 FPS (up from 2 FPS pre-fix); the engine ceiling was never the constraint, the design doc's stated target was just wrong. This also directly raises the priority of real control-group/army-management UX (see the QOL research prompt drafted the same day) — that tooling matters *more*, not less, once "readable at a glance" has to hold at hundreds of units instead of dozens.
+
 ### Open, not yet decided
 
 - **AI-test army mix** — confirm whether the stress-test mode spawning KON-vs-KON is intentional before anyone "fixes" it as a bug.

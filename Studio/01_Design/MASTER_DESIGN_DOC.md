@@ -96,10 +96,10 @@ Recommended direction:
 
 Expected scale:
 
-- Small-to-medium RTS battles
-- Dozens of units, not hundreds
+- Large-scale RTS battles
+- Hundreds of units on screen, not dozens
 - Base should be readable at a glance
-- Army control should be tactical rather than high-APM competitive RTS
+- Army control should still stay tactical rather than high-APM competitive RTS — at hundreds of units, that means leaning on strong control tooling (control groups, army-wide orders, smart formations) to keep it manageable, not on the player's twitch reflexes
 
 The game should avoid becoming a full city builder. The base exists to support survival, exploration, and objective completion.
 
