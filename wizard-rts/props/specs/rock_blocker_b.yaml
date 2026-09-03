@@ -25,7 +25,7 @@ visual:
     (Terrain_Props_Roadmap.md step 4, variety pass on thin categories).
 
 model:
-  generator: meshy
+  generator: trellis2
   source: text_to_3d
   target_polycount: 8000
   scale_meters: 0.85

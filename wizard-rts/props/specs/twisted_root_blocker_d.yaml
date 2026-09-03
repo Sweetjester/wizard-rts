@@ -19,7 +19,7 @@ visual:
     Third TWISTED_ROOT_BLOCKER variant, throughput pass toward broader coverage.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: text_to_3d
   target_polycount: 9000
   scale_meters: 1.1

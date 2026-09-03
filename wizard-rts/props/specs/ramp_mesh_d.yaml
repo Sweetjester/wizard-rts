@@ -26,7 +26,7 @@ visual:
     on top of the procedural slope mesh (map_3d_renderer.gd _add_ramps). Root-step variant.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: text_to_3d
   target_polycount: 7000
   scale_meters: 0.9

@@ -19,7 +19,7 @@ visual:
     Landmark-scale LANTERN_TREE_BLOCKER hero variant for use as a map centerpiece/landmark, matching the ancient_tree_hero_b precedent.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: text_to_3d
   target_polycount: 14000
   scale_meters: 3.4

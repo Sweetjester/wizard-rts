@@ -26,7 +26,7 @@ visual:
     visually distinct, higher-fidelity second option for map generation to pick from.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: image_to_3d
   target_polycount: 14000
   scale_meters: 1.7

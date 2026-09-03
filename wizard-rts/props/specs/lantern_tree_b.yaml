@@ -19,7 +19,7 @@ visual:
     Second LANTERN_TREE_BLOCKER variant — clustered round-lantern silhouette, distinct from lantern_tree_a's tall oval-pod read.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: text_to_3d
   target_polycount: 11000
   scale_meters: 2.1

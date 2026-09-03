@@ -19,7 +19,7 @@ visual:
     Fourth LANTERN_TREE_BLOCKER variant — sparse wide silhouette with a few large pods, distinct from the denser variants.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: text_to_3d
   target_polycount: 11000
   scale_meters: 2.0

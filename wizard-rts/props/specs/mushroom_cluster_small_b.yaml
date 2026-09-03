@@ -24,7 +24,7 @@ visual:
     step 4). Reads as ground decor, not a blocker — lower profile than MUSHROOM_BLOCKER.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: text_to_3d
   target_polycount: 8000
   scale_meters: 0.9

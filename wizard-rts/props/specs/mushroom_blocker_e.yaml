@@ -20,7 +20,7 @@ visual:
     across the map. Explicit material override to avoid silent fallback-to-stone.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: text_to_3d
   target_polycount: 9000
   scale_meters: 0.95

@@ -29,7 +29,7 @@ visual:
     floor marker, not a blocker, and should never obstruct pathing or read as a collidable prop.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: text_to_3d
   target_polycount: 16000
   scale_meters: 2.2

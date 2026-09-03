@@ -26,7 +26,7 @@ visual:
     placed side by side don't read as copies.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: text_to_3d
   target_polycount: 9000
   scale_meters: 2.2

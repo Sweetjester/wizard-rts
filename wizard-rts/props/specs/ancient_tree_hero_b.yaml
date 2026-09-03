@@ -26,7 +26,7 @@ visual:
     as a signature, seen-up-close silhouette distinct from the smaller filler tree variants.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: image_to_3d
   target_polycount: 20000
   scale_meters: 2.8

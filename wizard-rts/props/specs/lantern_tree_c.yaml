@@ -19,7 +19,7 @@ visual:
     Third LANTERN_TREE_BLOCKER variant — weeping/vine silhouette, distinct from the tall and clustered variants.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: text_to_3d
   target_polycount: 11000
   scale_meters: 2.3

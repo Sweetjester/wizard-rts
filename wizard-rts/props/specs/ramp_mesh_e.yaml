@@ -24,7 +24,7 @@ visual:
     renderer as a decorative overlay at the low end of the procedural ramp slope.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: text_to_3d
   target_polycount: 7000
   scale_meters: 0.9

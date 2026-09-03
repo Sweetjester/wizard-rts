@@ -19,7 +19,7 @@ visual:
     First LANTERN_TREE_BLOCKER: a brand new prop category, trees whose leaves are lantern pods. Wired into map_3d_renderer.gd's tree placement roll (10% of tree-slot clusters) and CATEGORY_RUNTIME_FOLDER so it actually renders in-game, unlike the earlier RAMP_MESH mistake.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: text_to_3d
   target_polycount: 11000
   scale_meters: 2.4

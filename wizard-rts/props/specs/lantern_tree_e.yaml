@@ -19,7 +19,7 @@ visual:
     Fifth LANTERN_TREE_BLOCKER variant — dense fairy-light canopy read, distinct from the other four sparser variants.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: text_to_3d
   target_polycount: 12000
   scale_meters: 2.5

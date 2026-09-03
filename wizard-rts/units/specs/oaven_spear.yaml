@@ -5,12 +5,13 @@ role: melee_frontline_skirmisher
 concept_art_path: art/concepts/oaven/oaven_spear.png
 
 visual:
-  style: painterly_npr
-  description: stylized occult frontier spear warrior, strong RTS silhouette, exaggerated spear, readable from zoomed out camera
+  style: darkest_dungeon_2_like_painterly_npr
+  style_profile: tools/unit_pipeline/style_profiles/darkest_dungeon_2_like_kon.json
+  description: dark painterly KON spear swarm unit, strong inked silhouette, exaggerated spear, cyan crystal glow, muted red cloth wrap, readable from zoomed out RTS camera
   colors:
-    body: muted earthy tones
-    cloth: dark red or ochre
-    emissive: pale blue
+    body: near-black teal chitin and bark
+    cloth: muted blood red scarf and wraps
+    emissive: cyan crystal glow
   outline: true
 
 model:

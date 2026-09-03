@@ -25,7 +25,7 @@ visual:
     cliff_side_d, for full-coverage cliff decoration variety.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: text_to_3d
   target_polycount: 9000
   scale_meters: 1.0

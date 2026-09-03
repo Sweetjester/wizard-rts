@@ -49,6 +49,7 @@ class ImportReport:
     raw_model_path: str = ""
     processed_glb_path: str = ""
     godot_scene_path: str = ""
+    style_profile_path: str = ""
     generated: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     manual_todos: list[str] = field(default_factory=list)
@@ -189,6 +190,14 @@ def concept_path(spec: dict[str, Any]) -> Path:
     return (REPO_ROOT / spec["concept_art_path"]).resolve()
 
 
+def style_profile_path(spec: dict[str, Any]) -> Path | None:
+    profile = spec.get("visual", {}).get("style_profile", "")
+    if not profile:
+        return None
+    path = Path(str(profile))
+    return path.resolve() if path.is_absolute() else (REPO_ROOT / path).resolve()
+
+
 def image_to_data_uri(path: Path) -> str:
     mime = mimetypes.guess_type(path.name)[0] or "image/png"
     data = base64.b64encode(path.read_bytes()).decode("ascii")
@@ -206,7 +215,7 @@ def call_meshy(spec: dict[str, Any], api_key: str, out_dir: Path, timeout_second
         "should_remesh": True,
         "target_polycount": int(spec["model"].get("target_polycount", 6000)),
         "should_texture": True,
-        "enable_pbr": True,
+        "enable_pbr": False,
         "pose_mode": "a-pose",
         "target_formats": ["glb"],
     }
@@ -257,6 +266,7 @@ def find_existing_model(raw_dir: Path) -> Path | None:
 
 def run_blender(env: dict[str, str], spec: dict[str, Any], raw_model: Path, processed_glb: Path, dry_run: bool) -> None:
     script = Path("tools") / "unit_pipeline" / "blender_process_unit.py"
+    profile_path = style_profile_path(spec)
     script_args = [
         "--unit-id",
         spec["unit_id"],
@@ -267,6 +277,8 @@ def run_blender(env: dict[str, str], spec: dict[str, Any], raw_model: Path, proc
         "--scale-meters",
         str(spec["model"].get("scale_meters", 1.8)),
     ]
+    if profile_path != None:
+        script_args.extend(["--style-profile", str(profile_path)])
     bootstrap = (
         "import runpy, sys; "
         f"sys.argv = {[str(script), *script_args]!r}; "
@@ -336,9 +348,19 @@ def main() -> int:
         processed_glb = paths["processed_dir"] / f"{unit_id}.glb"
         report.processed_glb_path = rel(processed_glb)
         report.godot_scene_path = f"game/units/generated/{unit_id}/{unit_id}.tscn"
+        profile_path = style_profile_path(spec)
+        if profile_path != None:
+            report.style_profile_path = rel(profile_path)
+            if not profile_path.exists():
+                message = f"Missing style profile: {rel(profile_path)}"
+                report.warnings.append(message)
+                if not args.dry_run:
+                    raise PipelineError(message)
+                print(f"[dry-run warning] {message}")
         report.animation_status = {name: "placeholder requested" for name in spec.get("animations", {}).keys()}
         report.manual_todos.extend([
             "Review Meshy topology and silhouette in Blender.",
+            "Check the style profile material assignment against the concept art; rename mesh parts with cloth/weapon/wing/emissive keywords where needed for better automated remapping.",
             "Replace placeholder animations with authored locomotion/combat/death clips.",
             "Hook generated Node3D unit into the active 2D RTS runtime if/when the project moves to 3D unit actors.",
         ])

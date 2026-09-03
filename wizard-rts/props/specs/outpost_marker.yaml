@@ -30,7 +30,7 @@ visual:
     concept implies verticality; keep actual mesh height low and silhouette readable from above.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: text_to_3d
   target_polycount: 16000
   scale_meters: 2.4

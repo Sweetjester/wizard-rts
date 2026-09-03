@@ -26,7 +26,7 @@ visual:
     second option for content-plot dressing and map landmark variety.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: image_to_3d
   target_polycount: 14000
   scale_meters: 1.5

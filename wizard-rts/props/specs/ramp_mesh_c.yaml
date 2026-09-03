@@ -24,7 +24,7 @@ visual:
     pass — see DARK_FOREST_FRONTIER_V2_ART_BIBLE.md.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: text_to_3d
   target_polycount: 10000
   scale_meters: 1.4

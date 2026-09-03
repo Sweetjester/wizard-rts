@@ -25,7 +25,7 @@ visual:
     step 4). Reads as a blocker-scale landmark cluster, distinct from the ring/small variants.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: text_to_3d
   target_polycount: 12000
   scale_meters: 1.8

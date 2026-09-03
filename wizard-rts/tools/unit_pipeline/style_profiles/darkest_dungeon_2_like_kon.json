@@ -1,0 +1,76 @@
+{
+  "profile_id": "darkest_dungeon_2_like_kon",
+  "display_name": "Dark Painterly KON RTS",
+  "style_reference": "Darkest Dungeon 2 inspired painterly NPR. Do not copy specific assets; use the value structure and readability language.",
+  "goal": "Readable dark-fantasy RTS units with inked silhouettes, matte painterly materials, and controlled cyan KON emissive accents.",
+  "meshy_guidance": {
+    "concept_art_requirements": [
+      "front or three-quarter orthographic character sheet pose",
+      "clean isolated silhouette",
+      "large readable weapon and faction props",
+      "no UI, text, frame, heavy background, or tiny detail",
+      "dark painterly values with one controlled cyan emissive accent family"
+    ],
+    "positive_prompt": "stylized dark fantasy RTS unit, Darkest-Dungeon-2-like painterly inked rendering, strong black silhouette, chunky readable shapes, matte chitin, bark, cloth and crystal, cyan bioluminescent KON accents, exaggerated weapon, orthographic game model reference, high contrast shadows, no photorealism",
+    "negative_prompt": "photorealistic, glossy plastic, noisy AI texture, tiny surface detail, soft low-contrast silhouette, anime clean line art, bright cheerful colors, modern sci-fi armor, UI, text, watermark, realistic skin pores"
+  },
+  "mesh_processing": {
+    "join_meshes": false,
+    "remove_loose_geometry": true,
+    "merge_by_distance": 0.002,
+    "flat_shading": true,
+    "weighted_normals": true,
+    "decimate_ratio": 0.72,
+    "discard_imported_materials": true,
+    "create_outline_proxy": true,
+    "outline_scale": 1.035
+  },
+  "material_palette": {
+    "body": {
+      "base_color": "#162224",
+      "roughness": 0.94,
+      "metallic": 0.0
+    },
+    "cloth": {
+      "base_color": "#4A1719",
+      "roughness": 0.96,
+      "metallic": 0.0
+    },
+    "weapon": {
+      "base_color": "#302822",
+      "roughness": 0.9,
+      "metallic": 0.0
+    },
+    "wing": {
+      "base_color": "#1A6D72",
+      "alpha": 0.58,
+      "roughness": 0.82,
+      "metallic": 0.0,
+      "emission_color": "#34D9E8",
+      "emission_strength": 0.35
+    },
+    "emissive": {
+      "base_color": "#24C8D7",
+      "roughness": 0.75,
+      "metallic": 0.0,
+      "emission_color": "#35F1FF",
+      "emission_strength": 1.8
+    },
+    "outline_proxy": {
+      "base_color": "#020405",
+      "roughness": 1.0,
+      "metallic": 0.0
+    }
+  },
+  "assignment_rules": {
+    "cloth_keywords": ["cloth", "scarf", "wrap", "robe", "cape", "red"],
+    "weapon_keywords": ["spear", "staff", "pole", "blade", "weapon", "wood"],
+    "wing_keywords": ["wing", "dragonfly", "fly", "membrane"],
+    "emissive_keywords": ["crystal", "glow", "emissive", "cyan", "eye", "orb"]
+  },
+  "godot_expectations": {
+    "lighting": "cool key light, warm low fill optional, strong shadows",
+    "camera": "orthographic RTS preview plus in-game readability check",
+    "animation_status": "placeholder root actions only until reusable rig archetypes are added"
+  }
+}

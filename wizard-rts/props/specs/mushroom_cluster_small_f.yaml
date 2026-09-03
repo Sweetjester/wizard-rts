@@ -21,7 +21,7 @@ visual:
     limited remaining Meshy budget.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: text_to_3d
   target_polycount: 7000
   scale_meters: 0.7

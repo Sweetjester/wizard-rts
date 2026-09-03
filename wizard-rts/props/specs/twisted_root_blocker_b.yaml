@@ -26,7 +26,7 @@ visual:
     not a landmark.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: text_to_3d
   target_polycount: 10000
   scale_meters: 1.3

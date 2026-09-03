@@ -19,7 +19,7 @@ visual:
     Second CONTENT_PLOT_MARKER variant, throughput pass toward broader coverage.
 
 model:
-  generator: meshy
+  generator: trellis2
   source: text_to_3d
   target_polycount: 5000
   scale_meters: 0.6
