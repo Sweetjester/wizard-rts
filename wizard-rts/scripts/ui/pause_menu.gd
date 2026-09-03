@@ -147,9 +147,15 @@ func _build_display_tab() -> Control:
 	return tab
 
 func _build_keybind_tab() -> Control:
-	var tab := VBoxContainer.new()
+	# Scrolls because the bindable-action list grew from 4 to 9 with the
+	# 2026-08-31 army-control pass and will keep growing.
+	var tab := ScrollContainer.new()
 	tab.name = "Key Binds"
-	tab.add_theme_constant_override("separation", 8)
+	tab.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var body := VBoxContainer.new()
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.add_theme_constant_override("separation", 8)
+	tab.add_child(body)
 	keybind_rows.clear()
 	for action in KeybindManager.get_actions():
 		var row := HBoxContainer.new()
@@ -166,10 +172,11 @@ func _build_keybind_tab() -> Control:
 		)
 		row.add_child(bind_button)
 		keybind_rows[action] = bind_button
-		tab.add_child(row)
-	var right_click := _label("Right-click: Move / smart command  (fixed)", 16)
-	tab.add_child(right_click)
-	_add_button(tab, "Reset Defaults", func() -> void:
+		body.add_child(row)
+	body.add_child(_label("Right-click: Move / smart command  (fixed)", 16))
+	body.add_child(_label("Control groups (fixed): Ctrl+1-9 assign, 1-9 recall, double-tap to snap camera,", 16))
+	body.add_child(_label("Shift+1-9 add to group, Alt+1-9 flag a group to auto-absorb new units.", 16))
+	_add_button(body, "Reset Defaults", func() -> void:
 		KeybindManager.reset_to_defaults()
 		waiting_for_action = ""
 		hint_label.text = "Key bindings reset."

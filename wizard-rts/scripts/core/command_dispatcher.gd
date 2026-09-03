@@ -2,6 +2,11 @@ class_name CommandDispatcher
 extends Node
 
 signal command_submitted(command: RTSCommand)
+# Fires whenever part of a selection refused an order because of its
+# intelligence level (Master Design Doc section 38). The HUD reports it, so a
+# partially-obeyed order is visible rather than silently partial -- the failure
+# mode flagged when the mechanic was added to the doc.
+signal order_partially_refused(obeyed: int, refused: int, reason: String)
 
 @export var simulation_runner_path: NodePath = NodePath("../SimulationRunner")
 @export var multiplayer_session_path: NodePath = NodePath("../MultiplayerSession")
@@ -17,7 +22,7 @@ func _ready() -> void:
 	map_generator = get_node_or_null(map_generator_path)
 
 func submit_move(units: Array[Node], target_world: Vector2, offsets: Array[Vector2], shared_path: Array[Vector2]) -> void:
-	var movable_units := _movable_units(units)
+	var movable_units := _obedient_units(_movable_units(units), &"move")
 	var ids := _entity_ids(movable_units)
 	if simulation_runner != null and map_generator != null:
 		var target_cell: Vector2i = map_generator.world_to_cell(target_world)
@@ -32,7 +37,7 @@ func submit_move(units: Array[Node], target_world: Vector2, offsets: Array[Vecto
 			unit.issue_move_order_offset(target_world, offsets[min(i, offsets.size() - 1)])
 
 func submit_attack_move(units: Array[Node], target_world: Vector2) -> void:
-	var movable_units := _movable_units(units)
+	var movable_units := _obedient_units(_movable_units(units), &"attack_move")
 	var ids := _entity_ids(movable_units)
 	if simulation_runner != null and map_generator != null:
 		_submit_command(simulation_runner.make_local_command(RTSCommand.Type.ATTACK_MOVE, ids, map_generator.world_to_cell(target_world)))
@@ -41,7 +46,7 @@ func submit_attack_move(units: Array[Node], target_world: Vector2) -> void:
 			unit.issue_attack_move_order(target_world)
 
 func submit_patrol(units: Array[Node], target_world: Vector2) -> void:
-	var movable_units := _movable_units(units)
+	var movable_units := _obedient_units(_movable_units(units), &"patrol")
 	var ids := _entity_ids(movable_units)
 	if simulation_runner != null and map_generator != null:
 		_submit_command(simulation_runner.make_local_command(RTSCommand.Type.PATROL, ids, map_generator.world_to_cell(target_world)))
@@ -50,7 +55,7 @@ func submit_patrol(units: Array[Node], target_world: Vector2) -> void:
 			unit.issue_patrol_order(target_world)
 
 func submit_hold_position(units: Array[Node]) -> void:
-	var movable_units := _movable_units(units)
+	var movable_units := _obedient_units(_movable_units(units), &"hold")
 	var ids := _entity_ids(movable_units)
 	if simulation_runner != null:
 		_submit_command(simulation_runner.make_local_command(RTSCommand.Type.HOLD_POSITION, ids, Vector2i.ZERO))
@@ -59,7 +64,7 @@ func submit_hold_position(units: Array[Node]) -> void:
 			unit.issue_hold_position_order()
 
 func submit_stop(units: Array[Node]) -> void:
-	var movable_units := _movable_units(units)
+	var movable_units := _obedient_units(_movable_units(units), &"stop")
 	var ids := _entity_ids(movable_units)
 	if simulation_runner != null:
 		_submit_command(simulation_runner.make_local_command(RTSCommand.Type.STOP_UNITS, ids, Vector2i.ZERO))
@@ -93,6 +98,26 @@ func _movable_units(units: Array[Node]) -> Array[Node]:
 		if is_instance_valid(unit) and unit.has_method("issue_move_order_offset"):
 			movable.append(unit)
 	return movable
+
+# Filters a selection down to the units that will actually obey this order, and
+# reports what was left behind. Only the player order path calls this -- the AI
+# and wave paths issue orders directly on the unit and are unaffected.
+func _obedient_units(units: Array[Node], kind: StringName) -> Array[Node]:
+	var obedient: Array[Node] = []
+	var refused := 0
+	var reason := ""
+	for unit in units:
+		if not is_instance_valid(unit):
+			continue
+		if not unit.has_method("accepts_player_order") or bool(unit.call("accepts_player_order", kind)):
+			obedient.append(unit)
+			continue
+		refused += 1
+		if reason.is_empty() and unit.has_method("refusal_reason"):
+			reason = str(unit.call("refusal_reason"))
+	if refused > 0:
+		order_partially_refused.emit(obedient.size(), refused, reason)
+	return obedient
 
 func _has_property(node: Node, property_name: String) -> bool:
 	for property in node.get_property_list():

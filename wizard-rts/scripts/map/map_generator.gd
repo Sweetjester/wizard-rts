@@ -125,6 +125,20 @@ var dynamic_blocked_cells: Dictionary = {}
 var _path_cache: Dictionary = {}
 var _path_cache_version: int = 0
 var _flow_field_cache: Dictionary = {}
+# Both of these hold the STATIC half of pathfinding -- terrain shape only, with
+# runtime blockers deliberately excluded. That is what lets them survive
+# building placement, which is the whole point: a Vinewall going down used to
+# throw away every cached traversability answer on the map and force a full
+# recompute inside the physics frame. They are cleared only when the map itself
+# is regenerated.
+var _traversable_cache: Dictionary = {}
+var _flow_neighbors_cache: Dictionary = {}
+# Memo for the *static* half of traversability: whether a cell is an unramped
+# height edge. This depends only on the generated map (height map, ramps,
+# plots, feature grid), never on runtime blockers, so unlike the two caches
+# above it survives building placement and is only cleared when the map itself
+# is regenerated.
+var _height_edge_cache: Dictionary = {}
 const PATH_CACHE_LIMIT := 768
 var path_requests_total := 0
 var path_cache_hits_total := 0
@@ -619,6 +633,9 @@ func _init_plot_test_grid() -> void:
 	dynamic_blocked_cells.clear()
 	_path_cache.clear()
 	_flow_field_cache.clear()
+	_traversable_cache.clear()
+	_flow_neighbors_cache.clear()
+	_height_edge_cache.clear()
 	spawn_positions.clear()
 	enemy_spawns.clear()
 	chokepoints.clear()
@@ -808,6 +825,59 @@ func get_height(cell: Vector2i) -> int:
 		return 0
 	return int(height_map[cell.x][cell.y])
 
+# Terrain line of sight, shared by fog of war and by combat targeting.
+#
+# It lives here because it is a question about TERRAIN, and because having two
+# implementations of "can this see that" would let vision and weapons disagree
+# -- a unit could shoot something the fog says it cannot see.
+#
+# The rule: sight travels level or downhill freely, and is blocked by anything
+# standing higher than the viewer. That is what stops units seeing (and
+# shooting) up a cliff.
+#
+# Allocation-free by design: this is called from the combat tick as well as from
+# fog updates, so it walks the line in place rather than building a cell array.
+func has_line_of_sight(from_cell: Vector2i, to_cell: Vector2i, viewer_height: int) -> bool:
+	if from_cell == to_cell:
+		return true
+	var delta := to_cell - from_cell
+	var steps: int = maxi(absi(delta.x), absi(delta.y))
+	if steps <= 0:
+		return true
+	var previous := from_cell
+	for i in range(1, steps + 1):
+		var t := float(i) / float(steps)
+		var cell := Vector2i(
+			roundi(lerpf(float(from_cell.x), float(to_cell.x), t)),
+			roundi(lerpf(float(from_cell.y), float(to_cell.y), t))
+		)
+		if cell == previous:
+			continue
+		previous = cell
+		if not is_in_bounds(cell):
+			return false
+		if cell != to_cell and not is_walkable_cell(cell):
+			return false
+		if get_height(cell) > viewer_height:
+			return false
+	return true
+
+# True when nothing can walk here: water, hard blockers, and cliff edges that
+# have no ramp. This is what the 2D impassable overlay paints orange.
+func is_impassable_cell(cell: Vector2i) -> bool:
+	if not is_in_bounds(cell):
+		return true
+	return not _is_static_path_traversable_cell(cell)
+
+# Impassable specifically because of a height transition, rather than because of
+# water or a blocker. Drawn differently so a cliff reads as a cliff.
+func is_cliff_edge_cell(cell: Vector2i) -> bool:
+	if not is_in_bounds(cell):
+		return false
+	if not _is_static_walkable_cell(cell):
+		return false
+	return _is_unramped_height_edge(cell)
+
 func get_movement_cost(cell: Vector2i) -> float:
 	if not is_in_bounds(cell):
 		return INF
@@ -974,59 +1044,149 @@ func _flow_field_for_target_cell(target_cell: Vector2i) -> Dictionary:
 	_flow_field_cache[cache_key] = field
 	return field
 
+# Dijkstra over the walkable grid, producing a next-cell field enemy waves
+# steer along.
+#
+# PERFORMANCE, 2026-08-31: this used to hold its frontier in a linear-insert
+# sorted `Array[Dictionary]`. Every relaxation did an O(n) scan plus an O(n)
+# `Array.insert()` memmove, and allocated a fresh Dictionary per queue entry --
+# so the whole build cost ~1220ms on the live 96x96 map, blocking the physics
+# frame. Andrew's 386-second play session recorded 25 of these, every one a
+# ~1.3s hard freeze, at unit counts as low as 23. The frontier is now a binary
+# min-heap over two parallel arrays (cells + PackedFloat64Array costs) with no
+# per-entry allocation. Same field, same output, same cache semantics.
+#
+# The cost is independent of unit count -- it scales with map area -- so this
+# was never going to show up in a unit-scaling stress test.
 func _build_flow_field(target_cell: Vector2i) -> Dictionary:
 	flow_field_recomputes_total += 1
 	_flow_field_recomputes_this_second += 1
-	var costs: Dictionary = {}
 	var next_cells: Dictionary = {}
 	if not _is_path_traversable_cell(target_cell):
-		return {"target": target_cell, "costs": costs, "next_cells": next_cells}
-	var frontier: Array[Dictionary] = [{"cell": target_cell, "cost": 0.0}]
-	costs[target_cell] = 0.0
-	while not frontier.is_empty():
-		var current_entry: Dictionary = frontier.pop_front()
-		var current: Vector2i = current_entry.get("cell", target_cell)
-		var current_cost := float(current_entry.get("cost", 0.0))
-		if current_cost > float(costs.get(current, INF)):
+		return {"target": target_cell, "next_cells": next_cells, "cells_reached": 0}
+	# Costs live in a flat PackedFloat64Array indexed by x * MAP_H + y rather
+	# than a Vector2i-keyed Dictionary. Dijkstra touches this several times per
+	# edge, and hashing a Vector2i Variant on every touch was a large share of
+	# what remained after the traversability and neighbour memos landed.
+	var costs := PackedFloat64Array()
+	costs.resize(MAP_W * MAP_H)
+	costs.fill(INF)
+	var target_index := target_cell.x * MAP_H + target_cell.y
+	costs[target_index] = 0.0
+	var heap_index := PackedInt32Array([target_index])
+	var heap_costs := PackedFloat64Array([0.0])
+	var has_blockers := not dynamic_blocked_cells.is_empty()
+	var reached := 1
+	while not heap_index.is_empty():
+		var current_index := heap_index[0]
+		var current_cost := heap_costs[0]
+		_flow_heap_pop(heap_index, heap_costs)
+		# Stale heap entry: this cell was already reached more cheaply.
+		if current_cost > costs[current_index]:
 			continue
+		var current := Vector2i(current_index / MAP_H, current_index % MAP_H)
 		for neighbor in _flow_field_neighbors(current):
-			var step_cost := current.distance_to(neighbor) * get_movement_cost(neighbor)
-			var new_cost := current_cost + step_cost
-			if new_cost >= float(costs.get(neighbor, INF)):
+			if has_blockers and _flow_edge_blocked(current, neighbor):
 				continue
-			costs[neighbor] = new_cost
+			var neighbor_index: int = neighbor.x * MAP_H + neighbor.y
+			var new_cost: float = current_cost + current.distance_to(neighbor) * get_movement_cost(neighbor)
+			if new_cost >= costs[neighbor_index]:
+				continue
+			if is_inf(costs[neighbor_index]):
+				reached += 1
+			costs[neighbor_index] = new_cost
 			next_cells[neighbor] = current
-			_push_flow_frontier(frontier, neighbor, new_cost)
-	return {"target": target_cell, "costs": costs, "next_cells": next_cells}
+			_flow_heap_push(heap_index, heap_costs, neighbor_index, new_cost)
+	return {"target": target_cell, "next_cells": next_cells, "cells_reached": reached}
 
+# --- Binary min-heap used by the flow field ---------------------------------
+# Two parallel arrays rather than an array of Dictionaries, so a push costs one
+# append to each plus a sift, and never allocates an object.
+
+func _flow_heap_push(heap_index: PackedInt32Array, heap_costs: PackedFloat64Array, cell_index: int, cost: float) -> void:
+	heap_index.append(cell_index)
+	heap_costs.append(cost)
+	var index := heap_index.size() - 1
+	while index > 0:
+		var parent := (index - 1) >> 1
+		if heap_costs[parent] <= heap_costs[index]:
+			break
+		_flow_heap_swap(heap_index, heap_costs, parent, index)
+		index = parent
+
+func _flow_heap_pop(heap_index: PackedInt32Array, heap_costs: PackedFloat64Array) -> void:
+	var last := heap_index.size() - 1
+	if last < 0:
+		return
+	heap_index[0] = heap_index[last]
+	heap_costs[0] = heap_costs[last]
+	heap_index.remove_at(last)
+	heap_costs.remove_at(last)
+	var size := heap_index.size()
+	var index := 0
+	while true:
+		var left := index * 2 + 1
+		if left >= size:
+			break
+		var smallest := left
+		var right := left + 1
+		if right < size and heap_costs[right] < heap_costs[left]:
+			smallest = right
+		if heap_costs[index] <= heap_costs[smallest]:
+			break
+		_flow_heap_swap(heap_index, heap_costs, index, smallest)
+		index = smallest
+
+func _flow_heap_swap(heap_index: PackedInt32Array, heap_costs: PackedFloat64Array, a: int, b: int) -> void:
+	var cell_index := heap_index[a]
+	heap_index[a] = heap_index[b]
+	heap_index[b] = cell_index
+	var cost := heap_costs[a]
+	heap_costs[a] = heap_costs[b]
+	heap_costs[b] = cost
+
+# The terrain-only neighbour set for a cell: same diagonal corner-cutting rule
+# and same ramp rule as the original _can_step_between() logic, but ignoring
+# runtime blockers so the answer can be memoised for the life of the map.
+# _build_flow_field() re-applies blockers per edge, which is one dictionary
+# lookup instead of a full re-expansion.
 func _flow_field_neighbors(cell: Vector2i) -> Array[Vector2i]:
+	var cached: Variant = _flow_neighbors_cache.get(cell)
+	if cached != null:
+		return cached
 	var result: Array[Vector2i] = []
-	for dx in range(-1, 2):
-		for dy in range(-1, 2):
-			if dx == 0 and dy == 0:
+	var from_height := int(height_map[cell.x][cell.y])
+	var from_is_ramp: bool = grid[cell.x][cell.y] == E_RAMP
+	for offset in FLOW_NEIGHBOR_OFFSETS:
+		var neighbor: Vector2i = cell + offset
+		if not _is_static_path_traversable_cell(neighbor):
+			continue
+		if not _flow_can_step_to(from_height, from_is_ramp, neighbor):
+			continue
+		if offset.x != 0 and offset.y != 0:
+			var side_x := Vector2i(neighbor.x, cell.y)
+			var side_y := Vector2i(cell.x, neighbor.y)
+			if not _is_static_path_traversable_cell(side_x) or not _is_static_path_traversable_cell(side_y):
 				continue
-			var neighbor := cell + Vector2i(dx, dy)
-			if not _is_path_traversable_cell(neighbor):
+			if not _flow_can_step_to(from_height, from_is_ramp, side_x):
 				continue
-			if not _can_step_between(cell, neighbor):
+			if not _flow_can_step_to(from_height, from_is_ramp, side_y):
 				continue
-			if dx != 0 and dy != 0:
-				var side_x := cell + Vector2i(dx, 0)
-				var side_y := cell + Vector2i(0, dy)
-				if not _is_path_traversable_cell(side_x) or not _is_path_traversable_cell(side_y):
-					continue
-				if not _can_step_between(cell, side_x) or not _can_step_between(cell, side_y):
-					continue
-			result.append(neighbor)
+		result.append(neighbor)
+	_flow_neighbors_cache[cell] = result
 	return result
 
-func _push_flow_frontier(frontier: Array[Dictionary], cell: Vector2i, cost: float) -> void:
-	var entry := {"cell": cell, "cost": cost}
-	for i in range(frontier.size()):
-		if cost < float(frontier[i].get("cost", 0.0)):
-			frontier.insert(i, entry)
-			return
-	frontier.append(entry)
+# Re-applies runtime blockers to a cached static edge. Skipped entirely when
+# nothing is blocked, which is the common case on a fresh map.
+func _flow_edge_blocked(from_cell: Vector2i, to_cell: Vector2i) -> bool:
+	if dynamic_blocked_cells.has(to_cell):
+		return true
+	if from_cell.x == to_cell.x or from_cell.y == to_cell.y:
+		return false
+	# Diagonal: a blocker on either side cell closes the corner, matching the
+	# terrain rule above.
+	return dynamic_blocked_cells.has(Vector2i(to_cell.x, from_cell.y)) \
+		or dynamic_blocked_cells.has(Vector2i(from_cell.x, to_cell.y))
 
 func _smooth_path_cells(start: Vector2i, raw_path: Array[Vector2i]) -> Array[Vector2i]:
 	if raw_path.size() <= 2:
@@ -1078,8 +1238,47 @@ func _frontier_step_has_clearance(from_cell: Vector2i, to_cell: Vector2i) -> boo
 			return false
 	return true
 
+# PERFORMANCE, 2026-08-31: this is the hottest function in the pathfinding
+# layer and it used to be recomputed from scratch on every call.
+# `_is_unramped_height_edge` behind it loops every ramp rect (twice, at margins
+# 1 and 4) and every plot rect, then checks four neighbours -- roughly 40
+# operations with Rect2i allocations. `_flow_field_neighbors()` calls this up to
+# 16 times per expanded cell (8 neighbours plus both side cells of every
+# diagonal), so one flow field over ~7000 reachable cells was doing millions of
+# them, and Andrew's play session recorded that as ~1.3s hard freezes.
+#
+# It is now split: the terrain-shape half is memoised permanently, and the only
+# per-call work is one dictionary lookup for a runtime blocker. That split is
+# what matters -- a memo that still had to be dropped every time a building went
+# down only moved the cost, it did not remove it.
 func _is_path_traversable_cell(cell: Vector2i) -> bool:
-	return is_walkable_cell(cell) and not _is_unramped_height_edge(cell)
+	if dynamic_blocked_cells.has(cell):
+		return false
+	return _is_static_path_traversable_cell(cell)
+
+func _is_static_path_traversable_cell(cell: Vector2i) -> bool:
+	var cached: Variant = _traversable_cache.get(cell)
+	if cached != null:
+		return bool(cached)
+	var result: bool = _is_static_walkable_cell(cell) and not _is_unramped_height_edge(cell)
+	_traversable_cache[cell] = result
+	return result
+
+const FLOW_NEIGHBOR_OFFSETS: Array[Vector2i] = [
+	Vector2i(-1, -1), Vector2i(0, -1), Vector2i(1, -1),
+	Vector2i(-1, 0), Vector2i(1, 0),
+	Vector2i(-1, 1), Vector2i(0, 1), Vector2i(1, 1),
+]
+
+# Height/ramp half of _can_step_between(), for callers that have already
+# established both cells are in bounds and traversable. Skipping those repeated
+# bounds and dynamic-blocker checks is most of what this saves -- the full
+# _can_step_between() was being called up to 24 times per expanded cell.
+func _flow_can_step_to(from_height: int, from_is_ramp: bool, to_cell: Vector2i) -> bool:
+	var to_height := int(height_map[to_cell.x][to_cell.y])
+	if from_height == to_height:
+		return true
+	return from_is_ramp or grid[to_cell.x][to_cell.y] == E_RAMP
 
 func _can_step_between(from_cell: Vector2i, to_cell: Vector2i) -> bool:
 	if not is_in_bounds(from_cell) or not is_in_bounds(to_cell):
@@ -1128,10 +1327,37 @@ func _remember_path(cache_key: String, path: Array[Vector2i]) -> void:
 func _invalidate_path_cache() -> void:
 	_path_cache_version += 1
 	_path_cache.clear()
+	# _traversable_cache / _flow_neighbors_cache / _height_edge_cache are NOT
+	# cleared here on purpose -- they hold terrain shape, which a building does
+	# not change. Blockers are re-applied per lookup instead.
 	_flow_field_cache.clear()
 
+# PERFORMANCE, 2026-08-31: memoised, because this is the expensive half of
+# _is_path_traversable_cell() -- it loops every ramp rect twice (margins 1 and
+# 4) and every plot rect, allocating a Rect2i each time.
+#
+# It now tests _is_static_walkable_cell() rather than is_walkable_cell(), so the
+# answer depends only on the generated map and the memo can outlive building
+# placement. That is also a small correctness fix: previously, dropping a
+# Vinewall on the cell beside a cliff edge made the neighbour loop skip that
+# cell and could report the edge as *not* an edge -- i.e. putting a wall next to
+# a cliff could make the cliff walkable. Terrain shape does not change because
+# something was built on it.
 func _is_unramped_height_edge(cell: Vector2i) -> bool:
-	if not is_walkable_cell(cell) or grid[cell.x][cell.y] == E_RAMP:
+	var cached: Variant = _height_edge_cache.get(cell)
+	if cached != null:
+		return bool(cached)
+	var result := _compute_unramped_height_edge(cell)
+	_height_edge_cache[cell] = result
+	return result
+
+func _is_static_walkable_cell(cell: Vector2i) -> bool:
+	if not is_in_bounds(cell):
+		return false
+	return grid[cell.x][cell.y] != E_WATER and grid[cell.x][cell.y] != E_BLOCKED
+
+func _compute_unramped_height_edge(cell: Vector2i) -> bool:
+	if not _is_static_walkable_cell(cell) or grid[cell.x][cell.y] == E_RAMP:
 		return false
 	if _is_near_ramp_cell(cell, 1):
 		return false
@@ -1144,7 +1370,7 @@ func _is_unramped_height_edge(cell: Vector2i) -> bool:
 	var height := int(height_map[cell.x][cell.y])
 	for offset: Vector2i in [Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(0, -1)]:
 		var neighbor: Vector2i = cell + offset
-		if not is_in_bounds(neighbor) or not is_walkable_cell(neighbor):
+		if not _is_static_walkable_cell(neighbor):
 			continue
 		if grid[neighbor.x][neighbor.y] == E_RAMP:
 			continue

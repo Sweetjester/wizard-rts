@@ -93,6 +93,19 @@ const CAT_LANTERN_TREE_BLOCKER := &"LANTERN_TREE_BLOCKER"
 @export_range(0.0, 1.0, 0.05) var monolith_decor_density := 0.35
 @export_enum("DEBUG", "BIOME", "READABILITY") var presentation_mode := PRESENTATION_DEBUG
 
+# --- Embedded mode (added 2026-08-31) --------------------------------------
+# This script is, and remains, a preview/prototyping tool: left to itself it
+# builds its own MapGenerator, runs its own toy unit probe, and owns its own
+# camera, UI and input. Building gameplay against that is the mistake this
+# project has already made twice (see PROJECT_BRIEF's repo-layout section and
+# the 2026-08-19 Decisions Log entry).
+#
+# Embedded mode is a narrow, additive API for the 3D game mode: the real 2D
+# simulation stays authoritative and simply hands this script its live
+# MapGenerator to draw. In embedded mode the script creates no generator, no
+# camera, no UI, no probe, and consumes no input -- it is terrain geometry and
+# nothing else.
+var embedded_mode := false
 var _map_generator: Node
 var _map_width := 0
 var _map_height := 0
@@ -189,13 +202,75 @@ func _ready() -> void:
 	_create_materials()
 	_apply_presentation_defaults()
 	_load_registry_assets()
+	if embedded_mode:
+		# The host scene owns the camera, the lighting and the input. Terrain is
+		# drawn on demand via render_live_map().
+		return
 	_create_camera()
 	_create_light()
 	_create_ui()
 	_regenerate_map()
 
 
+# Draw the terrain for an already-generated, live MapGenerator instead of
+# building a private one. The generator is NOT reparented or modified -- this
+# only reads its public grid/feature/road/plot data, exactly as _regenerate_map()
+# does for its own.
+func render_live_map(generator: Node) -> void:
+	if generator == null or not is_instance_valid(generator):
+		push_error("[Map3DRenderer] render_live_map called without a generator")
+		return
+	embedded_mode = true
+	if _visual_root != null and is_instance_valid(_visual_root):
+		_visual_root.queue_free()
+		_visual_root = null
+	_map_generator = generator
+	_read_map_data(generator)
+	_render_map()
+
+
+# World-space conversion between the 2D simulation and this 3D view. The 2D game
+# is 64px per cell; this renderer is TILE_SIZE per cell, so the two differ by a
+# constant factor and a Y/Z swap. Everything that has to agree between the
+# simulation and the view goes through these two functions.
+const SIM_PIXELS_PER_CELL := 64.0
+
+func sim_to_world_3d(sim_position: Vector2, height: float = 0.0) -> Vector3:
+	return Vector3(
+		sim_position.x / SIM_PIXELS_PER_CELL * TILE_SIZE,
+		height,
+		sim_position.y / SIM_PIXELS_PER_CELL * TILE_SIZE
+	)
+
+func world_3d_to_sim(world_position: Vector3) -> Vector2:
+	return Vector2(
+		world_position.x / TILE_SIZE * SIM_PIXELS_PER_CELL,
+		world_position.z / TILE_SIZE * SIM_PIXELS_PER_CELL
+	)
+
+
+# Size of the map this renderer actually drew, in cells. Used by the host view
+# to frame the camera on the geometry rather than on the simulation's world
+# bounds, which cover only the playable rect and leave the drawn map off-centre.
+func rendered_map_size() -> Vector2i:
+	return Vector2i(_map_width, _map_height)
+
+func surface_height_at_cell(cell: Vector2i) -> float:
+	if _grid.is_empty() or cell.x < 0 or cell.y < 0 or cell.x >= _map_width or cell.y >= _map_height:
+		return LOW_HEIGHT
+	var value: int = _grid[cell.x][cell.y]
+	if value == MapGenerator.E_HIGH:
+		return HIGH_HEIGHT
+	if value == MapGenerator.E_RAMP:
+		return RAMP_MID_HEIGHT
+	if value == MapGenerator.E_WATER:
+		return WATER_HEIGHT
+	return LOW_HEIGHT
+
+
 func _process(delta: float) -> void:
+	if embedded_mode:
+		return
 	_update_camera_motion(delta)
 	_update_probe_unit(delta)
 	_update_probe_screen_marker()
@@ -203,6 +278,8 @@ func _process(delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if embedded_mode:
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
 			KEY_R:

@@ -56,7 +56,16 @@ func _tick_combat(delta: float) -> void:
 		var unit: Node2D = units[posmod(_unit_cursor + offset, units.size())]
 		if not is_instance_valid(unit) or not unit.has_method("rts_combat_tick"):
 			continue
-		var range_px: float = max(float(unit.get("attack_range")) * 1.5, 256.0)
+		# Aggro range is authored per unit (UnitCatalog.aggro_range_cells) rather
+		# than derived from weapon reach. The old max(attack_range * 1.5, 256)
+		# is kept as the floor so a unit with no authored value, or one whose
+		# reach exceeds its leash, still sees far enough to fight.
+		#
+		# PERFORMANCE: this value is the spatial query radius, so it is the main
+		# lever on combat_tick_ms. Long aggro ranges cost real time at scale --
+		# see the 2026-08-31 telemetry entry on sustained cost above 40 units.
+		var authored_aggro: float = float(unit.get("aggro_range"))
+		var range_px: float = max(max(float(unit.get("attack_range")) * 1.5, 256.0), authored_aggro)
 		var candidate_limit := _candidate_limit_for_count(units.size())
 		var nearby: Array[Node2D] = []
 		var needs_query := true

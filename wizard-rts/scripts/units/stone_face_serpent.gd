@@ -306,19 +306,61 @@ func _draw() -> void:
 	_draw_stone_preview()
 	_draw_selection_and_path()
 
+# Redrawn 2026-08-31 against the KoN roster doc's concept art: a segmented,
+# stone-plated serpent in the evolution palette -- cyan plates with #a95766
+# showing through the seams, a heavy plated skull with one rose eye, and the
+# translucent wings from the concept sheet. Every segment scales with
+# growth_scale so the doc's "increases its length" evolution reads visually.
 func _draw_serpent_body(body: Color, stone: Color, glow: Color, growth_scale: float) -> void:
-	var points := PackedVector2Array([
-		Vector2(-26, 14), Vector2(-15, -2), Vector2(4, -8), Vector2(25, -4),
-		Vector2(35, 8), Vector2(20, 20), Vector2(-4, 18), Vector2(-22, 27)
-	])
-	for i in range(points.size()):
-		points[i] *= growth_scale
-	draw_colored_polygon(points, stone)
-	draw_arc(Vector2(-10, 8) * growth_scale, 22.0 * growth_scale, 2.6, 6.2, 24, body, 6.0 * growth_scale)
-	draw_circle(Vector2(23, -5) * growth_scale, 13.0 * growth_scale, stone.lightened(0.08))
-	draw_circle(Vector2(27, -8) * growth_scale, 3.2 * growth_scale, glow)
-	draw_line(Vector2(-18, 5) * growth_scale, Vector2(20, -1) * growth_scale, Color(glow.r, glow.g, glow.b, 0.72), 2.0 * growth_scale)
-	draw_line(Vector2(-4, 15) * growth_scale, Vector2(27, 6) * growth_scale, Color(glow.r, glow.g, glow.b, 0.52), 1.8 * growth_scale)
+	var plate := team_primary_color()
+	var seam := team_accent_color()
+	var segments := 5 + mini(evolution_level - 1, 4)
+	# Wings first so the body sits over them.
+	_draw_serpent_wings(plate, growth_scale)
+	# Tail -> head along a shallow S, each segment a plated disc.
+	var head_position := Vector2(26, -6) * growth_scale
+	for i in range(segments):
+		var t := float(i) / float(maxi(1, segments - 1))
+		var along: float = lerp(-30.0, 26.0, t)
+		var wave := sin(t * PI * 1.15) * 12.0 - 4.0
+		var centre := Vector2(along, wave) * growth_scale
+		var radius: float = lerp(7.0, 12.5, t) * growth_scale
+		# Seam ring first, so it reads as flesh between the plates.
+		draw_circle(centre, radius + 1.6 * growth_scale, Color(seam.r, seam.g, seam.b, 0.85))
+		draw_circle(centre, radius, plate.darkened(0.12 + 0.05 * (1.0 - t)))
+		draw_circle(centre + Vector2(-radius * 0.25, -radius * 0.3), radius * 0.42, plate.lightened(0.22))
+		if i == segments - 1:
+			head_position = centre
+	# Plated skull.
+	draw_circle(head_position, 14.0 * growth_scale, Color(seam.r, seam.g, seam.b, 0.9))
+	draw_circle(head_position, 12.4 * growth_scale, plate)
+	draw_colored_polygon(PackedVector2Array([
+		head_position + Vector2(4, -10) * growth_scale,
+		head_position + Vector2(17, -3) * growth_scale,
+		head_position + Vector2(16, 7) * growth_scale,
+		head_position + Vector2(3, 9) * growth_scale,
+	]), plate.lightened(0.16))
+	# The single rose eye from the concept art.
+	draw_circle(head_position + Vector2(3, -3) * growth_scale, 4.2 * growth_scale, seam)
+	draw_circle(head_position + Vector2(3.8, -4) * growth_scale, 1.6 * growth_scale, seam.lightened(0.45))
+	# Forked tongue.
+	var snout := head_position + Vector2(17, 3) * growth_scale
+	draw_line(snout, snout + Vector2(9, 2) * growth_scale, seam, 1.6 * growth_scale)
+	draw_line(snout + Vector2(9, 2) * growth_scale, snout + Vector2(14, -1) * growth_scale, seam, 1.3 * growth_scale)
+	draw_line(snout + Vector2(9, 2) * growth_scale, snout + Vector2(13, 5) * growth_scale, seam, 1.3 * growth_scale)
+	# Poison shimmer, so the passive is readable at a glance.
+	draw_circle(head_position + Vector2(20, 4) * growth_scale, 2.2 * growth_scale, Color(glow.r, glow.g, glow.b, 0.55))
+
+func _draw_serpent_wings(plate: Color, growth_scale: float) -> void:
+	var wing := Color(plate.r, plate.g, plate.b, 0.34)
+	var vein := Color(plate.r, plate.g, plate.b, 0.62)
+	for side in [-1.0, 1.0]:
+		var root := Vector2(2, -6) * growth_scale
+		var tip := Vector2(2 + side * 6, -34) * growth_scale
+		var spread := Vector2(side * 30, -22) * growth_scale
+		draw_colored_polygon(PackedVector2Array([root, tip, spread]), wing)
+		draw_line(root, tip, vein, 1.4 * growth_scale)
+		draw_line(root, spread, vein, 1.2 * growth_scale)
 
 func _draw_stone_anchor(glow: Color, growth_scale: float) -> void:
 	draw_circle(Vector2.ZERO, 8.0 * growth_scale, Color(glow.r, glow.g, glow.b, 0.28))

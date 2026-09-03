@@ -7,12 +7,25 @@ const ACTION_ATTACK_MOVE := "attack_move"
 const ACTION_PATROL := "patrol"
 const ACTION_HOLD := "hold"
 const ACTION_STOP := "stop"
+# Army-management bindings (2026-08-31). F1/F2 follow the SC2 convention
+# players already have in their fingers; Tab follows WC3's subgroup cycling,
+# which is this project's standing tiebreaker for ambiguous design calls.
+const ACTION_SELECT_HERO := "select_hero"
+const ACTION_SELECT_ARMY := "select_army"
+const ACTION_CYCLE_IDLE_PRODUCTION := "cycle_idle_production"
+const ACTION_CYCLE_IDLE_UNIT := "cycle_idle_unit"
+const ACTION_CYCLE_SUBGROUP := "cycle_subgroup"
 
 var _defaults := {
 	ACTION_ATTACK_MOVE: KEY_A,
 	ACTION_PATROL: KEY_P,
 	ACTION_HOLD: KEY_H,
 	ACTION_STOP: KEY_S,
+	ACTION_SELECT_HERO: KEY_F1,
+	ACTION_SELECT_ARMY: KEY_F2,
+	ACTION_CYCLE_IDLE_PRODUCTION: KEY_F3,
+	ACTION_CYCLE_IDLE_UNIT: KEY_F4,
+	ACTION_CYCLE_SUBGROUP: KEY_TAB,
 }
 var _bindings := {}
 
@@ -43,7 +56,17 @@ func reset_to_defaults(save: bool = true) -> void:
 		_save_settings()
 
 func get_actions() -> Array[String]:
-	return [ACTION_ATTACK_MOVE, ACTION_PATROL, ACTION_HOLD, ACTION_STOP]
+	return [
+		ACTION_ATTACK_MOVE,
+		ACTION_PATROL,
+		ACTION_HOLD,
+		ACTION_STOP,
+		ACTION_SELECT_HERO,
+		ACTION_SELECT_ARMY,
+		ACTION_CYCLE_IDLE_PRODUCTION,
+		ACTION_CYCLE_IDLE_UNIT,
+		ACTION_CYCLE_SUBGROUP,
+	]
 
 func get_action_display_name(action: String) -> String:
 	match action:
@@ -55,6 +78,16 @@ func get_action_display_name(action: String) -> String:
 			return "Hold Position"
 		ACTION_STOP:
 			return "Stop"
+		ACTION_SELECT_HERO:
+			return "Select Wizard"
+		ACTION_SELECT_ARMY:
+			return "Select Army"
+		ACTION_CYCLE_IDLE_PRODUCTION:
+			return "Cycle Idle Barracks"
+		ACTION_CYCLE_IDLE_UNIT:
+			return "Cycle Idle Unit"
+		ACTION_CYCLE_SUBGROUP:
+			return "Filter Selection By Type"
 	return action.capitalize()
 
 func _load_settings() -> void:

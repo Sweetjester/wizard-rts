@@ -82,6 +82,18 @@ var _jumper_landing_ready := false
 var _hunt_elapsed := 0.0
 var _hunt_charges := 0
 var _observer_aura_enabled := false
+# Master Design Doc section 38. Runtime values, not constants -- Observer Vault
+# research raises intelligence, so a unit can become more obedient over a run.
+var intelligence: int = UnitCatalog.DEFAULT_INTELLIGENCE
+var aggro_range: float = 256.0
+var weapon_mode: StringName = &""
+var _weapon_swap_remaining := 0.0
+# Cached at spawn from UnitCatalog.kon_theme() so _draw() never has to look it
+# up. The KoN roster doc splits the faction into an "observer" theme
+# (black/silver -- Kon himself, the Observation Tower, the Observer Vault) and
+# an "evolution" theme (#67BED9 / #a95766 -- every hybrid, the Vinewall, the
+# Bio Launcher, the Bio Absorber).
+var _kon_theme: StringName = &"evolution"
 var animation_action: StringName = &"idle"
 var ability_animation_action: StringName = &""
 var _ability_animation_until_msec := 0
@@ -111,6 +123,11 @@ func _ready() -> void:
 	_economy_manager = get_node_or_null("../EconomyManager")
 	add_to_group("selectable_units")
 	add_to_group("units")
+	# In 3D presentation the unit is rendered as a multimesh instance by
+	# Map3DView, so its 2D canvas drawing is switched off. Hiding the node skips
+	# _draw() entirely rather than paying for it and discarding the result.
+	if rts_world != null and is_instance_valid(rts_world) and rts_world.presentation_3d:
+		visible = false
 	if rts_world != null:
 		rts_world.register_unit(self)
 	_register_unit(self)
@@ -127,8 +144,17 @@ func _process(delta: float) -> void:
 	var mass_mode := _mass_performance_mode()
 	_update_mass_art_lod()
 	if selected:
-		queue_redraw()
-		_redraw_elapsed = 0.0
+		if not _selection_is_bulk():
+			queue_redraw()
+			_redraw_elapsed = 0.0
+			return
+		# Bulk selection: use the same throttled redraw cadence as everything
+		# else instead of redrawing every frame. The selection ring still
+		# draws, just at the tier's normal interval.
+		var selected_interval := _mass_redraw_interval() if mass_mode else _normal_redraw_interval()
+		if _redraw_elapsed >= selected_interval:
+			queue_redraw()
+			_redraw_elapsed = 0.0
 		return
 	if health < max_health:
 		var damaged_redraw_interval := 0.35 if mass_mode else 0.18
@@ -145,7 +171,8 @@ func _process(delta: float) -> void:
 func set_selected(value: bool) -> void:
 	selected = value
 	if selected:
-		set_central_mass_movement_active(false)
+		if not _selection_is_bulk():
+			set_central_mass_movement_active(false)
 		set_process(true)
 	elif use_mass_vector_lod():
 		set_process(false)
@@ -223,7 +250,10 @@ func _physics_process(delta: float) -> void:
 func set_central_mass_movement_active(enabled: bool) -> void:
 	if _force_lightweight_arena_unit:
 		return
-	if selected:
+	# A hand-managed squad stays on per-node physics so it feels responsive.
+	# A whole-army selection does not -- otherwise Select Army would pull every
+	# blob unit off RTSWorld's budgeted central movement loop at once.
+	if selected and not _selection_is_bulk():
 		enabled = false
 	if enabled == _central_mass_movement_active:
 		return
@@ -235,6 +265,7 @@ func uses_central_mass_movement() -> bool:
 
 func rts_movement_tick(delta: float) -> void:
 	_life_elapsed += delta
+	_update_weapon_swap(delta)
 	_update_limited_lifetime()
 	_update_damage_over_time(delta)
 	_update_temporary_status_effects()
@@ -462,12 +493,13 @@ func rts_combat_tick(delta: float, nearby_units: Array[Node2D]) -> void:
 		attack_target = null
 		unit_state = &"observing"
 		return
-	if attack_target != null and (not is_instance_valid(attack_target) or not _is_enemy_unit(attack_target)):
+	if attack_target != null and (not is_instance_valid(attack_target) or not _is_enemy_unit(attack_target) or not can_engage_target(attack_target)):
 		attack_target = null
 		if command_mode == &"attack_move":
 			_resume_attack_move_objective()
 	if attack_target == null:
 		attack_target = _find_nearest_enemy(nearby_units)
+	_update_autonomy_override(attack_target)
 	if attack_target == null:
 		_update_spawner_drones(nearby_units)
 		return
@@ -495,6 +527,10 @@ func rts_combat_tick(delta: float, nearby_units: Array[Node2D]) -> void:
 	else:
 		unit_state = &"attacking"
 	if _attack_elapsed < _current_attack_cooldown():
+		return
+	# Swapping between the Oaven's spear and blowpipe costs a beat of uptime --
+	# otherwise the swap is a free stat toggle with no decision behind it.
+	if _weapon_swap_remaining > 0.0:
 		return
 	_attack_elapsed = 0.0
 	if attack_target.has_method("take_damage"):
@@ -1039,10 +1075,21 @@ func _projectile_color() -> Color:
 			return Color("#7DDDE8")
 	return Color("#D6C7AE")
 
+# KoN's two themes, straight out of the roster doc's colour scheme section.
+# Observer units and buildings read black/silver; everything born of evolution
+# reads #67BED9 with an #a95766 accent. Both are cached-theme lookups, not
+# catalog reads, because these are called from _draw().
+const KON_EVOLUTION_PRIMARY := Color("#67BED9")
+const KON_EVOLUTION_BODY := Color("#2E5F70")
+const KON_EVOLUTION_ACCENT := Color("#A95766")
+const KON_OBSERVER_PRIMARY := Color("#C9CDD4")
+const KON_OBSERVER_BODY := Color("#20222A")
+const KON_OBSERVER_ACCENT := Color("#E6EAF0")
+
 func team_primary_color() -> Color:
 	match owner_player_id:
 		1:
-			return Color("#7BC47F")
+			return KON_OBSERVER_PRIMARY if _kon_theme == &"observer" else KON_EVOLUTION_PRIMARY
 		2:
 			return Color("#C13030")
 		3:
@@ -1054,7 +1101,7 @@ func team_primary_color() -> Color:
 func team_secondary_color() -> Color:
 	match owner_player_id:
 		1:
-			return Color("#2D5A3E")
+			return KON_OBSERVER_BODY if _kon_theme == &"observer" else KON_EVOLUTION_BODY
 		2:
 			return Color("#5C0F14")
 		3:
@@ -1066,7 +1113,7 @@ func team_secondary_color() -> Color:
 func team_accent_color() -> Color:
 	match owner_player_id:
 		1:
-			return Color("#7DDDE8")
+			return KON_OBSERVER_ACCENT if _kon_theme == &"observer" else KON_EVOLUTION_ACCENT
 		2:
 			return Color("#E85A5A")
 		3:
@@ -1240,7 +1287,9 @@ func slow_for_seconds(seconds: float, multiplier: float) -> void:
 	_queue_unit_redraw()
 
 func salvage_value() -> int:
-	return int(float(UnitCatalog.cost_bio(unit_archetype)) * 0.6) + int(float(max_health) * 0.12)
+	# Uses this unit's live max_health, so an evolved or research-buffed unit is
+	# worth more than its catalog entry suggests.
+	return UnitCatalog.salvage_value_for(unit_archetype, max_health)
 
 func _gain_evolution_xp(amount: float) -> void:
 	var definition := UnitCatalog.get_definition(unit_archetype)
@@ -1265,14 +1314,31 @@ func _evolve(definition: Dictionary) -> void:
 		_uproot_cast_remaining = 0.0
 		_temporary_flight_until_msec = 0
 		_jumper_landing_ready = false
+	# NOTE: _apply_catalog_definition() RESETS max_health/attack_damage from the
+	# catalog, which wipes anything research had baked into this unit. That is
+	# why _reapply_owner_upgrades() runs at the end -- see the 2026-08-31
+	# Decisions Log entry; before that fix, a researched Horror silently lost its
+	# bonus the moment it evolved, permanently.
 	_apply_catalog_definition()
 	evolution_level += 1
-	max_health = int(float(max_health) * (1.18 + float(evolution_level) * 0.03))
+	max_health = int(float(max_health) * UnitCatalog.evolution_hp_multiplier(evolution_level))
 	health = max_health
 	move_speed += float(definition.get("evolution_speed_bonus", 0.0))
-	attack_damage = int(float(attack_damage) * 1.15)
+	attack_damage = int(float(attack_damage) * UnitCatalog.EVOLUTION_DAMAGE_MULTIPLIER)
+	_reapply_owner_upgrades()
 	_set_ability_animation(&"evolve", 1.2)
 	_queue_unit_redraw()
+
+# Asks the BuildSystem to re-bake any researched upgrades onto this unit after
+# its stats were reset by an evolution. Only called from _evolve(), so it costs
+# nothing on the normal path.
+func _reapply_owner_upgrades() -> void:
+	if owner_player_id != 1:
+		return
+	var build_system := get_node_or_null("../BuildSystem")
+	if build_system == null or not build_system.has_method("reapply_upgrades_after_evolution"):
+		return
+	build_system.call("reapply_upgrades_after_evolution", self)
 
 func _try_auto_grapple(target: Node2D) -> void:
 	var definition := UnitCatalog.get_definition(unit_archetype)
@@ -1498,6 +1564,10 @@ func _spend_bio(amount: int) -> bool:
 	if _economy_manager == null or not is_instance_valid(_economy_manager):
 		return true
 	return _economy_manager.spend(owner_player_id, {&"bio": amount})
+
+func _update_weapon_swap(delta: float) -> void:
+	if _weapon_swap_remaining > 0.0:
+		_weapon_swap_remaining = maxf(0.0, _weapon_swap_remaining - delta)
 
 func _update_limited_lifetime() -> void:
 	var lifetime := float(UnitCatalog.get_definition(unit_archetype).get("lifetime_seconds", 0.0))
@@ -1738,11 +1808,67 @@ func _is_stunned() -> bool:
 func _is_enemy_unit(other: Node) -> bool:
 	return other != self and other is Node2D and other.get("owner_player_id") != owner_player_id and other.has_method("take_damage")
 
+# ---------------------------------------------------------------------------
+# Spotting: you cannot shoot what your side cannot see.
+#
+# Sight travels level or downhill freely and is blocked by higher ground, so a
+# unit on low ground cannot engage something on a plateau by itself. It CAN
+# engage it if an ally is close enough to the target to see it -- the spotter
+# rule most RTS games use, and it applies to the enemy AI identically because
+# this runs inside the shared combat tick rather than in player input.
+#
+# PERFORMANCE: the expensive part only runs when the target is HIGHER than the
+# attacker. On flat ground -- which is nearly every engagement -- this is two
+# height lookups and an early return, so the common case costs almost nothing.
+# ---------------------------------------------------------------------------
+const SPOTTER_RADIUS := 320.0
+const MAX_SPOTTERS_CHECKED := 4
+
+func can_engage_target(target: Node2D) -> bool:
+	if terrain == null or not is_instance_valid(terrain):
+		return true
+	if not terrain.has_method("has_line_of_sight"):
+		return true
+	var my_cell: Vector2i = terrain.world_to_cell(global_position)
+	var target_cell: Vector2i = terrain.world_to_cell(target.global_position)
+	var my_height: int = terrain.get_height(my_cell)
+	# Level or below: always engageable. Only uphill needs proving.
+	if terrain.get_height(target_cell) <= my_height:
+		return true
+	if terrain.has_line_of_sight(my_cell, target_cell, my_height):
+		return true
+	return _ally_spots(target_cell)
+
+# Is any nearby ally close enough to the target to see it? Bounded to a handful
+# of candidates so a large army does not turn this into an O(n) scan per shot.
+func _ally_spots(target_cell: Vector2i) -> bool:
+	if rts_world == null or not is_instance_valid(rts_world):
+		return false
+	if not rts_world.has_method("query_units"):
+		return false
+	var target_world: Vector2 = terrain.cell_to_world(target_cell)
+	var checked := 0
+	for ally in rts_world.query_units(target_world, SPOTTER_RADIUS, owner_player_id, MAX_SPOTTERS_CHECKED):
+		if not is_instance_valid(ally) or ally == self:
+			continue
+		var ally_cell: Vector2i = terrain.world_to_cell(ally.global_position)
+		var ally_height: int = terrain.get_height(ally_cell)
+		if terrain.get_height(target_cell) > ally_height:
+			continue
+		if terrain.has_line_of_sight(ally_cell, target_cell, ally_height):
+			return true
+		checked += 1
+		if checked >= MAX_SPOTTERS_CHECKED:
+			break
+	return false
+
 func _find_nearest_enemy(units: Array[Node2D]) -> Node2D:
 	var best: Node2D = null
 	var best_score := INF
 	for unit in units:
 		if not is_instance_valid(unit) or not _is_enemy_unit(unit):
+			continue
+		if not can_engage_target(unit):
 			continue
 		var distance := global_position.distance_squared_to(unit.global_position)
 		var score := distance / maxf(0.1, _target_priority(unit))
@@ -1777,6 +1903,136 @@ func _apply_catalog_definition() -> void:
 	attack_splash_radius = float(definition.get("attack_splash_radius_cells", 0.0)) * 64.0
 	projectile_speed = float(definition.get("projectile_speed", projectile_speed))
 	ignores_terrain = bool(definition.get("ignores_terrain", false))
+	_kon_theme = StringName(definition.get("kon_theme", &"evolution"))
+	intelligence = UnitCatalog.intelligence_of(unit_archetype)
+	aggro_range = float(UnitCatalog.aggro_range_cells(unit_archetype)) * 64.0
+	var modes: Dictionary = definition.get("weapon_modes", {})
+	if not modes.is_empty():
+		var preferred := StringName(definition.get("default_weapon_mode", &""))
+		if not modes.has(preferred):
+			preferred = StringName(modes.keys()[0])
+		_apply_weapon_mode_stats(preferred, modes)
+
+# ---------------------------------------------------------------------------
+# Weapon modes. The roster doc gives the Oaven a spear OR a blowpipe, swapped
+# at will: melee poke versus a slower ranged pea-shooter. Implemented as a stat
+# overlay on top of the archetype rather than as two archetypes, so evolution,
+# control groups, XP and the unit card all keep treating it as one unit.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Intelligence: how far this unit obeys the player. Checked on the PLAYER order
+# path only (CommandDispatcher / SelectionController) -- never on the AI path,
+# so wave units and summons keep taking their own orders regardless.
+# ---------------------------------------------------------------------------
+
+# Whether a player-issued order of this kind would be obeyed right now.
+# `kind` is the order verb: "move", "attack_move", "patrol", "hold", "stop",
+# "attack_target". Feral units refuse everything; Leashed units refuse while
+# something is inside their aggro range.
+func accepts_player_order(kind: StringName = &"move") -> bool:
+	if intelligence >= UnitCatalog.INTELLIGENCE_BOUND:
+		return true
+	if intelligence <= UnitCatalog.INTELLIGENCE_FERAL:
+		return false
+	# Leashed. Stop is always allowed -- refusing it would leave the player no
+	# way to call anything off at all, which reads as a bug rather than as
+	# character.
+	if kind == &"stop":
+		return true
+	return not has_enemy_in_aggro_range()
+
+func refusal_reason() -> String:
+	if intelligence <= UnitCatalog.INTELLIGENCE_FERAL:
+		return "%s ignores orders" % UnitCatalog.get_definition(unit_archetype).get("display_name", unit_archetype)
+	return "%s is engaged and will not break off" % UnitCatalog.get_definition(unit_archetype).get("display_name", unit_archetype)
+
+# Deliberately reads the target the combat tick already maintains rather than
+# running its own spatial query. Two reasons:
+#
+#  * Cost. This is called once per selected unit on every player order. A query
+#    per unit would be O(selection x neighbourhood) on every click, and at the
+#    army scale section 5 targets that is exactly the kind of per-action cost
+#    this project has been bitten by before.
+#  * Correctness. RTSWorld's spatial buckets are only rebuilt by the combat
+#    tick, so querying them from the input path reads whatever staleness that
+#    cadence happens to leave -- the same trap the Bio Absorber heal aura hit.
+#
+# The tradeoff is that a unit which has not noticed an enemy yet still obeys for
+# a tick or two. That is the right way round: the leash tightens once the unit
+# is actually aware of the threat, which is also what it looks like on screen.
+func has_enemy_in_aggro_range() -> bool:
+	if attack_target == null or not is_instance_valid(attack_target):
+		return false
+	return global_position.distance_to(attack_target.global_position) <= aggro_range
+
+# The "reverts to its set behaviour" half of Leashed. A plain move order is
+# abandoned the moment something enters aggro range; attack-move, patrol and
+# hold are deliberately untouched, because those already ARE fighting orders and
+# because enemy waves are issued as attack-move -- overriding those would break
+# wave behaviour entirely.
+func _update_autonomy_override(target: Node2D) -> void:
+	if intelligence >= UnitCatalog.INTELLIGENCE_BOUND:
+		return
+	if target == null or not is_instance_valid(target):
+		return
+	if command_mode != &"move":
+		return
+	if global_position.distance_to(target.global_position) > aggro_range:
+		return
+	command_mode = &"attack_move"
+	unit_state = &"attack_move"
+	_command_destination = target.global_position
+	_has_command_destination = true
+	path.clear()
+
+func has_weapon_modes() -> bool:
+	return not UnitCatalog.weapon_modes(unit_archetype).is_empty()
+
+func available_weapon_modes() -> Array:
+	return UnitCatalog.weapon_modes(unit_archetype).keys()
+
+func current_weapon_mode() -> StringName:
+	return weapon_mode
+
+func weapon_mode_display_name() -> String:
+	var modes := UnitCatalog.weapon_modes(unit_archetype)
+	var mode: Dictionary = modes.get(weapon_mode, {})
+	return str(mode.get("display_name", str(weapon_mode).capitalize()))
+
+func is_swapping_weapon() -> bool:
+	return _weapon_swap_remaining > 0.0
+
+func set_weapon_mode(mode: StringName) -> bool:
+	var modes := UnitCatalog.weapon_modes(unit_archetype)
+	if not modes.has(mode) or mode == weapon_mode:
+		return false
+	_apply_weapon_mode_stats(mode, modes)
+	var swap_seconds := float(UnitCatalog.get_definition(unit_archetype).get("weapon_swap_seconds", 0.0))
+	if swap_seconds > 0.0:
+		_weapon_swap_remaining = swap_seconds
+		_set_ability_animation(&"swap_weapon", swap_seconds)
+	_queue_unit_redraw()
+	return true
+
+func toggle_weapon_mode() -> StringName:
+	var modes := available_weapon_modes()
+	if modes.size() < 2:
+		return weapon_mode
+	var index := modes.find(weapon_mode)
+	set_weapon_mode(StringName(modes[(index + 1) % modes.size()]))
+	return weapon_mode
+
+func _apply_weapon_mode_stats(mode: StringName, modes: Dictionary) -> void:
+	var stats: Dictionary = modes.get(mode, {})
+	if stats.is_empty():
+		return
+	weapon_mode = mode
+	attack_damage = int(stats.get("attack_damage", attack_damage))
+	attack_range = float(stats.get("attack_range_cells", attack_range / 64.0)) * 64.0
+	attack_cooldown = float(stats.get("attack_speed_seconds", attack_cooldown))
+	attack_type = StringName(stats.get("attack_type", attack_type))
+	projectile_speed = float(stats.get("projectile_speed", projectile_speed))
 
 func _separation_velocity(move_dir: Vector2 = Vector2.ZERO) -> Vector2:
 	var push := Vector2.ZERO
@@ -2097,6 +2353,20 @@ func _draw_health_bar() -> void:
 		draw_line(Vector2(-7, y - 7), Vector2(7, y - 3), Color("#E85A5A", 0.9), 1.5)
 		draw_line(Vector2(7, y - 7), Vector2(-7, y - 3), Color("#E85A5A", 0.9), 1.5)
 
+# True when the player has an army-wide selection rather than a squad. One
+# null check and one int compare against an already-cached node reference --
+# this is read from _process/_physics_process on every unit every frame, so it
+# is deliberately as cheap as a property read can be (no has_method(), no
+# get_property_list(); see the 2026-08-23 HUD reflection regression).
+#
+# Note: use_mass_vector_lod() is deliberately NOT gated on this. It only
+# applies to the AI stress arena, and letting it hide art for bulk-selected
+# units would be a visual change that headless tests cannot verify.
+func _selection_is_bulk() -> bool:
+	if rts_world == null or not is_instance_valid(rts_world):
+		return false
+	return rts_world.selected_unit_count > RTSWorld.BULK_SELECTION_THRESHOLD
+
 func _mass_performance_mode() -> bool:
 	if terrain != null and str(terrain.get("map_type_id")) in ["ai_testing_ground", "fortress_ai_arena"]:
 		return rts_world == null or not is_instance_valid(rts_world) or rts_world.count_units_all() >= 120
@@ -2126,7 +2396,7 @@ func _normal_redraw_interval() -> float:
 func _mass_simulation_delta(delta: float, mass_mode: bool) -> float:
 	if _force_lightweight_arena_unit:
 		return delta
-	if not mass_mode or selected:
+	if not mass_mode or (selected and not _selection_is_bulk()):
 		_mass_physics_accum = 0.0
 		return delta
 	var stride := _mass_physics_stride()
@@ -2166,7 +2436,9 @@ func _mass_physics_stride() -> int:
 	return 1
 
 func mass_art_update_interval() -> float:
-	if selected or rts_world == null or not is_instance_valid(rts_world):
+	if rts_world == null or not is_instance_valid(rts_world):
+		return 0.0
+	if selected and not _selection_is_bulk():
 		return 0.0
 	var count := rts_world.count_units_all()
 	if _is_ai_stress_arena() and count >= 250:

@@ -210,6 +210,602 @@ Neither would have been caught by the existing smoke suite on their own merits �
 
 **No new engineering risk here** — this doesn't require new work to become possible. The existing LOD/rendering fix (2026-08-09) was already stress-tested to ~3000 units with a worst-case frame stall of 40 FPS (up from 2 FPS pre-fix); the engine ceiling was never the constraint, the design doc's stated target was just wrong. This also directly raises the priority of real control-group/army-management UX (see the QOL research prompt drafted the same day) — that tooling matters *more*, not less, once "readable at a glance" has to hold at hundreds of units instead of dozens.
 
+### 2026-08-31 — Engineering: army-control QOL pass (control groups, hero/army keys, idle cycling, type filtering) — plus the LOD hole it would otherwise have opened
+
+Direct follow-on from the 2026-08-26 §5 correction. With the target confirmed as *hundreds* of units and the design explicitly leaning on "strong control tooling rather than twitch reflexes," the game's input layer was the actual bottleneck: `selection_controller.gd` had drag/click select, attack-move, patrol, hold, stop, rally points and formation offsets, and **no control groups and no cycling of any kind**. Selecting a specific part of a 300-unit army meant a mouse drag, every time.
+
+**Researched first, then filtered rather than ported.** Surveyed what SC2, AoE4, CoH3, Stormgate, They Are Billions, Northgard and Homeworld 3 actually ship. Three things from that survey were deliberately *not* built, because they don't fit this game's shape:
+
+- **Idle-worker keys (SC2 F1 / AoE4 `.`)** have no analogue — Wizard RTS has no worker units at all; the economy is `bio_absorber` buildings ticking income. The thing that key *solves* (unspent economy) maps here onto **idle production buildings**, and the thing that actually leaks at scale maps onto **idle army stragglers**. Both got a key; "idle villager" did not.
+- **Tactical pause (CoH3/Homeworld 3)** is a single-player pacing tool that would collide with the wave-timer/day-night systems already tuned around real-time pressure. Not attempted.
+- **Northgard's answer (delete army micro entirely, micro the base instead)** is the opposite of §29's tactical pillars. Rejected as a direction, but it's the right reminder that the goal is fewer required actions, not more available ones.
+
+**What shipped** (`scripts/input/control_group_manager.gd` new; `selection_controller.gd`, `keybind_manager.gd`, `build_system.gd`, `rts_hud.gd`, `pause_menu.gd` extended — no new autoloads, no scene changes, no parallel input system):
+
+- **Control groups 1-9**, SC2/WC3 contract: `Ctrl+N` assign, `Shift+N` add, `N` recall, double-tap `N` snaps the camera to the group's centroid. Digits stay hard-bound (as they are in WC3, SC2 and AoE4); everything else went through `KeybindManager` and is therefore rebindable in the existing pause-menu Key Binds tab for free.
+- **Auto-cleanup on death**, via each grouped unit's `tree_exiting` signal — not a per-frame scan. Ungrouped units cost nothing. This is what makes control groups usable at all with a roster that is deliberately disposable.
+- **F1 select wizard / double-tap to snap** (WC3's hero key) and **F2 select army**. F2 **deliberately excludes the wizard**: wizard death is an independent loss condition (§9), so a key that could sweep the hero into an attack-move is a trap, not a convenience. Hero on F1, swarm on F2, never blurred.
+- **F3 cycle idle Barracks**, **F4 cycle idle army units**, both selecting and snapping the camera.
+- **Tab / Shift+Tab filter the selection by unit type** — WC3's subgroup cycling, per this project's standing "if in doubt, WC3" default. Adapted to be **non-lossy**: it walks *full selection → type A → type B → … → full selection*, so cycling around restores what you had, rather than WC3's second parallel "active subgroup" concept which would have to be threaded through every consumer of `selected_units`.
+
+**The genuinely Wizard-RTS-specific piece: the reinforce group.** In SC2 a control group is a mostly-stable set you build once. Here the army is a *stream* — cheap units that die constantly and evolve in place — so "select the new units, Shift-add them to group 1" is a loop the player would run every thirty seconds forever. That is precisely the per-minute APM tax §5 says to design out. `Alt+N` flags one group as the reinforce target; units finishing training join it automatically (via a new `BuildSystem.unit_trained` signal that carries the node — `unit_produced` was left untouched so existing listeners are unaffected), and are sent to that group's **live centroid**, so reinforcements walk to where the army actually is rather than to a rally point set three fights ago. Event-driven end to end; nothing polls.
+
+**The performance finding, which is the part worth reading.** Building this surfaced a real hole that the feature itself would have made trivially easy to fall into. `selected` was a **blanket exemption from every mass-LOD optimisation**: `mass_unit_multimesh_renderer.gd` force-promoted every selected unit to full detail regardless of distance, `set_central_mass_movement_active()` refused to run while selected (pulling units back off `RTSWorld`'s budgeted central movement loop), `_mass_simulation_delta()` skipped the physics stride, and `RTSUnit._process()` redrew every frame. All four are fine when "selected" means a dozen units — and all four turn **one press of F2 at 300 units into a lag switch**, silently undoing the 2026-08-09 LOD and batched-movement work.
+
+Fixed by making the exemption size-aware: `RTSWorld.selected_unit_count` (a plain int, written once per selection change) plus `RTSWorld.BULK_SELECTION_THRESHOLD` (48). At or below the threshold — a hand-managed squad — behaviour is exactly as before. Above it, selected units keep normal mass-LOD treatment and still draw their selection ring on the tier's throttled cadence. `use_mass_vector_lod()` was deliberately **left alone**: it only applies to the AI stress arena, and hiding art for bulk-selected units would be a visual change headless tests cannot verify.
+
+Cost discipline throughout, given the 2026-08-23 regression: the new manager has no `_process` at all; the HUD's control-group strip refreshes on a `groups_changed` signal rather than per frame; every idle/army scan is reachable only from a key press. **Three pre-existing `get_property_list()` reflection scans were also removed from paths this work makes hotter** — `_is_player_selectable()` (ran once per selectable node per selection change) and the two `selection_radius` lookups in the right-click attackable scan (ran over every unit on the map on every right-click) — all replaced with plain `get()` reads guarded against null. `has_method()`/`get_property_list()` appears nowhere in the new code.
+
+One small input fix went with it: HUD buttons now use `focus_mode = FOCUS_NONE`. Without it, clicking a build button hands it keyboard focus, Godot's built-in `ui_focus_next` eats Tab before `_unhandled_input` ever sees it, and Space/Enter re-fire the last button pressed — the classic RTS-HUD input-stealing bug, and it would have broken the new Tab binding outright. The Key Binds tab also became a `ScrollContainer`, since the bindable-action list went from 4 to 9.
+
+**Tests**: three new smoke tests, all booting the real `scripts/map/main_map.tscn`. `control_group_smoke_test.gd` (assign replaces / add unions / recall selects, death auto-cleanup across multiple groups, reinforce absorption + live-centroid rally + enemy-owned units rejected + exclusivity), `army_selection_hotkeys_smoke_test.gd` (hero key, army key excluding the wizard, both idle cyclers including the negative cases — a unit on hold isn't idle, a Barracks with a queue isn't idle production — and non-lossy subgroup cycling in both directions), and `bulk_selection_lod_smoke_test.gd`. That last one is the notable one: **it is a correctness test standing in for a cost property**, which is exactly the gap the 2026-08-23 entry flagged as uncovered ("passing correctly while being slow is invisible to that bar"). It asserts that a squad-sized selection keeps its full-fidelity exemptions and an army-sized one does not.
+
+Whole suite run: **42 of 43 pass**. The one failure, `seeded_grid_frontier_smoke_test.gd` ("connected road arteries spanning west/east and north/south"), is **pre-existing and unrelated** — reproduced identically on a clean worktree at `d9576ec` before any of this work. Logged on the Roadmap; not fixed here, since map generation is nowhere near this change and it deserves its own look. Stress suite unchanged (`fortress_ai_arena_stress_test` passes at 3070 live units, combat 5.1ms).
+
+**Not done, deliberately**: no army-wide stance system (§29 territory, and a real design decision about what stances even mean for evolving units — not an engineering gap to fill unasked); no camera-location hotkeys (Ctrl+F1-F4 in SC2/Stormgate) since double-tap-to-snap covers the common case at this map size; no queued/shift-chained orders; control-group digits are not rebindable.
+
+### 2026-08-31 — Design + Engineering: the KoN faction doc is now the live faction
+
+Andrew supplied the in-progress KoN roster document (`KoN (1).pdf`, 4 pages plus 4 concept-art plates). It is the first real faction bible this project has had, and auditing it against the code found the live game was implementing a *different* faction: the doc's KoN is Kon plus Oaven (T1) → Stone-Faced Serpent (T2) → Spawner (T3) → The Forbidden (T4), while `CLASS_UNIT_ROSTERS` gated Bad Kon Willow to `[apex, champion, oaven_spear, oaven_jumper]` — apex appears nowhere in the doc, and the Serpent and Spawner belonged to the other two wizard classes.
+
+**Two scope calls put to Andrew before any code moved**, because both changed the shape of the work:
+
+1. **Roster** — aligning Kon to the doc takes the Serpent off Evangalion and the Spawner off Hellfire Baby. Andrew's call: **doc wins, units shared**. Kon gets the doc's roster exactly; the other two classes keep what they had rather than being stripped. Per-class exclusivity (§16) becomes a later balance pass once Evangalion and Hellfire Baby have roster docs of their own. Logged here so nobody "fixes" the sharing later thinking it was an oversight.
+2. **Art** — `PIXELLAB_API_KEY` is still unset (only `MESHY_API_KEY` exists, and that is the deprioritized 3D path), and the Oaven, Serpent and Spawner have **no sprite sheets at all** — they render as procedural vector art. Andrew's call: **do everything possible without a key**, and log what stays blocked.
+
+#### What the doc said that the code did not do
+
+Gaps found and closed, each traceable to a line in the doc:
+
+- **Tier gating did not exist.** All six units trained from the first Biospawner. Now `BuildSystem.unlocked_tier()` gates production: tier 1 free from the first minute, tier 2 and 3 behind new **Observer Vault** research (`tier_two_hybrids`, `tier_three_hybrids`, the latter requiring the former), with `grant_tier_unlock()` as the doc's second route in — "finding upgrades on the map".
+- **The Bio Absorber's heal aura was a button that did nothing.** `upgrade_choices: [heal_aura, bio_launcher]` existed in the catalog and the HUD had a "Heal Aura" button, but *nothing anywhere read the result* — picking it was a no-op. The doc says absorbers "naturally slowly heal units and buildings in a large radius" as a baseline, with the upgrade on top. Both now exist (`_update_absorber_heal_auras`, 1Hz, baseline 2 HP/s at 460px, upgraded 6 HP/s at 720px), and structures mend as well as units.
+- **The Oaven had no blowpipe.** The doc's tier-1 unit "can switch between either a spear or a blowpipe". Implemented as a `weapon_modes` stat overlay on the archetype rather than two archetypes, so evolution, XP, control groups and the unit card all keep treating it as one unit. Swapping costs a beat of attack uptime, so it is a decision rather than a free toggle.
+- **The Bio Launcher could not attack ground and could not be switched off.** The doc gives it both. Manual fire reuses the same click-a-point cursor attack-move and patrol already use rather than adding a second targeting mode; auto-fire defaults on, so existing behaviour is unchanged unless the player turns it off.
+- **The Forbidden did not exist.** Tier 4, unleashed from the Observation Tower for 900 Bio, never trained. The doc is explicit that it "will not obey Kon and will turn it's wrath on all", so that is enforced *structurally* rather than by an AI rule: it spawns under `owner_player_id = 0`, an owner slot no faction uses. Every hostility check in this codebase is a plain `owner_player_id != my_owner` comparison, so it is automatically hostile to the player who paid for it, to the Deom Legion, and to anything added later — with no special-casing anywhere. It is also physically unselectable, because `SelectionController._is_player_selectable()` only accepts owner 1.
+- **Building names contradicted the doc.** Barracks → **Biospawner**, Terrible Vault → **Observer Vault**, Wizard Tower → **Observation Tower**. Display names and blurbs only; the archetype keys are unchanged so no save, scene or test wiring breaks.
+- **The duo colour scheme was unimplemented.** The doc splits KoN into an *observer* theme (black/silver — Kon, the tower, the vault) and an *evolution* theme (#67BED9 / #a95766 — every hybrid, the Vinewall, the Bio Launcher, the Bio Absorber), with the Biospawner as "the only building where these two themes cross over". Each archetype now carries a `kon_theme` tag, and `team_primary/secondary/accent_color()` resolve against it. Cached at spawn, not looked up in `_draw()`.
+
+#### Unit cards
+
+The doc is a stat sheet, so the game needed somewhere to show one. The existing "Unit Stat Sheets" window was upgraded into real unit cards — **concept-art portrait, tier badge with live LOCKED state, faction-themed accent, flavour blurb, weapon modes, evolution chain, and an explicit "UNCONTROLLABLE" line for the Forbidden** — and wired to a **Roster** button on the Biospawner's own command panel, which is where a player actually asks "what can I build". The four concept-art plates were extracted from the PDF, cropped to 512² portraits under `assets/ui/unit_cards/`, with the full-resolution sources kept alongside in `art/concept/kon/` as the pipeline inputs of record.
+
+#### Art: what shipped, what is still blocked
+
+Shipped without any API key: the four portraits, the doc's exact palette applied across every KoN unit and building, and a **redraw of the Serpent's and Spawner's in-game procedural art against the concept plates**. Those two were previously featureless lumps — verified in the before screenshot. The Serpent is now a segmented stone-plated body with #a95766 seams, a plated skull with the concept's single rose eye, and translucent wings that scale with its five growth stages; the Spawner is a bone-plated insect over a rose underbelly with six legs, antennae and wings that spread when it evolves into the Winged form.
+
+**Still blocked, and the honest limit of this pass**: real sprite sheets and directional animation frames for Oaven, Serpent, Spawner and the Forbidden. Everything above is vector art drawn in `_draw()`. This needs `PIXELLAB_API_KEY`, which has now been unset for long enough to be the single biggest constraint on this project's art — it also still blocks the ground/road/water tiles from 2026-08-19. §37's animation gap is untouched by this pass.
+
+#### Evidence
+
+New `kon_faction_mechanics_smoke_test.gd` covers every mechanic above — tier gates in both directions including the tier-3-requires-tier-2 rule, weapon swap stats and uptime cost, heal aura in and out of radius, launcher auto/manual including an out-of-range rejection, the Forbidden's ownership/stats/aggression, and the unit-card builder run across ten archetypes asserting the portraits actually resolve. `class_unit_roster_smoke_test.gd` was updated, not worked around: it asserted `apex` was in Kon's roster, which was true before and is deliberately false now — the same class of stale-assumption fix as the relic test on 2026-08-23.
+
+Visual evidence comes from the real shipping scene per the DoD, via a new `scripts/tools/kon_faction_screenshot.gd` (a windowed verification tool, deliberately **not** part of the headless suite): it boots `scripts/map/main_map.tscn` as a Bad Kon Willow run, stands up the base, spawns the roster and saves both a battlefield shot and a unit-card shot.
+
+Suite: **43 of 44 pass**. The one failure, `seeded_grid_frontier_smoke_test.gd`, is the pre-existing road-artery failure already logged on the Roadmap — unrelated and unchanged.
+
+#### Not done
+
+No tower garrison (the doc's "Kon can garrison inside to build his base ... to provide auras, buffs while microing") — it needs a real decision about what happens to a garrisoned hero's selection, orders and death, which is design, not engineering. No free-upgrade-over-time on the Biospawner beyond the `auto_evolves` timer it already had. Observer research beyond the tier gates (`observer_sight`, `observer_oversight`) is costed and researchable but its effects are not yet wired to sight radius or aura strength — the gates were the part that made the faction playable. The Forbidden has stats, behaviour and a bespoke silhouette but no concept art of its own; the doc does not include a plate for it.
+
+### 2026-08-31 — Performance: the in-game freezes were one flow-field rebuild costing 1.27 seconds
+
+Andrew reported "a ton of lag, freezes to be specific" and exported telemetry. The export (`test_exports/session_data/20260831 180830_seeded_grid_frontier_13703`, a 386-second real play session) identified it exactly, and the answer was not what the symptom suggested.
+
+**The session was mostly fine.** Median FPS was a flat 60, at 40-98 units — nowhere near this project's scale targets. What the player felt was 36 separate freeze samples, several of them a full second of frozen frames.
+
+**The measurement that found it**: in every spike sample, `physics_ms / flow_field_recomputes` came out at **~1270ms**, at unit counts ranging from 23 to 81. Samples with two recomputes showed 2539ms; three showed 3783ms and 3846ms. A cost that lands on an exact per-unit-of-work quantum, independent of unit count, is a single fixed operation — not load. One flow-field rebuild = one ~1.3 second frozen frame. Reproduced on the live map at **1221ms** before touching anything.
+
+The trigger is ordinary play: the flow-field cache is keyed on `_path_cache_version`, so **every building or Vinewall placed** invalidates it, and the next enemy wave to ask for a route pays the full rebuild inside the physics frame.
+
+#### Why nothing caught it
+
+- `flow_field_smoke_test.gd` passed throughout. It checks that units make measurable progress toward their target — a correctness question. It has no opinion about how long the field took to build.
+- The stress suite scales *unit count*. This cost scales with **map area**, and is completely flat in unit count. Pushing to 3000 units would never have surfaced it.
+
+This is precisely the gap the 2026-08-23 entry named and left open: *"smoke tests check correctness (does the right thing happen), not performance (how expensive is it) ... passing correctly while being slow is invisible to that bar."*
+
+#### What was actually wrong — four things, in order of what they cost
+
+1. **The Dijkstra frontier was a linear-insert sorted `Array[Dictionary]`.** Every relaxation did an O(n) scan plus an O(n) `Array.insert()` memmove and allocated a Dictionary per queue entry. Replaced with a binary min-heap over parallel packed arrays, no per-entry allocation.
+   *A caution worth recording*: the first version of the heap used `PackedFloat32Array` for costs. The field still built, the tests still passed, and it was 2× faster — but it silently reached **3384 cells instead of 7017**. The float32-rounded cost read back off the heap compared as greater than the float64 value in the cost map, so the stale-entry check discarded valid expansions. It looked like a win and was a correctness bug. `PackedFloat64Array` throughout.
+2. **`_is_path_traversable_cell()` was recomputed from scratch on every call** — and `_is_unramped_height_edge()` behind it loops every ramp rect twice (margins 1 and 4) and every plot rect, allocating `Rect2i`s. `_flow_field_neighbors()` calls it up to 16 times per expanded cell, so one field did millions of them.
+3. **Memoising it was not enough on its own**, which is the interesting part. A memo cleared by `_invalidate_path_cache()` is dropped every time a building goes down — exactly the moment the field rebuilds — so it only moved the cost. The fix was to **split static from dynamic**: terrain shape (height edges, ramp proximity, plot rects, the neighbour sets themselves) is memoised for the life of the map, and runtime blockers are re-applied per edge as a dictionary lookup during expansion. Terrain does not change because something was built on it.
+4. **Costs moved to a flat `PackedFloat64Array`** indexed `x * MAP_H + y` instead of a `Vector2i`-keyed Dictionary.
+
+**Result: 1221ms → 79ms steady-state** (the first build on a fresh map is ~150ms while the terrain memos fill). Same 7017 cells reached, same routes.
+
+#### A correctness fix that came with it
+
+`_is_unramped_height_edge()` used to test `is_walkable_cell()`, which accounts for runtime blockers, on both the cell and its neighbours. So dropping a Vinewall beside a cliff edge made the neighbour loop skip that cell and could report the edge as *not* an edge — **building a wall next to a cliff could make the cliff walkable**. It now tests terrain only. That is what made the static memo possible, and it is the correct behaviour independently.
+
+#### Evidence
+
+New `flow_field_cost_smoke_test.gd`, which asserts on **time as well as behaviour** — the pattern the 2026-08-23 entry asked for. It measures a rebuild after a path-cache invalidation against a 400ms budget (generous against the 79ms measured, tight against the 1221ms before), and separately proves blockers still work now that neighbour sets are cached without them: a fully walled target reaches only itself, removing the wall restores the exact original reachable set, and a diagonal step between two blocked cells stays closed. Reported at **73.3ms** on this machine.
+
+`scripts/tools/flow_field_bench.gd` added as a profiling tool (windowed or headless, not part of the suite) for anyone measuring this again.
+
+Suite: 44 of 45 pass; the failure is the pre-existing `seeded_grid_frontier_smoke_test.gd` road-artery bug already on the Roadmap.
+
+#### Not fixed: a second, separate cost
+
+Excluding the freeze frames entirely, the same telemetry shows a real sustained problem that is **not** the flow field and was not touched here:
+
+| units | median fps | process_ms | combat_tick_ms | path_requests/s |
+|---|---|---|---|---|
+| 0-19 | 60 | 13.4 | 0.1 | 0 |
+| 20-39 | 60 | 10.4 | 0.9 | 11 |
+| 40-59 | 56 | 27.4 | **18.6** | 54 |
+| 60-79 | 58 | 28.5 | 20.1 | 130 |
+| 80-99 | **47** | 30.8 | 22.8 | **370** |
+
+Two things stand out. `combat_tick_ms` jumps 20× (0.9 → 18.6ms) for a 1.7× increase in units, which is a step change rather than a scaling curve and needs its own look. And path requests reach 370-540/second at 70-90 units — roughly 5-6 repaths per unit per second, which is a repath storm regardless of the 97% cache hit rate. **At 40+ units the game is already spending more than a 60fps frame budget in `process`**, which matters a great deal given §5's target of hundreds. Logged on the Roadmap as the next performance item; deliberately not rushed into the same pass as the freeze fix.
+
+### 2026-08-31 - Bugfix: three stat-pipeline bugs, found by explaining the unit cards rather than by testing
+
+Andrew asked what the numbers on the new unit cards meant. Walking the pipeline to answer it -- catalog to node to modifiers to card -- turned up three real bugs that no test would have caught, because every one of them is a case of two systems disagreeing while both behave "correctly" in isolation.
+
+The shape they share: `UnitCatalog.DEFINITIONS` is design-time data that gets **copied** onto a node by `_apply_catalog_definition()` at spawn. From then on the node is authoritative, and several systems mutate it. Nothing reconciles the two, and nothing asserted they agreed.
+
+**1. Evolution silently deleted researched upgrades, permanently.** `_evolve()` calls `_apply_catalog_definition()`, which resets `max_health` and `attack_damage` from the new archetype. A Horror carrying Hardened Horrors' +20 HP evolved into a Hunter and dropped straight back to base stats. Worse, the `hardened_horrors_rank_applied` meta marker survived, so `_apply_upgrades_to_unit()` treated the unit as already-upgraded and never re-applied it. The player paid for an upgrade that vanished the moment their unit improved. `_evolve()` now calls `_reapply_owner_upgrades()`, and `BuildSystem.reapply_upgrades_after_evolution()` clears the marker and re-bakes against the new base stats.
+
+**2. Hardened Horrors was keyed on the archetype, not the family.** `if archetype == &"horror"` -- so even with the fix above, a Hunter would never qualify. Now matched on `UnitCatalog.family_of()`, which the catalog already carried (`horror` and `hunter` share `unit_family: &"horror"`). Whether an upgrade should follow a unit through evolution is a design call, and this is the answer the standing WC3 default supports: upgrades persist for the life of the unit, they are not un-bought by getting stronger.
+
+**3. Every evolved unit on every card was understated.** `_evolve()` applies a growth multiplier *on top of* the evolved archetype's catalog entry (`max_health x (1.18 + level x 0.03)`, `attack_damage x 1.15`) -- but the card read the raw catalog. Oaven Jumper displayed **HP 118 / Damage 12**; the unit you actually field is **HP 146 / Damage 13**. Hunter displayed 108/16 against a real 133/18. Roughly 24% HP and 15% damage missing on every evolved form.
+
+Fixed at the source of truth rather than in the card: the multipliers moved into `UnitCatalog` as named constants, `_evolve()` now uses them, and new `fielded_max_hp()` / `fielded_attack_damage()` helpers give the card what a player will really get. Evolved forms render as `HP 146 (base 118 +growth)` so the growth stays legible instead of being quietly folded in.
+
+**Also cleaned up while in there**: the card's "Bio value" line read a `bio_value` catalog key that exists on **no archetype**, so it printed 0 for every unit in the game. It now uses the real salvage formula (60% of Bio cost + 12% of max HP), shared with `RTSUnit.salvage_value()` via `UnitCatalog.salvage_value_for()`. Cards also gained a derived **DPS** figure and a px conversion on range -- damage-per-hit alone hid that the Oaven's blowpipe is roughly half the DPS of its spear, and that Kon's double cast makes his real output 37.6 rather than the 16 shown.
+
+#### Worth knowing for future stat work
+
+- **`WeaponCatalog` is a partial second source of truth and its damage numbers are dead.** `get_weapon()` overwrites `damage` and `speed` from `UnitCatalog` whenever the unit defines them. So `weapon_catalog.gd` saying `life_wizard: damage 13` while the catalog says 16 is not a conflict -- the 13 simply never applies. What WeaponCatalog *does* own and what is very much live: `kind`, `color`, `casts` (Kon's double cast), `aoe_radius`, `lead_target`, `ground_attack`. Tuning damage in that file does nothing; tuning `casts` does a lot.
+- **Armor is flat subtraction with a floor of 1**, not a percentage. Armor 5 removes 71% of a 7-damage hit and 13% of a 38-damage one, which makes armour a hard counter to swarms and near-irrelevant against heavy hitters. Now stated on the card instead of left to be reverse-engineered.
+- **Magic armor is currently almost inert.** The only thing in the codebase that passes `&"magic"` is poison damage-over-time; every other attack is physical. Magic armour therefore reads as "Stone-Faced Serpent resistance" and nothing else. Not changed here -- it is a design decision whether more damage should be magic -- but it should not be tuned as though it were a general second armour stat.
+- **Evolution XP is earned two ways**, and neither is on the card: +0.6 x attack_damage per attack made, and +0.35 x damage taken. Units level from being in a fight, not from winning it.
+
+#### Evidence
+
+New `evolution_stat_integrity_smoke_test.gd`. **Verified by reverting each fix and confirming the test fails**, then restoring -- not just by watching it pass. With the re-apply removed: *"Evolution dropped the researched bonus: Hunter has 133 HP, expected at least 153"*. With the family match reverted: same failure. It also covers idempotency (applying a rank twice must not double-count, the property the 2026-08-23 tiered-research work established) and asserts fielded stats exceed catalog stats for every evolved form while matching exactly for every base form.
+
+Suite: 45 of 46 pass, the failure being the pre-existing `seeded_grid_frontier_smoke_test.gd` road-artery bug.
+
+### 2026-08-31 - Design: "Micromanageable Levels" added to the Master Design Doc (Section 38)
+
+Andrew's mechanic, his call, recorded here because it changes how units are specified from now on: **not every unit answers to the same degree of control.** Some can be fully micromanaged with precise responsiveness; others accept only primitive commands and otherwise fight their own way -- defend-only postures, or attack orders that cannot be called off once committed.
+
+Added as Section 38 rather than folded into Section 15, with cross-references placed in Section 5 (scale and army control), Section 15 (Units) and Section 36 (the agent summary) so it cannot be missed by anyone reading only one of those. Numbered at the end deliberately: inserting it mid-document would have renumbered sixteen sections and broken every existing reference in the vault and the code comments.
+
+**Why this matters beyond being one more mechanic.** It resolves a real tension that Section 5 and Section 29 have been carrying since the "hundreds of units" correction on 2026-08-26. Section 5 wants hundreds of units on screen; Section 29 forbids leaning on APM. The 2026-08-31 control-groups pass answered that by raising the ceiling on what a player *can* manage. This answers it from the other side, by lowering how much *needs* managing -- and the two together are a much more coherent position than control tooling alone. Recorded in the doc in those terms.
+
+It also gives KoN a trade-off axis that is not power. A unit can be strong *and* awkward, which is exactly the alternative to the "pure stat scaling" Section 29 lists as a thing to avoid, and it arrived while the stat-system design conversation was live.
+
+The doc proposes five named levels as a starting structure -- Commanded, Directed, Loosed, Bound, Unbound -- explicitly as a recommendation in the doc's usual register, not as a settled rule. Worth noting that **the extreme case is already built**: The Forbidden (Tier 4, 2026-08-31) spawns under `owner_player_id = 0` and is unselectable, which is "Unbound" implemented before the concept had a name. That is a useful anchor for whoever specifies the rest of the scale.
+
+Three open questions are recorded in the doc rather than guessed at: whether control level belongs to the unit, to its evolution stage, or to its distance from Kon and the Observation Tower (an observer-magic leash); whether other classes use the axis at all; and how a mixed selection behaves when one order is issued to units that will and will not obey it.
+
+**Not implemented.** This is a design entry only. The one engineering note worth carrying forward: it interacts directly with the control-group and army-order work from earlier the same day, and the "readable, not silently partial" requirement for mixed selections is a UI problem as much as a simulation one.
+
+### 2026-08-31 - Design + Engineering: Intelligence and Aggro Range shipped as real stats
+
+Andrew's call, made and built the same day the mechanic went into the doc. Section 38 was rewritten from the five-level structure originally proposed down to his three-point **Intelligence** scale, and implemented:
+
+- **1 Feral** -- set behaviour, player orders refused outright.
+- **2 Leashed** -- takes move orders, but only while no enemy is inside its aggro range. Once something closes it drops the order and fights its own way.
+- **3 Bound** -- fully micromanageable.
+
+Plus **Aggro range**, the companion stat: how far an enemy can be before the unit engages on its own. The two read together -- aggro range says when a unit starts fighting by itself, intelligence says whether you can stop it.
+
+**Aggro range already existed, badly.** It was an implicit `max(attack_range * 1.5, 256px)` hardcoded in `combat_system.gd` with no design control over it at all. It is now authored per unit (`aggro_range_cells`), and the old expression is kept only as a floor for anything unauthored. That value is also the spatial query radius, so it is the main lever on `combat_tick_ms` -- noted in the code, because long aggro ranges cost real time at scale and the 2026-08-31 telemetry already flagged combat cost above 40 units.
+
+#### The two design decisions inside the implementation
+
+**Stop is always obeyed** above Feral. A Leashed unit refusing every order including Stop would leave the player unable to call anything off, which reads as a bug rather than as character. Written into the doc's design rules, not just the code.
+
+**The gate applies on the player order path only** -- `CommandDispatcher` and `SelectionController`. Wave units and summons issue orders directly on the unit and are deliberately unaffected. This matters more than it sounds: enemy waves are Leashed and Feral too, and leaking the gate onto the direct call path would silently stop every enemy wave in the game. The smoke test pins that distinction explicitly.
+
+Only `command_mode == &"move"` is overridden when a Leashed unit acquires a target. Attack-move, patrol and hold are untouched, because those are already fighting orders and because waves are issued as attack-move.
+
+#### Two things done cheaply on purpose
+
+`has_enemy_in_aggro_range()` reads the `attack_target` the combat tick already maintains rather than running its own spatial query. A query per unit per order click would be O(selection x neighbourhood) on every click, and RTSWorld's buckets are only rebuilt by the combat tick -- so querying them from the input path would read whatever staleness that cadence leaves. That is the exact trap the Bio Absorber heal aura hit earlier the same day, hit again here, and avoided the same way. The tradeoff is that a unit which has not noticed an enemy yet still obeys for a tick or two, which is the right way round: the leash tightens once the unit is visibly aware.
+
+Intelligence from `observer_command` is **recomputed** from the catalog baseline plus current rank rather than incremented. That makes it naturally idempotent and, importantly, it survives the stat reset that evolution performs -- the bug fixed hours earlier in this same session. The new stat was built to not repeat it.
+
+#### Partial orders are reported, not silent
+
+New `CommandDispatcher.order_partially_refused(obeyed, refused, reason)` signal, surfaced by the HUD as "3 obeyed, 2 refused - Spawner is engaged and will not break off". This was the risk flagged when the mechanic first went into the doc: ordering a mixed selection where only some units comply must not look like the order was dropped.
+
+#### Cards
+
+Intelligence and aggro range render on the unit card as their own line, colour-coded (green Bound / amber Leashed / red Feral), with the rule spelled out in plain language and the unit's real aggro number substituted in -- "Takes move orders only while no enemy is within 7 cells." The live selection panel shows the current value rather than the catalog one, since research can have raised it. Verified in the running game, not just in a test.
+
+#### Roster values
+
+Obedience degrades toward the forbidden, as the doc's rationale asks: Oaven 3, Stone-Faced Serpent 2, Spawner 2, Spawner Drone 1, The Forbidden 1. Aggro ranges 5-14 cells, longest on the Forbidden. The wizard is 3 and always will be.
+
+**The Forbidden needed no special-casing** -- it was already unowned and unselectable from the tier-4 work, so Intelligence 1 simply describes what it already does.
+
+#### Evidence
+
+New `intelligence_stat_smoke_test.gd`: all three levels gated correctly, aggro range measured in both directions, Stop's exemption, dispatcher filtering with a reason string, the AI-path bypass, and Observer Command raising and capping intelligence. Suite 46 of 47, the failure being the pre-existing road-artery bug.
+
+One test-authoring trap worth recording: units spawned at coordinates beyond the 6144px map are silently teleported by `_snap_to_walkable_terrain()`, which pulled a test pair apart and made an aggro assertion fail for entirely the wrong reason. Test units must be placed on real walkable cells via `nearest_walkable_cell()`.
+
+**Left open in the doc**: whether Intelligence 1 needs more than one "set behaviour". Today a Feral unit just fights on its own; Andrew's original framing also imagined defend-only postures, which would need a stance concept sitting alongside the stat.
+
+### 2026-08-31 - Feature: 3D map view as a presentation mode over the unmodified 2D game
+
+Andrew asked for "a new mode which has the map in the 3d one, same game mode". Built, and the shape of the answer matters more than the feature.
+
+**What it is not.** `map_3d_renderer.gd` is a preview tool: it generates its own MapGenerator, runs its own toy unit probe, and owns its own camera, UI and input. Building gameplay against it is the mistake this project has already made twice -- 100+ assets against a non-shipping scene (2026-08-19), and the recurring confusion `PROJECT_BRIEF.md` warns about in its repo-layout section. Bending that tool into the game would have created a second, diverging implementation of Wizard RTS.
+
+**What it is.** The 2D simulation stays authoritative for every unit position, order, path and combat result. A new `Map3DView` node sits alongside it and does four things: asks the preview renderer to draw the **live** MapGenerator's terrain, mirrors live units and structures into MultiMeshes, owns a 3D RTS camera, and converts screen position into simulation coordinates. **Delete the node and the game still runs.** That property is the whole design.
+
+#### Decisions worth recording
+
+**One scene, not two.** The 3D view is a node inside `scripts/map/main_map.tscn` that frees itself in `_ready()` unless `GameSession.render_3d` is set. A parallel `main_map_3d.tscn` was the obvious approach and was rejected: a copy starts diverging from the real scene the first time either is edited, which is the same drift that produced the dead `scenes/map/main_map.tscn` stub the brief already warns about.
+
+**A narrow embedding API rather than a rewrite.** `map_3d_renderer.gd` gained `embedded_mode`, `render_live_map(generator)`, and coordinate helpers -- about 60 lines. In embedded mode it creates no generator, no camera, no UI, no probe, and consumes no input. Its 3400 lines of preview behaviour are untouched and still work standalone.
+
+**One input bridge, not a second input system.** The 2D `SelectionController` works in simulation coordinates and asks the viewport for the mouse. In 3D that has no answer until the cursor is projected onto the ground plane, so `screen_to_sim_position()` does exactly that and every selection, order and placement path is shared between the two modes rather than forked. `BuildSystem` uses the same bridge for placement.
+
+#### The bug worth remembering
+
+Hiding the 2D presentation by a **list of known node names did not work**, and the failure was invisible until a screenshot: the terrain prop sprites live under `MapGenerator` as a `VisualProps` child, not under the scene root, so several hundred trees and rocks kept painting over the 3D world. Replaced with a recursive walk that hides every `CanvasItem` in the map subtree and stops at `CanvasLayer` boundaries -- which is also what keeps the HUD, pause menu and slice overlay working unchanged in both modes. The smoke test asserts specifically that `VisualProps` is hidden, because a name list would pass every other check.
+
+Suppression also has to run **twice**: once in `_ready()`, and again after terrain build, because map generation paints its props during bootstrap, after `_ready()` has already run.
+
+#### Evidence
+
+New `map_3d_mode_smoke_test.gd`, written around the "presentation layer, not a second game" property rather than around "3D renders". It asserts the embedded renderer is drawing the *live* generator object (not one of its own), that the preview tool's `GameplayProbe` does not exist in the game mode, that units are still 2D nodes still registered with RTSWorld and still selectable, that they are being mirrored into the 3D layer, that the screen-to-simulation bridge round-trips within a cell, and that 2D mode is completely unaffected. Suite 47 of 48, the failure being the pre-existing road-artery bug.
+
+Verified in the running game via `scripts/tools/map_3d_mode_screenshot.gd` (windowed, not part of the suite): real elevation, roads, blockers and props in 3D, the KoN roster mirrored as coloured instances, HUD intact.
+
+#### First pass, honestly scoped
+
+Working: terrain with elevation, roads, props and structures; live unit mirroring with owner and selection colours; 3D RTS camera with pan and zoom, opening on the player's tower; the full input bridge, so selection, orders and building placement all work.
+
+**Not done**: units render as capsules rather than sprites or models, which is the obvious next step and the one that decides whether this mode is worth keeping; no drag-select rectangle drawn in 3D (the selection itself works, the visual feedback does not); no camera rotation; the building placement preview is still 2D and therefore invisible in this mode. The 3D presentation also does not yet reflect day/night, fog of war or the LOD system.
+
+**Open question for Andrew**: this reopens, in a limited way, a decision closed on 2026-08-08 ("staying 2D"). Nothing about that decision is reversed here -- 2D remains the default and the only mode with real art -- but if the 3D view is meant to become more than a viewer, that is a design call about where art effort goes, not an engineering one. Flagged on the Roadmap rather than assumed either way.
+
+### 2026-09-02 - 3D view: 2D unit sprites billboarded onto the 3D map
+
+Andrew asked to use the existing 2D units on the 3D map. Built, and the interesting part is that it needed no new animation code at all.
+
+**How it works.** A billboard is a flat textured quad in 3D that turns to face the camera -- the technique classic isometric games used for sprite units in 3D worlds. Godot's `Sprite3D` is exactly that, and it already carries `hframes`/`vframes`/`frame`, which is the same grid model `kon_unit_art.gd` uses.
+
+**The shortcut that made this small.** The unit's own `ArtSprite` already computes, every tick, which of the 8 direction rows to show (`_direction_row()` from velocity and attack target) and which animation frame it is on. So the billboard carries **no animation logic** -- it mirrors `texture`, `hframes`, `vframes` and `frame` straight off the unit's existing 2D sprite. One animation implementation, two renderers, and they cannot drift apart. The smoke test asserts that mirroring directly rather than asserting that "3D shows something".
+
+**Two tiers, mirroring the 2D LOD system.** A `Sprite3D` is one node and one draw call per unit, which is fine at the 40-100 units of Andrew's real play session and not fine at the hundreds section 5 targets. So units nearest the camera get billboards up to `MAX_SPRITE_UNITS` (220) and everything past that falls back to the existing capsule MultiMesh -- the same two-tier shape `MassUnitMultimeshRenderer` uses in 2D, for the same reason. When the budget is exceeded the FURTHEST units drop to capsules, not the nearest.
+
+Three rendering choices worth recording:
+- `BILLBOARD_ENABLED` (full camera-facing) rather than `BILLBOARD_FIXED_Y`. The sheets were rendered from a fixed -52 degree camera, so the sprite already contains that perspective; facing the camera squarely is what makes it read as a unit rather than a standing cardboard cutout.
+- `shaded = false`. The painted art keeps its own values instead of being re-lit by the 3D sun, which would flatten the ink-outline look the Art Bible is built on.
+- `ALPHA_CUT_DISCARD` rather than alpha blending. With hundreds of overlapping transparent quads there is no correct draw order, and blending produces flicker.
+
+**The honest limit, and it is the familiar one.** Only four units have sprite sheets at all: `bad_kon_willow`, `terrible_thing`, `horror` and `apex`. **The actual KoN roster -- Oaven, Stone-Faced Serpent, Spawner, The Forbidden -- has none**, so those still render as capsules. The billboard system is complete; the art is not. This is the same section 37 gap blocking everything else, now visible in a second place.
+
+That is also why the capsule fallback matters rather than being a stopgap: it is what the game looks like for most of its roster today, in either mode.
+
+Suite 47 of 48, the failure being the pre-existing road-artery bug.
+
+### 2026-09-02 - 3D view: interaction parity audit, after shipping it broken
+
+Andrew: "it does not play like the 2d version, cant move map, cant build buildings or see preview, cant drag and select." All correct.
+
+**The process failure, recorded because it is the useful part.** The first 3D pass shipped with a smoke test that verified the screen-to-simulation coordinate maths round-tripped, and that was reported as "selection, orders and building placement all work". Round-tripping a coordinate is not the same as being able to play. Every one of the three breakages below would have been caught by five minutes of actually driving the mode, or by a test that exercised the interaction rather than the arithmetic underneath it.
+
+This is a close cousin of the 2026-08-23 lesson (smoke tests check correctness, not cost). Here they checked a *component* and were reported as covering a *capability*.
+
+#### What was actually broken
+
+1. **Camera** - the 3D view had keyboard pan only. `CameraController` gives the 2D game keyboard pan, edge pan, middle-mouse drag, wheel zoom and clamping to the map. Three of the five were missing, and without clamping the camera could pan off into empty space with no way back. Now feature-for-feature.
+
+2. **Build preview** - `BuildSystem` is a `Node2D` and draws its placement footprint in `_draw()`. The 3D mode hides every CanvasItem in the map subtree, so `_draw()` never ran and the player was placing blind. The footprint is now pushed to the 3D view from `_process` as translucent ground pads, with the same valid/invalid colouring, and cleared when nothing is pending.
+
+3. **Drag-select** - two separate faults. The rectangle was invisible for the same CanvasItem reason, and the selection maths was wrong: it projected the two drag corners onto the ground plane and built a `Rect2` from them. **Under a perspective camera a screen rectangle maps to a trapezoid on the ground**, and any part of the drag above the horizon projects to nothing at all, so the selected region did not match what the player dragged.
+
+#### The fix worth understanding
+
+Drag-selection is now tracked in **screen space** in 3D, not simulation space, and each unit is tested by its *projected* screen position. That is both correct and what 3D RTS games actually do - the ground-plane projection was solving the wrong problem. Units behind the camera are excluded explicitly, since they project to a mirrored on-screen point and would otherwise be box-selected from off screen. Click-select radius is likewise projected, so clicking feels the same zoomed in or out.
+
+The drag rectangle and the order cursor are drawn by a new `map_3d_overlay.gd` inside a `CanvasLayer`, which survives the CanvasItem suppression. Screen space is also the right space for them: a drag rectangle is a screen gesture.
+
+#### Evidence
+
+New `map_3d_interaction_smoke_test.gd`, written specifically to not repeat the mistake: it drives the real paths rather than the maths. Camera moves and is clamped when pushed off-map; a screen-space drag over four units selects all four; a drag over empty screen selects none (proving the rectangle is actually tested, not always passing); the overlay shows and clears the rectangle; a pending structure produces visible 3D footprint pads; placement lands in the build system; and clearing the pending build clears the preview.
+
+It found a real thing while being written: `bio_absorber` additionally requires an economy plot, so a placement failure with it would have been ambiguous. Test uses a Barracks.
+
+Suite 48 of 49, the failure being the pre-existing road-artery bug.
+
+#### Still not at parity
+
+Vinewall drag-placement shows its footprint in 3D but has not been driven end-to-end. Right-click order feedback (the move/attack marker) is not drawn in 3D. Unit health bars, selection rings and the evolution/level chrome are all 2D `_draw()` and do not appear. Those are visual, not functional, but they are the remaining gap between "works" and "feels like the 2D game".
+
+### 2026-09-02 - Fog of war rebuilt as a shared vision texture, plus a 3-minute grace period
+
+Three asks, in both presentations. The systems are shared, so "for both 2D and 3D" cost nothing extra for the grace period and drove the whole design of the fog.
+
+#### Grace period
+
+`WaveDirector.grace_period_seconds` (180s). Phases, waves and the boss are all measured from `combat_time_elapsed()` -- seconds since the END of grace -- rather than from raw elapsed time. That matters: setting `first_wave_seconds` to 180 instead would have left only 60 seconds between the first wave and a boss still arriving at an absolute 240s. Measuring from the end of grace pushes the whole schedule back and keeps every gap exactly as tuned.
+
+New opening phase `grace`, and the HUD leads with "Grace period | First wave in 3:00" plus a ten-second warning, because it is the only stretch of a run where the player can build unpressured.
+
+#### Fog of war: one vision source, two presentations
+
+Fog existed but was **switched off on seeded_grid_frontier**, and for a good reason -- `_draw()` painted opaque diamond polygons per 4x4 cell block every frame, which was both expensive and blocky.
+
+It now publishes visibility as a **one-texel-per-cell texture** (0 = unseen, 128 = explored, 255 = visible) instead of drawing anything itself. That one change fixes both problems at once:
+
+- **Nicer**, because sampling it with LINEAR filtering gives soft organic edges for free. The blockiness was a consequence of drawing cells, not of the vision data.
+- **Cheaper**, one small texture upload per 0.45s update instead of thousands of `draw_polygon` calls per frame -- which is what makes it affordable to switch on at all.
+- **Shared**, because the 2D overlay sprite and the 3D fog plane sample the same texture with the same shader maths. Same principle as the unit mirroring: one computation, two presentations, no way for them to disagree about what is hidden.
+
+Both shaders add a slow UV warp so the fog line breathes rather than sitting as a hard static boundary. It perturbs the lookup, not geometry, so it costs effectively nothing.
+
+`is_world_position_visible()` is public, and the 3D view uses it to skip mirroring concealed enemies -- otherwise the 3D mode would see straight through the fog, since fog hides enemies in 2D by flipping `visible`, which the 3D mode already owns for its own reasons. For the same reason `_apply_entity_visibility()` now skips entirely when `presentation_3d` is set, or it would flip the 2D sprites back on over the 3D world.
+
+#### Three bugs found by screenshotting rather than by testing
+
+All three passed every assertion and were only visible in an image:
+
+1. **The fog plane cast a shadow.** A 96x96 quad above the map threw an enormous directional shadow across half the terrain. `cast_shadow` off.
+2. **Tall props stood above the plane.** At y=1.75 the map's tree props poked through and rendered unfogged. Raised to 6.0 -- height only affects occlusion for an unshaded overlay, and the ceiling is the camera, which sits at about 9.5 above focus at minimum zoom.
+3. **Raising it lost the far border to parallax**, leaving a bright unfogged band along the map edge. The plane is now drawn 3x map size with UVs remapped so the map still spans 0..1; outside clamps to the border texel, which is unexplored, so off-map ground is correctly black.
+
+And a fourth, in 2D: the overlay sprite is a CHILD of the FogOfWar node, so hiding that node to suppress the old per-cell drawing hid the overlay too. The node stays visible; `_draw()` returns early instead. That one read as "fog does not work in 2D" rather than as a visibility bug.
+
+#### Evidence
+
+New `fog_and_grace_smoke_test.gd`: no wave, no phase advance and no boss countdown during grace; the schedule resuming from zero afterwards; the fog texture existing at one texel per cell; the overlay using a shader rather than per-cell drawing; an unscouted corner staying concealed; a friendly unit lighting its own cell; and an enemy in fog being hidden.
+
+Screenshots from the real scene in both modes, which is what actually caught the four bugs above. Suite 49 of 50, the failure being the pre-existing road-artery bug.
+
+#### Note
+
+Enabling fog on the live map is a gameplay change, not just a visual one -- enemies are now concealed until scouted, which the day/night entry of 2026-08-23 explicitly declined to touch at the time. It is what was asked for, but it changes how the map plays and is worth a look before it is treated as settled.
+
+### 2026-09-02 - Fixing what enabling fog broke: 63ms -> 4ms, grace period leak, and 1:1 mouse panning
+
+Andrew after playing: "lots of performance issues and enemies still spawning at start, cant use the mouse to move the map very well." Three separate faults, two of them mine from the previous entry.
+
+#### 1. The fog was costing 63ms per update
+
+Measured, not guessed: 62.84ms per fog update with 60 units on the live map. At a 0.45s interval that is a hard hitch several times a second. **I switched fog on for the live map without auditing the code I was enabling**, and it contained every pattern this project has already been burned by:
+
+1. **`_has_line_of_sight()` called `_line_cells()`**, which built and returned a fresh `Array[Vector2i]` for *every one of the ~300 cells tested per revealer*. Hundreds of array allocations per unit per update. Rewritten to walk the line in place with identical stepping maths.
+2. **Every unit revealed individually**, even standing on top of one another, although vision radius is 7-8 cells and their fields overlap almost entirely. Revealers are now merged on a 3-cell grid, with the radius widened by half the merge distance so groups do not leave gaps. A clumped army of 60 costs about 8 reveals instead of 60.
+3. **Two 9216-cell loops per update** -- one clearing visibility, one rebuilding the fog texture from scratch. Both now walk only the cells that actually changed, tracked as flat indices.
+4. **`get_property_list()` reflection per unit, twice** -- once for `owner_player_id`, once for `unit_archetype` -- which is precisely the 2026-08-23 HUD regression, in a different file.
+
+After those: **12ms**. Better, but still a single spike landing in one frame. So a full vision pass is now **spread across several updates** (`origins_per_update`) and committed only when it completes, so nothing flickers part-way through.
+
+**Final: 3.98ms average, 6.25ms worst.** A 16x improvement on the worst case, and it now fits inside a frame.
+
+There is also a plain bug worth recording: the first version of this fix did not parse at all. `map` is declared `var map: Node`, so `map.MAP_H` is a Variant and `var cx := index / map.MAP_H` cannot infer a type. The script silently failed to load, FogOfWar became a scriptless Node2D, and the smoke test *hung* rather than failing. **I had not re-run `--check-only` after that patch** -- I chained straight into the test. Cheap habit, and it cost a confusing debug session.
+
+#### 2. Enemies still arriving during the grace period
+
+The grace period gated `WaveDirector`, but **outposts spawn their own defenders on an independent timer** in `KonVerticalSliceController._update_outpost_offense()`, which knew nothing about it. Now gated on the same `is_in_grace_period()`. The grace period means no hostile pressure at all, not merely no waves.
+
+#### 3. Mouse panning in 3D
+
+The first version used a fixed pixels-to-world factor scaled by camera distance. That cannot be right under a perspective camera: the correct factor depends on distance *and* field of view *and* where on screen the cursor is.
+
+Replaced with true 1:1 dragging -- project the cursor onto the ground plane before and after the motion, and shift the focus by the difference. The ground under the cursor now stays under the cursor exactly, at any zoom. Keyboard and edge panning also scale with zoom, so they cover a consistent fraction of the visible area instead of crawling when zoomed out.
+
+#### Evidence
+
+`map_3d_interaction_smoke_test.gd` gained a drag-pan case that asserts both that the camera moves and that the direction is not inverted. Suite 49 of 50, the failure being the pre-existing road-artery bug.
+
+#### The lesson, which is the same one twice now
+
+Enabling an existing subsystem is not a free action. `fog_of_war.gd` was written for a map type where it was switched off, so its hot paths had never been under the scrutiny the rest of the codebase has had. **Turning something on means owning its performance**, and I should have profiled it in the same pass that enabled it rather than after Andrew hit the stutter.
+
+### 2026-09-02 - Vision rules: buildings see, nothing shoots uphill blind, and cliffs are marked
+
+Three of Andrew's asks, all really one subject: what a side can see, and whether the player can read the ground.
+
+#### Line of sight moved onto the terrain
+
+`has_line_of_sight()` now lives on `MapGenerator`, and both fog of war and combat targeting call it. That placement is the point: it is a question about terrain, and two implementations would let vision and weapons disagree -- a unit could shoot something the fog says it cannot see. It is allocation-free because it is now on the combat tick as well as the fog tick.
+
+The rule: **sight travels level or downhill freely and is blocked by anything higher than the viewer.**
+
+#### Buildings reveal fog
+
+Structures are now fog revealers alongside units, with authored `sight_radius_cells` (Observation Tower 12, Bio Launcher 10, outposts 9, others 4-7). A base used to be a blind spot -- you could stand a tower in the dark and it lit nothing around itself. The sight lookup handles both `unit_archetype` and `archetype`, because units and structures name that field differently.
+
+#### No shooting up a cliff without a spotter
+
+A unit cannot engage a target above it unless it has line of sight, **or a nearby ally does**. That is the spotter rule most RTS games use, and it makes a melee screen genuinely valuable to ranged units rather than just a damage sponge.
+
+It applies to the enemy AI identically, and not by writing it twice: the check lives in the shared combat tick, so both sides obey it **by construction**. The test asserts that explicitly by swapping unit owners and re-running the same assertion. Manual right-click attack orders go through the same gate, so the player cannot order what their army cannot see; the refusal is reported through the existing partial-order channel.
+
+**PERFORMANCE**: the expensive half only runs when the target is HIGHER than the attacker. On flat ground -- nearly every engagement -- it is two height lookups and an early return. Given fog had just taught me what an unguarded per-unit cost does here, that gate was designed in rather than added afterwards.
+
+#### Impassable terrain marked orange
+
+Baked once into a one-texel-per-cell texture at map generation, so it costs nothing per frame -- deliberately not a `_draw()` pass, which is exactly what made fog too expensive to leave on. Cliff edges are bright orange; water and hard blockers get a dim wash.
+
+**Three separate traps getting this on screen**, all invisible to the tests, which passed throughout:
+
+1. **z_index 4200 silently drew nothing.** Godot clamps `CanvasItem.z_index` to +/-4096. The node reported `visible = true` with a correctly baked texture and rendered no pixels.
+2. **Below the fog layer, the marker was crushed to invisibility on exactly the cells it exists to warn about** -- a cliff blocks line of sight, so cliff cells are the least likely to be brightly lit. The indicator was being hidden by the terrain feature it describes.
+3. **Above the fog it covered the army**, and it has to be masked by the fog texture anyway or it hands the player a free map of every cliff they have never scouted.
+
+Settled at z 4096 with an in-shader fog mask and moderate alpha: explored cliffs read clearly, unexplored ones show nothing, and a unit standing on a lip is still visible through it. Diagnosis was by sampling rendered pixels rather than by eye -- "0 orange pixels" is a fact, "I cannot see it" is not.
+
+#### Evidence
+
+New `vision_and_terrain_smoke_test.gd`. It finds a real height transition on the generated map rather than assuming one, then asserts: sight blocked uphill, allowed downhill, the same rule holding after swapping owners (so the AI cannot cheat), a spotter unlocking the shot, structures appearing as fog revealers and lighting their own position, and the overlay baking a one-texel-per-cell texture that actually marks cells.
+
+Suite 50 of 51, the failure being the pre-existing road-artery bug.
+
+#### Worth knowing
+
+The ground tiles are still the placeholder red/green/yellow blocks, which is why the cliff marker had to be an aggressive orange rather than a tasteful one -- there is no quiet colour left on that palette. It will want revisiting when real terrain art lands.
+
+The 3D view does not draw the impassable overlay yet; it has real geometry, so cliffs are legible there already, but it will want the marker for consistency.
+
+### 2026-09-02 - 3D view: structure art, fog gating for buildings, and camera easing
+
+Andrew, on the 3D mode: "still not smooth camera movement, los still not working properly as shown, buildings and units not using their models."
+
+#### The LOS symptom was structures, not units
+
+Units were already fog-gated in the 3D view. **Structures were not gated at all**, so enemy outposts rendered plainly inside unexplored blackness -- which is exactly what "LOS not working" looked like in the screenshot. `_sync_structures()` simply had no reveal check where `_sync_units()` had one.
+
+The helper was called `_is_unit_revealed()` and had been written for units, though it only ever needed `owner_player_id` and a position -- both of which structures have. Renamed `_is_revealed()` and applied to both. A single missing call, and it undermined the whole vision system visually.
+
+#### Buildings now use their real art
+
+Every KoN structure already builds an `art_sprite` from `STRUCTURE_TEXTURES` -- the tower, barracks, absorber, vault, vinewall and launcher all have painted 2D art. The 3D view was drawing coloured boxes anyway. Structures are now billboarded exactly like units, mirroring their own `art_sprite`.
+
+Their world size is **derived from the 2D art scale** (`art.scale.y / 64`, since 64 simulation pixels is one world unit) rather than a tuned constant, so a building is the same size in 3D as it is in 2D by construction rather than by matching numbers by hand.
+
+Units still fall back to capsules where no sprite exists, which remains the whole KoN roster -- the section 37 art gap, unchanged.
+
+#### Camera smoothing
+
+The per-frame cost was measured first and was *not* the problem: `_sync_units` 0.33ms at 80 units, `_sync_structures` 0.014ms, `_apply_camera_transform` 0.0025ms. Panning was rough because the camera focus was written **directly** by each input, so it moved in discrete per-event jumps -- one step per key frame, one per mouse-motion event.
+
+Panning now moves a *target* and the camera eases toward it, frame-rate independently (`1 - exp(-k * delta)`, so it feels identical at 30fps and 144fps). Zoom eases the same way. Middle-drag deliberately does NOT ease: it is a 1:1 gesture and must not lag the cursor, so it moves camera and target together. Clamping applies to both, or panning into the map edge quietly accumulates an out-of-bounds target the camera keeps straining toward.
+
+#### Evidence
+
+`map_3d_mode_smoke_test.gd` gained assertions that structures render as billboards rather than boxes, and that a fog-concealed enemy structure is genuinely excluded from the draw. Suite 50 of 51, the failure being the pre-existing road-artery bug.
+
+#### Note to self
+
+Measuring before optimising was right and saved wasted effort -- the smoothness fix was in the input path, not the render path, and any amount of profiling the sync would have found nothing. Worth doing that consistently rather than only after being burned.
+
+### 2026-09-02 - 3D view: impassable terrain marked, matching the 2D overlay
+
+Ported the orange cliff/impassable indicator into the 3D mode.
+
+**A MultiMesh of per-cell quads, not one map-sized sheet.** The 2D version is a single textured sprite laid over the map, which works because the 2D map is flat. The 3D terrain has real elevation, so a flat sheet at y=0 would be buried under every plateau -- hiding exactly the cliffs it exists to describe. Each mark instead sits on its own cell's rendered surface height. One draw call, 2178 instances on the test map, baked once after terrain generation because terrain does not change during a run.
+
+**No fog masking needed here.** The 2D overlay had to be drawn above the fog and masked in-shader, which took three attempts to get right. In 3D the fog is a plane *above* the ground, so it occludes unexplored marks for free. Same requirement, and the 3D scene graph solves it without any special handling -- worth noting, because the 2D solution looks over-engineered until you know the 2D fog is a sprite in the same 2D layer stack.
+
+Heights come from the renderer's own `surface_height_at_cell()`, which reads the terrain-type grid the 3D geometry is actually built from -- not `height_map`. Those are different things: `grid` holds E_LOW/E_MID/E_HIGH/E_RAMP/E_WATER, `height_map` holds elevation levels, and a cell can read height 2 in one and E_RAMP in the other. Using the grid is correct here precisely because it is what the visible geometry was built from.
+
+#### A test that failed on correct code
+
+The first assertion checked that marks occupy more than one distinct height, reasoning that a plateau should have some. It failed -- and the code was right. **Almost every marked cell is low ground**, because high-ground cliff lips fall inside base plots, and `_is_unramped_height_edge()` deliberately excludes plot interiors so a base does not paint itself orange. Marking the low-side lip is also the more useful behaviour: it is the side the player walks up to.
+
+Replaced with the assertion that actually matters: each mark's height must equal its own cell's rendered surface height, derived back from the renderer rather than assumed. That tests "follows the terrain" without depending on what the generator happened to produce.
+
+Suite 50 of 51, the failure being the pre-existing road-artery bug.
+
+#### Recurring GDScript trap, third time
+
+`var centre := Vector2(...) * _renderer.SIM_PIXELS_PER_CELL` does not compile: `_renderer` is typed `Node3D`, so reading a const off it yields a Variant and `:=` cannot infer. Same shape as the `map.MAP_H` failure in the fog work. **Run `--check-only` immediately after every patch** -- it is a few seconds and it has now caught this three times, twice only after a confusing downstream failure.
+
+### 2026-09-02 - Investigated: KoN unit models cannot be rendered into sprites from what exists
+
+Andrew asked to add KoN's unit models to the game. Investigated properly rather than assumed it was blocked, and the answer is that it is blocked on **source art**, not on tooling or engineering. Recording it so the next session does not repeat the work.
+
+#### What exists
+
+| KoN unit | 3D model | Sprite sheet |
+|---|---|---|
+| Oaven | `art/generated_models/oaven_spear` + a processed GLB | none |
+| Stone-Faced Serpent | **none** | none |
+| Spawner | **none** | none |
+| The Forbidden | **none** | none |
+| Bad Kon Willow | processed GLB | already has one |
+
+So three of the four roster units have no geometry at all. Only the Oaven could even be attempted.
+
+#### The Oaven attempt, and why it is not shippable
+
+`asset-factory`'s `blender_sprite.py` is genuinely good and did its job: it rendered a full 8-row x 3-frame directional sheet from the GLB in about 8 seconds, in the exact layout `kon_unit_art.gd` expects, using the same -52 degree camera pitch. The tooling is not the problem.
+
+Three findings on the way, all of them traps already recorded in `reference_blender_headless_render`:
+
+1. **The default render came out untextured beige** -- trap 2, EEVEE dropping glTF textures in background mode.
+2. **Forcing Cycles made it worse, not better** -- trap 4: this mesh carries an `_ink_outline` backface-culled proxy, which Cycles renders as a solid shell covering the model. The result was a dark tangle. The two traps pull in opposite directions and this mesh sits exactly on the seam.
+3. **The Meshy statuette base is baked into the same mesh object**, not separable -- one mesh, one material, with the plinth as geometry. Removed it by deleting vertices below a height threshold, which worked cleanly (2760 verts).
+
+After all of that the sheet still is not usable: **the model has no readable silhouette.** It is an amorphous cluster of grey shapes. At the size a unit occupies on screen you cannot tell it is an insectoid, that it carries a spear, or which way it is facing -- and facing is the entire point of an 8-direction sheet.
+
+**The existing procedural vector art is better.** The in-engine Oaven has a clean teal body, large cyan eyes, a red scarf and a visible spear; it reads at a glance and matches the concept art. Shipping the render would be a visual regression, so nothing was committed.
+
+#### The real conclusion
+
+This is section 37's gap restated with a concrete measurement: the 3D pipeline produced *first-pass placeholder geometry*, not game-ready characters, and no amount of render tuning turns a shapeless mesh into a readable unit. The route to KoN unit art is new art -- clean models, or 2D sprite generation -- not a better render of what is on disk.
+
+Consistent with the 2026-09-02 recommendation to Andrew: the cheapest real win remains pushing the procedural animation in `kon_unit_art.gd` harder, because it benefits every unit immediately and needs no pipeline at all.
+
+**Nothing was changed in the game.** The render attempts are staged in `asset-factory/out/sprites/` as evidence.
+
 ### Open, not yet decided
 
 - **AI-test army mix** — confirm whether the stress-test mode spawning KON-vs-KON is intentional before anyone "fixes" it as a bug.
+
+### 2026-09-03 — 3D view: KoN units baked from their own 2D art, not modelled
+
+The entire KoN roster rendered as featureless capsules in 3D, and the 2026-09-02 conclusion was that this was blocked on source art. That was wrong about the cause. Those units are not art-less — they draw detailed procedural art in `_draw()` (the Oaven has a teal body, cyan eyes, a red scarf and a spear); the 3D view was simply discarding art the 2D view already had, because it only looked for an `ArtSprite` node.
+
+Each art-less archetype is now rendered once into a `SubViewport` and used as a billboard. No new art, no pipeline, no animation logic duplicated: 17 of 17 units now render as sprites in 3D, zero capsules. The 3D-specific art gap is closed; the remaining gap (only 4 units have real sprite sheets) is the same §37 gap 2D has, and both presentations are now equally unfinished rather than 3D being visibly worse.
+
+**The hazard, and how it is contained.** Instantiating a unit to render it would otherwise put it in the live game: `RTSUnit._ready()` adds itself to the `units` and `selectable_units` groups *and* to a static registry. A leak there is an invisible, invincible unit — selectable, targetable, counted against supply. All three registrations are undone immediately and physics is disabled before any tick can observe the instance; `terrain` and `rts_world` do not resolve inside a `SubViewport`, which is what makes the rest of `_ready()` harmless (`_snap_to_walkable_terrain()` returns early with no terrain). The smoke test asserts the baker's subtree contains nothing in a live gameplay group.
+
+Baked billboards are a single fixed east-facing frame, so units do not turn to face movement. That is the most visible remaining difference from 2D, and it is a deliberate limit of the approach rather than a bug.
+
+### 2026-09-03 — 3D view: terrain marks are cliff edges only
+
+The 3D view mirrored the 2D impassable overlay wholesale, including its dim wash over rocks, trees and water. That wash exists because on a flat map there is no other way to tell a blocker from open ground — but in 3D those are literal geometry you can see, so marking them scattered orange over open ground that read as arbitrary rather than as information. Andrew's read was "the terrain orange doesn't look right", and it was right.
+
+3D now marks **cliff edges only**: the one thing a top-down 3D view genuinely cannot convey on its own, because a height change reads only as a change in shading. 2178 marks down to 484. The 2D overlay is unchanged — it still needs the full wash, for the reason above.
+
+### 2026-09-03 — 3D view: economy spaces marked, and a staleness trap
+
+"Can't place a Bio Absorber" was not a placement bug. Economy spaces are its only legal cells, `PlotRenderer` draws them, and the 3D mode hides every `CanvasItem` — so the legal cells were invisible and the building simply appeared unbuildable. They are now marked in cyan alongside the cliff marks.
+
+Underneath it was a real ordering trap worth recording: the marks bake runs from a deferred terrain build, and **plots are registered with an empty `economy_spaces` array and filled in afterwards**. A first attempt watched the *plot count* for change — which sees 13 plots both before and after the fill, and so never rebuilds. The check now counts the economy spaces themselves, and sits ahead of the unit-refresh gate rather than behind it, because behind the gate a short-lived view can miss the fill window entirely.
+
+### 2026-09-03 — Testing: a headless MultiMesh assertion that verified nothing
+
+The 3D marks test inspected the uploaded `MultiMesh` buffer via `get_instance_transform()`. MultiMesh instance data lives on the rendering server, and under the headless dummy driver every read comes back as zeros — so the test was comparing every mark against cell (0,0), and would have passed on code that stacked all 516 marks on the origin. It had been passing that way since it was written.
+
+Mark computation is now split from mark upload (`compute_marks()` returns plain data), and the test asserts on that. Same values, same code path, but verifiable without a GPU. The general rule: **anything that round-trips through the rendering server cannot be asserted headlessly** — assert the data you are about to upload instead. The same reason means the baked sprite *images* are deliberately not asserted headlessly either; the test asserts the bake was queued and that it leaked nothing, and the visual result is verified against a real renderer.
+
+Also fixed while here: the sprite baker awaited `RenderingServer.frame_post_draw`, which never fires headless — the coroutine parked forever holding a live unit under the viewport and hung teardown (a CI hang, not a failure). The bake now returns early when `DisplayServer` is headless.
+
+**Suite status:** 49 of 50 smoke tests pass. `seeded_grid_frontier_smoke_test.gd` fails on road-artery connectivity; verified pre-existing by running it against the `HEAD` copy of `map_generator.gd`, where it fails identically. Not caused by this pass and not fixed in it.
+
+### 2026-09-04 — 3D view: the "pasted-on sprites" problem was the camera, not the art
+
+Andrew's read was that 2D art looked well-connected to the tiles at one angle and clearly detached at another. Diagnosis: two camera values, both wrong, neither of them an art defect.
+
+**FOV was never set**, so it was Godot's 75° default. That is very wide, and the consequence is worse than it sounds. At 75° with a 52° pitch, the ground is seen anywhere from **14.5° to 89.5° within a single frame**, while a `BILLBOARD_ENABLED` sprite presents the same face at every screen position. No art angle can match that — which is why a sprite looked right in one part of the frame and wrong in another. The two screenshots were not two camera angles; pitch is a constant and never changed. They were two parts of the frame.
+
+**Pitch did not match the art.** Every sprite has a viewing angle baked in — the barracks shows a nearly undistorted front wall and a shallow roof plane, implying about 38°. Full billboarding is only correct when camera pitch equals the art's own angle. At 52° everything was 14° out even at frame centre.
+
+Now 35° FOV / −38° pitch. Camera distances are authored in **reference units** (ground framed at the old 75°) and converted against the live FOV, which does two things: every existing `set_camera_distance()` caller — tools and smoke tests — keeps framing what it always framed with no number changes, and changing the FOV shows a perspective change rather than just zooming in.
+
+`[` `]` FOV, `;` `'` pitch, `\` prints the constant lines to paste back, Backspace resets. Debug builds only (`OS.is_debug_build()` at the input site). These are art-direction values, not engineering ones, so they are meant to be dialled in against the real map rather than argued from a screenshot.
+
+Deliberately **not** changed: the billboard mode. `BILLBOARD_FIXED_Y` was the obvious-looking alternative and is wrong here — the art is already pre-foreshortened, so Y-billboarding applies engine foreshortening on top and squashes it. Full billboard is correct once the pitch matches.
+
+Known gap: the standalone prototype previewer (`map_3d_renderer.gd`) still uses 52°. Its embedded path is unaffected, but art evaluated in the previewer will not match the game.
+
+**Test note:** the smoke test asserts the reframing invariant by projecting two screen points onto the ground through the real camera, sampled *symmetrically about screen centre*. The ground plane is oblique, so a single distance scale cannot hold framing exactly across the whole frame — nor should it, since changing FOV is supposed to change how the ground foreshortens away from centre. A first attempt sampled off-centre, read a 2% residual and failed; uncompensated, the same FOV step moves it 8%.
+
+### 2026-09-04 — Art direction: 3D props look better because they are static, not because they are 3D
+
+Prompted by the observation that the 3D terrain assets sit far more naturally on the map than the 2D billboards. True, but the sample is biased, and the inventory shows how: **128** prop models, **2** character models, **0** building models. Everything that reads as natural is static scenery; everything that reads as wrong either moves or is interacted with. That is not a coincidence about the medium — it is the exact axis where 3D cost becomes superlinear, and it is where this pipeline already failed once (the Oaven render with no readable silhouette, 2026-09-02).
+
+Recommendation, which narrows rather than reverses the 2026-08-08 "staying 2D" decision:
+
+- **Terrain/scenery: 3D.** Already is, already works.
+- **Buildings: the strongest 3D candidate.** Seven of them, static or near-static (5 have simple state sheets), the largest things on screen, and the worst offenders visually. Seven models is tractable; hundreds of animated units is not. Note there are currently **zero** building models, so this is new work, not a conversion.
+- **Units: 2D runtime, re-sourced from 3D renders.** The reason props fit is that they are rendered at the true camera angle every frame; a sprite gets the same fit by being rendered from 3D at the true camera angle *once*. That is exactly how AoE2, StarCraft and Diablo 2 built their art, it reuses the existing Meshy assets and `blender_sprite.py`, and it gives 3D asset quality at 2D runtime cost. It **requires** a fixed known camera angle, so it depends on the camera fix above.
+- **Scale is unchanged.** §5 wants hundreds of units. That is what killed 3D units originally and nothing here changes it.
+
+Not decided — routed to Andrew.

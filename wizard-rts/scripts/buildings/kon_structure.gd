@@ -61,6 +61,9 @@ func configure(new_archetype: StringName, new_cell: Vector2i, new_footprint: Vec
 	z_as_relative = false
 	add_to_group("selectable_units")
 	add_to_group("structures")
+	var world := get_node_or_null("../RTSWorld")
+	if world != null and bool(world.get("presentation_3d")):
+		visible = false
 	add_to_group("units")
 	_build_collision()
 	_build_art_sprite()

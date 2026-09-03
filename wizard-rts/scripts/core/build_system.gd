@@ -16,7 +16,13 @@ signal structure_completed(player_id: int, archetype: StringName, cell: Vector2i
 signal build_rejected(reason: String)
 signal unit_training_queued(player_id: int, producer: Node, archetype: StringName, queue_count: int)
 signal unit_produced(player_id: int, archetype: StringName, cell: Vector2i)
+# Same event as unit_produced, but carries the spawned node. unit_produced is
+# left exactly as-is so existing HUD/telemetry listeners are untouched; the
+# control-group "reinforce group" needs the actual unit, not just its cell.
+signal unit_trained(player_id: int, archetype: StringName, unit: Node)
 signal upgrade_researched(player_id: int, upgrade_id: StringName)
+signal tier_unlocked(player_id: int, tier: int)
+signal forbidden_unleashed(player_id: int, unit: Node)
 
 @export var economy_manager_path: NodePath = NodePath("../EconomyManager")
 @export var map_generator_path: NodePath = NodePath("../MapGenerator")
@@ -28,6 +34,7 @@ signal upgrade_researched(player_id: int, upgrade_id: StringName)
 @export var apex_scene: PackedScene = preload("res://scenes/units/apex.tscn")
 @export var spawner_scene: PackedScene = preload("res://scenes/units/spawner.tscn")
 @export var stone_face_serpent_scene: PackedScene = preload("res://scenes/units/stone_face_serpent.tscn")
+@export var the_forbidden_scene: PackedScene = preload("res://scenes/units/the_forbidden.tscn")
 
 var economy_manager: EconomyManager
 var map_generator: Node
@@ -43,10 +50,30 @@ const UPGRADE_MAX_RANK := {
 	&"hardened_horrors": 3,
 	&"launcher_bile": 3,
 	&"accelerated_evolution": 1,
+	# Observer Vault research proper -- the roster doc's "researches ways to
+	# upgrade Kon's observer abilities". The four above are evolution-side
+	# upgrades that predate the doc and are left exactly as they were.
+	&"observer_sight": 3,
+	# Raises the intelligence of every KoN unit by one rank, capped at Bound (3).
+	# Observer magic is what lets Kon direct the forbidden at all, so buying
+	# obedience is the thematically right research to sit in this building.
+	&"observer_command": 2,
+	&"observer_oversight": 3,
+	&"tier_two_hybrids": 1,
+	&"tier_three_hybrids": 1,
+}
+
+# Tier 2 and 3 of the KoN roster sit behind these. Tier 1 (Oaven) is free from
+# the first minute; tier 4 (The Forbidden) is never trained, it is unleashed.
+const TIER_UNLOCK_UPGRADES := {
+	2: &"tier_two_hybrids",
+	3: &"tier_three_hybrids",
 }
 
 var researched_upgrade_ranks: Dictionary = {}
 var _launcher_elapsed := 0.0
+var _map_3d_view: Node
+var _heal_aura_elapsed := 0.0
 
 func _ready() -> void:
 	economy_manager = get_node_or_null(economy_manager_path)
@@ -62,8 +89,10 @@ func _process(delta: float) -> void:
 	_update_structure_evolution(delta)
 	_update_structure_regeneration(delta)
 	_update_bio_launchers(delta)
+	_update_absorber_heal_auras(delta)
+	_update_3d_placement_preview()
 	if pending_archetype == &"vinewall" and _dragging_wall:
-		_wall_drag_end = map_generator.world_to_cell(get_global_mouse_position())
+		_wall_drag_end = map_generator.world_to_cell(_placement_mouse_position())
 		queue_redraw()
 	elif pending_archetype != &"":
 		queue_redraw()
@@ -72,7 +101,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if pending_archetype == &"":
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		var cell: Vector2i = map_generator.world_to_cell(get_global_mouse_position())
+		var cell: Vector2i = map_generator.world_to_cell(_placement_mouse_position())
 		if pending_archetype == &"vinewall":
 			if event.pressed:
 				_dragging_wall = true
@@ -92,6 +121,40 @@ func _unhandled_input(event: InputEvent) -> void:
 		_dragging_wall = false
 		queue_redraw()
 		get_viewport().set_input_as_handled()
+
+# Placement follows the cursor, and in the 3D view the cursor has to be
+# projected onto the ground plane before it means anything in simulation space.
+# Same bridge SelectionController uses, so both agree on where the mouse is.
+# The 2D placement preview is drawn in _draw(), which never runs in the 3D view
+# because this node is hidden along with the rest of the 2D presentation. The
+# same footprint is pushed to the 3D view as translucent pads instead -- without
+# this, building in 3D is placing blind.
+func _update_3d_placement_preview() -> void:
+	if _map_3d_view == null or not is_instance_valid(_map_3d_view):
+		_map_3d_view = get_node_or_null(NodePath("../Map3DView"))
+	if _map_3d_view == null or not is_instance_valid(_map_3d_view) or not _map_3d_view.has_method("update_placement_preview"):
+		return
+	if pending_archetype == &"" or map_generator == null:
+		_map_3d_view.call("clear_placement_preview")
+		return
+	if pending_archetype == &"vinewall" and _dragging_wall:
+		var wall_cells := _line_cells(_wall_drag_start, _wall_drag_end)
+		var wall_valid := not wall_cells.is_empty()
+		for cell in wall_cells:
+			if not _can_place(&"vinewall", cell):
+				wall_valid = false
+				break
+		_map_3d_view.call("update_placement_preview", wall_cells, wall_valid)
+		return
+	var target: Vector2i = map_generator.world_to_cell(_placement_mouse_position())
+	_map_3d_view.call("update_placement_preview", get_placement_cells(pending_archetype, target), _can_place(pending_archetype, target))
+
+func _placement_mouse_position() -> Vector2:
+	if _map_3d_view == null or not is_instance_valid(_map_3d_view):
+		_map_3d_view = get_node_or_null(NodePath("../Map3DView"))
+	if _map_3d_view != null and is_instance_valid(_map_3d_view) and _map_3d_view.has_method("screen_to_sim_position"):
+		return _map_3d_view.call("screen_to_sim_position", get_viewport().get_mouse_position())
+	return get_global_mouse_position()
 
 func set_rally_point_for_structure(producer_node: Node, world_pos: Vector2) -> bool:
 	var index := _structure_index_for_node(producer_node)
@@ -144,7 +207,10 @@ func research_upgrade(player_id: int, upgrade_id: StringName) -> bool:
 		build_rejected.emit("Upgrade already at max rank")
 		return false
 	if not _has_completed_structure(player_id, &"terrible_vault"):
-		build_rejected.emit("Requires completed Terrible Vault")
+		build_rejected.emit("Requires completed Observer Vault")
+		return false
+	if upgrade_id == &"tier_three_hybrids" and upgrade_rank(&"tier_two_hybrids") <= 0:
+		build_rejected.emit("Requires Tier 2 Hybrids first")
 		return false
 	var next_rank := current_rank + 1
 	var cost := _upgrade_cost(upgrade_id, next_rank)
@@ -154,6 +220,33 @@ func research_upgrade(player_id: int, upgrade_id: StringName) -> bool:
 	researched_upgrade_ranks[upgrade_id] = next_rank
 	_apply_upgrade_to_existing_units(upgrade_id)
 	upgrade_researched.emit(player_id, upgrade_id)
+	for tier in TIER_UNLOCK_UPGRADES.keys():
+		if TIER_UNLOCK_UPGRADES[tier] == upgrade_id:
+			tier_unlocked.emit(player_id, int(tier))
+	return true
+
+# Highest roster tier this player may currently train. Map-discovered upgrades
+# can grant a tier directly (see grant_tier_unlock) without paying research.
+func unlocked_tier(player_id: int = 1) -> int:
+	var tier := UnitCatalog.TIER_1
+	for candidate in [2, 3]:
+		if upgrade_rank(StringName(TIER_UNLOCK_UPGRADES[candidate])) > 0:
+			tier = candidate
+		else:
+			break
+	return tier
+
+# Used by map discoveries ("finding upgrades on the map" in the roster doc) to
+# open a tier without going through the Vault. Idempotent.
+func grant_tier_unlock(player_id: int, tier: int) -> bool:
+	if not TIER_UNLOCK_UPGRADES.has(tier):
+		return false
+	var upgrade_id: StringName = TIER_UNLOCK_UPGRADES[tier]
+	if upgrade_rank(upgrade_id) > 0:
+		return false
+	researched_upgrade_ranks[upgrade_id] = 1
+	upgrade_researched.emit(player_id, upgrade_id)
+	tier_unlocked.emit(player_id, tier)
 	return true
 
 func upgrade_rank(upgrade_id: StringName) -> int:
@@ -190,6 +283,8 @@ func _make_structure_data(player_id: int, archetype: StringName, cell: Vector2i,
 		"evolution_xp": 0.0,
 		"level": 1,
 		"upgrade": "",
+		"auto_fire": true,
+		"manual_target": null,
 		"node": null,
 	}
 
@@ -247,15 +342,31 @@ func produce_unit(player_id: int, archetype: StringName) -> bool:
 	if not UnitCatalog.is_unit_allowed_for_class(archetype, _current_wizard_class_id()):
 		build_rejected.emit("Not available for this class")
 		return false
+	if not _tier_available(player_id, archetype):
+		build_rejected.emit(_tier_locked_reason(archetype))
+		return false
 	var costs := {&"bio": UnitCatalog.cost_bio(archetype)}
 	if economy_manager == null or not economy_manager.spend(player_id, costs):
 		build_rejected.emit("Not enough Bio")
 		return false
 	return _enqueue_unit_at_structure(player_id, archetype, producer)
 
+func _tier_available(player_id: int, archetype: StringName) -> bool:
+	var tier := UnitCatalog.tier_of(archetype)
+	if tier > UnitCatalog.MAX_TRAINABLE_TIER:
+		return false
+	return tier <= unlocked_tier(player_id)
+
+func _tier_locked_reason(archetype: StringName) -> String:
+	var tier := UnitCatalog.tier_of(archetype)
+	if tier > UnitCatalog.MAX_TRAINABLE_TIER:
+		return "The Forbidden cannot be trained -- it is unleashed from the Observation Tower"
+	return "Requires Tier %s Hybrids research at the Observer Vault" % tier
+
 func _spawn_trained_unit(player_id: int, archetype: StringName, producer: Dictionary) -> bool:
 	var spawn_cell: Vector2i = map_generator.nearest_walkable_cell(producer["cell"] + Vector2i(2, 2), 8)
 	var scene := _scene_for_unit(archetype)
+	var spawned: Node = null
 	if scene != null:
 		var unit := scene.instantiate()
 		unit.set("owner_player_id", player_id)
@@ -268,10 +379,13 @@ func _spawn_trained_unit(player_id: int, archetype: StringName, producer: Dictio
 		if simulation_runner != null:
 			var entity_id := simulation_runner.state.spawn_entity(player_id, archetype, spawn_cell)
 			unit.set("simulation_entity_id", entity_id)
+		spawned = unit
 	if simulation_runner != null:
 		var command := simulation_runner.make_local_command(RTSCommand.Type.PRODUCE_UNIT, [], spawn_cell, {"unit": str(archetype)})
 		simulation_runner.queue_command(command)
 	unit_produced.emit(player_id, archetype, spawn_cell)
+	if spawned != null:
+		unit_trained.emit(player_id, archetype, spawned)
 	return true
 
 func _enqueue_unit_at_structure(player_id: int, archetype: StringName, producer: Dictionary) -> bool:
@@ -307,11 +421,64 @@ func produce_unit_from_structure(player_id: int, archetype: StringName, producer
 	if not UnitCatalog.is_unit_allowed_for_class(archetype, _current_wizard_class_id()):
 		build_rejected.emit("Not available for this class")
 		return false
+	if not _tier_available(player_id, archetype):
+		build_rejected.emit(_tier_locked_reason(archetype))
+		return false
 	var costs := {&"bio": UnitCatalog.cost_bio(archetype)}
 	if economy_manager == null or not economy_manager.spend(player_id, costs):
 		build_rejected.emit("Not enough Bio")
 		return false
 	return _enqueue_unit_at_structure(player_id, archetype, producer)
+
+# Tier 4. Cast at great cost from the Observation Tower, and deliberately NOT
+# owned by the caster: the roster doc is explicit that it "will not obey Kon and
+# will turn its wrath on all". Given owner_player_id 0 (the neutral-hostile slot
+# nothing else uses) so every faction's target acquisition treats it as an enemy,
+# including the player who paid for it.
+const FORBIDDEN_OWNER_ID := 0
+
+func unleash_forbidden(player_id: int) -> Node:
+	if not _has_completed_structure(player_id, &"wizard_tower"):
+		build_rejected.emit("Requires the Observation Tower")
+		return null
+	var definition := UnitCatalog.get_definition(&"the_forbidden")
+	var cost := int(definition.get("unleash_cost_bio", 900))
+	if economy_manager == null or not economy_manager.spend(player_id, {&"bio": cost}):
+		build_rejected.emit("Unleashing the Forbidden costs %s Bio" % cost)
+		return null
+	var tower := _first_structure_of(player_id, &"wizard_tower")
+	if tower.is_empty():
+		economy_manager.add_resource(player_id, &"bio", cost)
+		build_rejected.emit("Requires the Observation Tower")
+		return null
+	var spawn_cell: Vector2i = map_generator.nearest_walkable_cell(tower["cell"] + Vector2i(4, 4), 12)
+	var scene := _scene_for_unit(&"the_forbidden")
+	if scene == null:
+		economy_manager.add_resource(player_id, &"bio", cost)
+		build_rejected.emit("No scene available for the Forbidden")
+		return null
+	var unit := scene.instantiate()
+	unit.set("owner_player_id", FORBIDDEN_OWNER_ID)
+	get_parent().add_child(unit)
+	unit.global_position = map_generator.cell_to_world(spawn_cell)
+	# It marches on the tower of whoever released it. Everything else it meets on
+	# the way -- Deom included -- it will attack too, because owner 0 is hostile
+	# to every owner id.
+	var tower_node = tower.get("node", null)
+	if unit.has_method("rampage_toward") and tower_node != null and is_instance_valid(tower_node):
+		unit.call_deferred("rampage_toward", (tower_node as Node2D).global_position)
+	forbidden_unleashed.emit(player_id, unit)
+	return unit
+
+func _first_structure_of(player_id: int, archetype: StringName) -> Dictionary:
+	for structure in structures:
+		if int(structure.get("player_id", -1)) != player_id:
+			continue
+		if structure.get("archetype", &"") != archetype:
+			continue
+		if bool(structure.get("complete", false)):
+			return structure
+	return {}
 
 func apply_first_absorber_upgrade(upgrade_id: StringName) -> bool:
 	for i in structures.size():
@@ -321,6 +488,78 @@ func apply_first_absorber_upgrade(upgrade_id: StringName) -> bool:
 			return true
 	build_rejected.emit("Requires evolved Bio Absorber")
 	return false
+
+# Idle production buildings, in a stable order, for the "cycle idle barracks"
+# hotkey. Reads the production bookkeeping this system already maintains --
+# no node reflection, and only ever called from a key press.
+func idle_production_nodes(player_id: int) -> Array[Node]:
+	var idle: Array[Node] = []
+	for structure in structures:
+		if int(structure.get("player_id", -1)) != player_id:
+			continue
+		if structure.get("archetype", &"") != &"barracks":
+			continue
+		if not bool(structure.get("complete", false)):
+			continue
+		if not str(structure.get("training_archetype", &"")).is_empty():
+			continue
+		if not (structure.get("production_queue", []) as Array).is_empty():
+			continue
+		var node: Node = structure.get("node", null)
+		if node != null and is_instance_valid(node):
+			idle.append(node)
+	return idle
+
+# "can be set to attack ground for manual firing" / "can be set to fire
+# automatically" -- both from the roster doc. Auto-fire defaults on, so existing
+# behaviour is unchanged unless the player turns it off.
+func set_launcher_auto_fire(launcher_node: Node, enabled: bool) -> bool:
+	var index := _structure_index_for_node(launcher_node)
+	if index < 0 or structures[index]["archetype"] != &"bio_launcher":
+		return false
+	structures[index]["auto_fire"] = enabled
+	return true
+
+func launcher_auto_fire(launcher_node: Node) -> bool:
+	var index := _structure_index_for_node(launcher_node)
+	if index < 0:
+		return true
+	return bool(structures[index].get("auto_fire", true))
+
+func order_launcher_attack_ground(launcher_node: Node, world_position: Vector2) -> bool:
+	var index := _structure_index_for_node(launcher_node)
+	if index < 0 or structures[index]["archetype"] != &"bio_launcher":
+		return false
+	if not bool(structures[index].get("complete", false)):
+		build_rejected.emit("Bio Launcher is still building")
+		return false
+	var raw_node = structures[index].get("node", null)
+	if raw_node == null or not is_instance_valid(raw_node) or not (raw_node is Node2D):
+		return false
+	var range := float(UnitCatalog.get_definition(&"bio_launcher").get("attack_range_cells", 9)) * 64.0
+	if (raw_node as Node2D).global_position.distance_to(world_position) > range:
+		build_rejected.emit("Target is out of Bio Launcher range")
+		return false
+	structures[index]["manual_target"] = world_position
+	return true
+
+func _fire_bio_launcher_at_ground(structure: Dictionary, world_position: Vector2) -> void:
+	var raw_node = structure.get("node", null)
+	if raw_node == null or not is_instance_valid(raw_node) or not (raw_node is Node2D):
+		return
+	var definition := UnitCatalog.get_definition(&"bio_launcher")
+	var radius := float(definition.get("aoe_radius", 92.0))
+	var damage := int(definition.get("attack_damage", 24))
+	var rank := upgrade_rank(&"launcher_bile")
+	if rank > 0:
+		damage = int(round(float(damage) * (1.0 + 0.25 * float(rank))))
+		radius *= 1.0 + 0.08 * float(rank)
+	var player_id := int(structure["player_id"])
+	var hit := rts_world.query_enemy_units(world_position, radius, player_id) if rts_world != null else _fallback_unit_nodes()
+	for unit in hit:
+		if is_instance_valid(unit) and unit.has_method("take_damage") and int(unit.get("owner_player_id")) != player_id:
+			unit.call("take_damage", damage, raw_node)
+	_draw_launcher_burst(world_position, radius)
 
 func get_structures() -> Array[Dictionary]:
 	return structures.duplicate(true)
@@ -471,18 +710,105 @@ func _update_bio_launchers(delta: float) -> void:
 		if float(structure["attack_elapsed"]) < cooldown:
 			structures[i] = structure
 			continue
-		var target := _find_launcher_target(structure)
-		if target == null:
+		# A queued manual attack-ground shot always takes priority over
+		# auto-acquisition, and fires even when auto-fire is switched off.
+		var manual_target: Variant = structure.get("manual_target", null)
+		var target: Node2D = null
+		var manual_position := Vector2.ZERO
+		var has_manual := manual_target != null
+		if has_manual:
+			manual_position = manual_target
+		elif not bool(structure.get("auto_fire", true)):
 			structures[i] = structure
 			continue
+		else:
+			target = _find_launcher_target(structure)
+			if target == null:
+				structures[i] = structure
+				continue
 		var shot_cost := int(UnitCatalog.get_definition(&"bio_launcher").get("shot_cost_bio", 3))
 		if economy_manager != null and not economy_manager.spend(int(structure["player_id"]), {&"bio": shot_cost}):
 			structures[i] = structure
 			continue
-		_fire_bio_launcher(structure, target)
+		if has_manual:
+			_fire_bio_launcher_at_ground(structure, manual_position)
+			structure["manual_target"] = null
+		else:
+			_fire_bio_launcher(structure, target)
 		structure["attack_elapsed"] = 0.0
 		structure["evolution_xp"] = float(structure.get("evolution_xp", 0.0)) + 18.0
 		structures[i] = structure
+
+# The roster doc: "Bio absorbers will naturally slowly heal units and buildings
+# in a large radius. This rewards Kon choosing a more difficult place to base
+# with more eco slots." The heal_aura upgrade choice existed in the catalog and
+# in the HUD button, but nothing ever read it -- picking it did literally
+# nothing. Baseline heal now applies to every completed absorber; the upgrade
+# widens the radius and triples the rate.
+#
+# Ticks once per second, not per frame, and reuses RTSWorld's existing spatial
+# buckets. At a normal base count that is a handful of radius queries a second.
+const HEAL_AURA_INTERVAL := 1.0
+
+func _update_absorber_heal_auras(delta: float) -> void:
+	_heal_aura_elapsed += delta
+	if _heal_aura_elapsed < HEAL_AURA_INTERVAL:
+		return
+	var step := _heal_aura_elapsed
+	_heal_aura_elapsed = 0.0
+	var definition := UnitCatalog.get_definition(&"bio_absorber")
+	if definition.is_empty():
+		return
+	for i in structures.size():
+		var structure: Dictionary = structures[i]
+		if structure.get("archetype", &"") != &"bio_absorber" or not bool(structure.get("complete", false)):
+			continue
+		var raw_node = structure.get("node", null)
+		if raw_node == null or not is_instance_valid(raw_node) or not (raw_node is Node2D):
+			continue
+		var upgraded := str(structure.get("upgrade", "")) == "heal_aura"
+		var radius := float(definition.get("upgraded_heal_aura_radius", 720.0)) if upgraded else float(definition.get("heal_aura_radius", 460.0))
+		var rate := float(definition.get("upgraded_heal_per_second", 6.0)) if upgraded else float(definition.get("heal_per_second", 2.0))
+		var amount := int(round(rate * step))
+		if amount <= 0:
+			continue
+		_apply_heal_aura(raw_node as Node2D, int(structure.get("player_id", 1)), radius, amount)
+
+func _apply_heal_aura(source: Node2D, player_id: int, radius: float, amount: int) -> void:
+	# Iterates the owner's own unit list with a squared-distance test rather than
+	# RTSWorld.query_units(). query_units reads the spatial buckets, which are
+	# only rebuilt by the Bio Launcher tick -- correct in a live frame, but it
+	# makes this function silently depend on another system's cadence and gives
+	# stale or empty results when called in isolation. The owner list is always
+	# current, and at a normal base count this is a few hundred cheap distance
+	# checks per second, once per absorber.
+	var radius_sq := radius * radius
+	if rts_world != null and is_instance_valid(rts_world):
+		for unit in rts_world.units_for_owner(player_id):
+			if not is_instance_valid(unit) or not unit.has_method("heal_damage"):
+				continue
+			if source.global_position.distance_squared_to(unit.global_position) > radius_sq:
+				continue
+			unit.call("heal_damage", amount)
+	# Friendly structures mend too, per the doc ("units and buildings").
+	# The KonStructure node is the authoritative HP holder here -- the structures
+	# dictionary is synced FROM it every frame by _sync_structure_damage_and_cleanup(),
+	# so healing the dictionary alone would be silently overwritten.
+	for i in structures.size():
+		var other: Dictionary = structures[i]
+		if int(other.get("player_id", -1)) != player_id:
+			continue
+		var other_node = other.get("node", null)
+		if other_node == null or not is_instance_valid(other_node) or not (other_node is KonStructure):
+			continue
+		var structure_node := other_node as KonStructure
+		if structure_node.health <= 0 or structure_node.health >= structure_node.max_health:
+			continue
+		if source.global_position.distance_squared_to(structure_node.global_position) > radius_sq:
+			continue
+		structure_node.health = mini(structure_node.max_health, structure_node.health + amount)
+		structures[i]["hp"] = structure_node.health
+		structure_node.queue_redraw()
 
 func _find_launcher_target(structure: Dictionary) -> Node2D:
 	var raw_node = structure.get("node", null)
@@ -680,6 +1006,16 @@ func _upgrade_cost(upgrade_id: StringName, rank: int) -> int:
 			base_cost = 140
 		&"launcher_bile":
 			base_cost = 160
+		&"observer_sight":
+			base_cost = 90
+		&"observer_command":
+			base_cost = 240
+		&"observer_oversight":
+			base_cost = 130
+		&"tier_two_hybrids":
+			base_cost = 200
+		&"tier_three_hybrids":
+			base_cost = 420
 		_:
 			return 99999
 	return int(round(float(base_cost) * (1.0 + float(rank - 1) * 0.6)))
@@ -705,7 +1041,12 @@ func _apply_upgrades_to_unit(unit: Node) -> void:
 		return
 	var archetype: StringName = unit.get("unit_archetype")
 	var horrors_rank := upgrade_rank(&"hardened_horrors")
-	if archetype == &"horror" and horrors_rank > 0:
+	# Matched on unit FAMILY, not archetype. Keyed on &"horror" alone, the
+	# upgrade stopped applying the instant a Horror evolved into a Hunter -- so
+	# an upgrade the player paid for evaporated exactly when their unit got
+	# better. Families are already in the catalog (horror -> hunter share
+	# unit_family &"horror").
+	if UnitCatalog.family_of(archetype) == &"horror" and horrors_rank > 0:
 		var applied_rank := int(unit.get_meta("hardened_horrors_rank_applied", 0))
 		if applied_rank < horrors_rank:
 			var delta := horrors_rank - applied_rank
@@ -713,9 +1054,26 @@ func _apply_upgrades_to_unit(unit: Node) -> void:
 			unit.set("health", int(unit.get("health")) + 20 * delta)
 			unit.set("attack_damage", int(unit.get("attack_damage")) + 2 * delta)
 			unit.set_meta("hardened_horrors_rank_applied", horrors_rank)
+	# Intelligence is recomputed from the catalog baseline plus the current rank
+	# rather than incremented, so it is naturally idempotent and survives the
+	# stat reset that evolution performs.
+	var command_rank := upgrade_rank(&"observer_command")
+	if _node_has_property(unit, "intelligence"):
+		var baseline := UnitCatalog.intelligence_of(archetype)
+		unit.set("intelligence", mini(UnitCatalog.INTELLIGENCE_BOUND, baseline + command_rank))
 	if upgrade_rank(&"accelerated_evolution") > 0 and _node_has_property(unit, "evolution_xp") and not bool(unit.get_meta("accelerated_evolution_applied", false)):
 		unit.set("evolution_xp", float(unit.get("evolution_xp")) + 28.0)
 		unit.set_meta("accelerated_evolution_applied", true)
+
+# Called by RTSUnit._evolve(). An evolution re-reads the archetype's catalog
+# stats, which discards any research bonus baked into the node, so the
+# already-applied rank markers are cleared and the upgrades re-applied against
+# the unit's new base stats.
+func reapply_upgrades_after_evolution(unit: Node) -> void:
+	if unit == null or not is_instance_valid(unit):
+		return
+	unit.set_meta("hardened_horrors_rank_applied", 0)
+	_apply_upgrades_to_unit(unit)
 
 func _node_has_property(node: Node, property_name: String) -> bool:
 	for property in node.get_property_list():
@@ -737,6 +1095,8 @@ func _scene_for_unit(archetype: StringName) -> PackedScene:
 			return spawner_scene
 		&"stone_face_serpent":
 			return stone_face_serpent_scene
+		&"the_forbidden":
+			return the_forbidden_scene
 	return null
 
 func _draw() -> void:
@@ -746,7 +1106,7 @@ func _draw() -> void:
 		for cell in _line_cells(_wall_drag_start, _wall_drag_end):
 			_draw_cell_preview(cell, _can_place(&"vinewall", cell), _is_placement_cell_free(cell))
 	elif pending_archetype != &"":
-		var cell: Vector2i = map_generator.world_to_cell(get_global_mouse_position())
+		var cell: Vector2i = map_generator.world_to_cell(_placement_mouse_position())
 		var valid := _can_place(pending_archetype, cell)
 		var cells := get_placement_cells(pending_archetype, cell)
 		_draw_footprint_pad(cells, valid, true)

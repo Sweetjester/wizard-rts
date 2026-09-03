@@ -21,6 +21,9 @@ const MAP_EDITOR_SCENE := "res://scenes/map/map_editor.tscn"
 
 var selected_character_id := ""
 var selected_map_type_id := ""
+# Presentation only. The map, the systems and the rules are identical either
+# way -- see scripts/map/map_3d_view.gd.
+var use_3d_view := false
 
 func _ready() -> void:
 	AudioManager.play_map_music()
@@ -94,7 +97,7 @@ func _on_begin_pressed() -> void:
 		return
 	if selected_map_type_id.is_empty():
 		return
-	GameSession.start_new_game("", selected_character_id, selected_map_type_id)
+	GameSession.start_new_game("", selected_character_id, selected_map_type_id, "", use_3d_view)
 	AudioManager.play_map_music()
 	get_tree().change_scene_to_file(GAME_SCENE)
 
@@ -269,9 +272,25 @@ func _add_map_editor_button() -> void:
 	main_panel.add_child(button)
 	main_panel.move_child(button, insert_index)
 
+func _add_view_mode_toggle() -> void:
+	if map_panel == null or map_panel.has_node("ViewModeToggle"):
+		return
+	var toggle := CheckBox.new()
+	toggle.name = "ViewModeToggle"
+	toggle.text = "3D map view (same game, 3D terrain)"
+	toggle.button_pressed = use_3d_view
+	toggle.focus_mode = Control.FOCUS_NONE
+	toggle.add_theme_font_size_override("font_size", 18)
+	toggle.toggled.connect(func(pressed: bool) -> void:
+		use_3d_view = pressed
+	)
+	map_panel.add_child(toggle)
+	map_panel.move_child(toggle, 0)
+
 func _add_seeded_grid_map_button() -> void:
 	if map_panel == null or map_panel.has_node("SeededGridFrontierButton"):
 		return
+	_add_view_mode_toggle()
 	var insert_index := maxi(0, map_panel.get_child_count() - 1)
 	var button := Button.new()
 	button.name = "SeededGridFrontierButton"

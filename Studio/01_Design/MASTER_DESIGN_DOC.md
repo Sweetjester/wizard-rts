@@ -100,6 +100,7 @@ Expected scale:
 - Hundreds of units on screen, not dozens
 - Base should be readable at a glance
 - Army control should still stay tactical rather than high-APM competitive RTS — at hundreds of units, that means leaning on strong control tooling (control groups, army-wide orders, smart formations) to keep it manageable, not on the player's twitch reflexes
+- Not every unit is equally controllable, by design — see Section 38, Micromanageable Levels. Control tooling raises the ceiling on what the player *can* manage; micromanageable levels lower the amount that *needs* managing
 
 The game should avoid becoming a full city builder. The base exists to support survival, exploration, and objective completion.
 
@@ -347,6 +348,8 @@ Recommended class roster structure:
 Units should be readable by: silhouette, color accents, animation style, role clarity.
 
 Unit roles may include: frontline blocker, ranged damage, siege, scout, healer/support, anti-swarm, anti-armor, summoned disposable unit, trap or terrain-control unit, flying or terrain-ignoring unit.
+
+Every unit also carries a **micromanageable level** — how far it obeys orders at all. See Section 38. Treat it as a defining stat alongside role, not as a behaviour detail to settle during implementation.
 
 The game should avoid unit rosters where every class has identical equivalents.
 
@@ -710,6 +713,7 @@ Core features:
 - Procedural road-based maps
 - Meaningful base placement
 - Class-specific units and mechanics
+- Micromanageable levels: some units obey precisely, others only take crude orders and fight their own way
 - Roguelike upgrades researched at the tower
 - Day/night and weather affecting gameplay
 - Enemy trickle plus organized waves
@@ -747,3 +751,46 @@ This is not a polish-phase item. Section 15 requires units to be readable by "an
 - **Treat unreviewed output as a liability, not a backlog.** The four-month-old terrain batch sitting untouched was pure waste — fully paid for, on-style, and doing nothing. Generation and review need to be the same cycle, not two cycles that can silently drift apart.
 
 Every feature should support exploration, settlement, survival, upgrading, and objective completion.
+
+---
+
+## 38. Micromanageable Levels
+
+Not every unit answers to the same degree of control. Some units can be fully micromanaged with immediate, precise responsiveness. Others accept only primitive commands and otherwise fight their own way — defending but never advancing, or committing to an attack order that cannot be called off.
+
+This is a core mechanic, not a difficulty setting and not an AI quality problem. A unit that ignores half of your orders is not a broken unit; it is a unit whose **control cost is part of its price**.
+
+Why it exists:
+
+- **It is how scale stays tactical.** Section 5 targets hundreds of units on screen while explicitly refusing high-APM play. Controllability is the lever that makes both true at once. If every unit in a 300-unit army were fully responsive, the skill ceiling would become raw APM by default, no matter how good the control tooling is. Making most of the army semi-autonomous puts the player's attention on the few units that actually reward it.
+- **It is faction fantasy made mechanical.** Kon commands spliced hybrids of a species his own kin sealed away. Obedience should visibly degrade the closer a unit sits to the forbidden. Cheap subservient hybrids take orders; the things further down the roster increasingly do not.
+- **It creates a trade-off axis that is not power.** A unit can be strong *and* awkward. That makes roster decisions interesting without making units strictly better or worse than each other — the failure mode Section 29 warns about as "pure stat scaling".
+
+**Intelligence** is the stat, shown on the unit card, on a three-point scale. Decided 2026-08-31 and implemented:
+
+- **1 — Feral.** Set behaviour that cannot be changed. Player orders are refused outright.
+- **2 — Leashed.** Can be given move commands while no enemy is within its aggro range. Once something comes inside that range it drops the order and reverts to its set behaviour.
+- **3 — Bound.** Fully micromanageable. Every order, at any time.
+
+Intelligence is a **stat, not a fixed trait** — it varies, and upgrades raise it. Observer Vault research (`observer_command`, 2 ranks) adds +1 per rank, capped at 3. Kon's observer magic is what lets him direct the forbidden at all, so buying obedience belongs in that building.
+
+**Aggro range** is the companion stat: how far an enemy can be before the unit engages it automatically, in cells. It defines the leash for Intelligence 2 and it drives auto-engagement for every unit at every level. Before this it was an implicit `max(attack_range × 1.5, 256px)` buried in the combat system with no design control over it at all.
+
+The two stats read together: aggro range says when a unit starts fighting on its own, intelligence says whether you can stop it.
+
+Design rules:
+
+- Intelligence and aggro range must be **visible before purchase**, on the unit card. A control level is a cost, and costs have to be legible.
+- Intelligence should be **stable and knowable**, never random. Players plan around it.
+- Evolution may **change** a unit's intelligence, in either direction. A hybrid that grows stronger while becoming *less* obedient is on-theme, and gives evolution a downside worth weighing rather than being a pure upgrade.
+- **Stop is always obeyed**, at every level above Feral. Refusing it would leave the player with no way to call anything off, which reads as a bug rather than as character.
+- The wizard is always Intelligence 3. The hero is the one thing the player can rely on absolutely.
+- A partially-obeyed order must be **reported**, never silently partial. Ordering a mixed selection where only some units comply has to say so.
+
+The game should avoid: low-controllability units simply feeling unresponsive or broken. The distinction has to read as **character** — the unit straining against the leash, not the game failing to receive an order. Animation, audio and command feedback carry as much of this as the underlying logic does. A Loosed unit should look like it chose to keep fighting.
+
+Open questions:
+
+- Whether control level is a property of the unit, of its current evolution stage, or of its distance from Kon and the Observation Tower — an observer-magic leash, where the army is more obedient near its wizard and more feral far from him.
+- Whether the other classes express this axis at all, or whether it belongs to KoN alone as a class identity.
+- Whether Intelligence 1 needs more than one "set behaviour". Today a Feral unit simply fights on its own; the doc's original framing also imagined defend-only postures, which would need a stance to sit alongside the stat.

@@ -11,7 +11,17 @@ var music_volume: float = 0.7:
 		music_volume = clampf(value, 0.0, 1.0)
 		_apply_volume()
 
-var music_muted: bool = false:
+# Music ships muted (2026-08-31, Andrew's call). The stream is still selected
+# and loaded per wizard class exactly as before -- only the Music bus is muted --
+# so the main menu's track-switching behaviour and its smoke test are unaffected,
+# and un-ticking "Mute music" in either menu brings it straight back.
+#
+# There is no audio settings file anywhere in the project (unlike DisplayManager
+# and KeybindManager, which both persist to user://). That means this is a true
+# default: the game starts silent on every launch, and unmuting lasts only for
+# that session. Say if it should be remembered instead -- that needs a
+# ConfigFile, not a different default.
+var music_muted: bool = true:
 	set(value):
 		music_muted = value
 		_apply_volume()

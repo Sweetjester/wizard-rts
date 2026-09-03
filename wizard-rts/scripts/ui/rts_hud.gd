@@ -47,10 +47,12 @@ var ai_test_container: HBoxContainer
 var map_tool_container: HBoxContainer
 var ai_telemetry_label: Label
 var ai_spawn_button: Button
+var control_group_label: Label
 var unit_stat_window: Window
 var _last_selection_signature := ""
 var _alert_until_msec: int = 0
 var _boss_warning_shown := false
+var _grace_warning_shown := false
 var _victory_return_remaining := -1.0
 var _last_victory_second := -1
 var _return_phase_title := "Victory"
@@ -112,10 +114,26 @@ func _ready() -> void:
 			status_label.text = "Researched %s" % _upgrade_name(upgrade_id)
 			_update_selection_panel(true)
 		)
+	var command_dispatcher := get_node_or_null(NodePath("../CommandDispatcher"))
+	if command_dispatcher != null and command_dispatcher.has_signal("order_partially_refused"):
+		command_dispatcher.order_partially_refused.connect(func(obeyed: int, refused: int, reason: String) -> void:
+			if obeyed > 0:
+				status_label.text = "%s obeyed, %s refused - %s" % [obeyed, refused, reason]
+			else:
+				status_label.text = "Order refused - %s" % reason
+			_show_alert("ORDER REFUSED" if obeyed == 0 else "PARTIAL ORDER")
+		)
 	if selection_controller != null:
 		selection_controller.selection_changed.connect(func(_selected: Array[Node]) -> void:
 			_update_selection_panel(true)
 		)
+		# Control-group counts refresh on the manager's own signal (assign /
+		# add / recall / a grouped unit dying), never from _process. At
+		# hundreds of units a polled version of this strip would be exactly
+		# the per-frame HUD cost the 2026-08-23 regression was about.
+		if selection_controller.control_groups != null:
+			selection_controller.control_groups.groups_changed.connect(_refresh_control_group_label)
+	_refresh_control_group_label()
 	_refresh()
 
 func _process(_delta: float) -> void:
@@ -132,6 +150,14 @@ func _process(_delta: float) -> void:
 		_update_ai_telemetry(_delta)
 	elif map_generator != null and str(map_generator.get("map_type_id")) == "plot_generator_test":
 		phase_label.text = "Plot Generator Test"
+	elif wave_director != null and wave_director.has_method("is_in_grace_period") and bool(wave_director.call("is_in_grace_period")):
+		# The grace period is the most important thing on screen while it lasts:
+		# it is the only time the player can build without pressure.
+		var grace_remaining := int(wave_director.call("get_grace_seconds_remaining"))
+		phase_label.text = "Grace period | First wave in %s" % _format_time(grace_remaining)
+		if grace_remaining <= 10 and not _grace_warning_shown:
+			_grace_warning_shown = true
+			_show_alert("THE FIRST WAVE IS COMING")
 	elif wave_director != null and not wave_director.boss_has_spawned:
 		var boss_remaining := wave_director.get_boss_seconds_remaining()
 		phase_label.text = "Phase: %s | Boss in %s" % [str(wave_director.phase).capitalize(), _format_time(boss_remaining)]
@@ -156,17 +182,26 @@ func _build_ui() -> void:
 	resource_label = _make_label()
 	phase_label = _make_label()
 	selection_label = _make_label()
+	control_group_label = _make_label()
 	var commands := _make_label()
-	commands.text = "%s attack-move | %s patrol | %s hold | %s stop | Right-click move" % [
+	commands.text = "%s attack-move | %s patrol | %s hold | %s stop | %s wizard | %s army | %s idle barracks | %s idle unit | %s filter type | Ctrl+1-9 group | Alt+1-9 reinforce" % [
 		KeybindManager.get_key_label(KeybindManager.ACTION_ATTACK_MOVE),
 		KeybindManager.get_key_label(KeybindManager.ACTION_PATROL),
 		KeybindManager.get_key_label(KeybindManager.ACTION_HOLD),
 		KeybindManager.get_key_label(KeybindManager.ACTION_STOP),
+		KeybindManager.get_key_label(KeybindManager.ACTION_SELECT_HERO),
+		KeybindManager.get_key_label(KeybindManager.ACTION_SELECT_ARMY),
+		KeybindManager.get_key_label(KeybindManager.ACTION_CYCLE_IDLE_PRODUCTION),
+		KeybindManager.get_key_label(KeybindManager.ACTION_CYCLE_IDLE_UNIT),
+		KeybindManager.get_key_label(KeybindManager.ACTION_CYCLE_SUBGROUP),
 	]
+	commands.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	commands.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	row.add_child(resource_label)
 	row.add_child(phase_label)
 	row.add_child(selection_label)
+	row.add_child(control_group_label)
 	row.add_child(commands)
 
 	alert_label = _make_label()
@@ -250,6 +285,11 @@ func _add_button(parent: Control, text: String, callback: Callable) -> Button:
 	var button := Button.new()
 	button.text = text
 	button.custom_minimum_size = Vector2(92, 44)
+	# HUD buttons never take keyboard focus. Without this, clicking a build
+	# button hands focus to it, and Godot's built-in ui_focus_next consumes
+	# Tab before _unhandled_input ever sees it (and Space/Enter re-fire the
+	# button). Both are the classic RTS-HUD input-stealing bug.
+	button.focus_mode = Control.FOCUS_NONE
 	button.pressed.connect(callback)
 	parent.add_child(button)
 	return button
@@ -383,6 +423,93 @@ func _build_unit_stat_window() -> Window:
 		_show_unit_stat_card(entries[0], detail_body)
 	return window
 
+const INTELLIGENCE_COLORS := {
+	1: Color("#E85A5A"),
+	2: Color("#E0A857"),
+	3: Color("#7BC47F"),
+}
+
+func _intelligence_color(level: int) -> Color:
+	return INTELLIGENCE_COLORS.get(level, Color("#D6C7AE"))
+
+func _control_text(archetype: StringName) -> String:
+	var level := UnitCatalog.intelligence_of(archetype)
+	var aggro := UnitCatalog.aggro_range_cells(archetype)
+	return "Intelligence %s (%s) - %s   |   Aggro range %s cells (%s px)" % [
+		level,
+		UnitCatalog.intelligence_label(level),
+		UnitCatalog.intelligence_description(level, aggro),
+		aggro,
+		aggro * 64,
+	]
+
+func _build_card_portrait(archetype: StringName) -> Control:
+	var path := UnitCatalog.card_portrait_path(archetype)
+	if path.is_empty() or not ResourceLoader.exists(path):
+		return null
+	var texture: Texture2D = load(path)
+	if texture == null:
+		return null
+	var frame := PanelContainer.new()
+	var rect := TextureRect.new()
+	rect.texture = texture
+	rect.custom_minimum_size = Vector2(132, 132)
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	frame.add_child(rect)
+	return frame
+
+func _build_tier_badge(archetype: StringName, definition: Dictionary) -> Control:
+	if not definition.has("tier"):
+		return null
+	var tier := UnitCatalog.tier_of(archetype)
+	var badge := _make_label()
+	badge.text = str(TIER_LABELS.get(tier, "Tier %s" % tier))
+	badge.add_theme_font_size_override("font_size", 14)
+	badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var locked := _tier_is_locked(archetype)
+	badge.add_theme_color_override("font_color", Color("#8A7F70") if locked else _kon_theme_color(archetype))
+	if locked:
+		badge.text += "  [LOCKED]"
+	return badge
+
+func _tier_is_locked(archetype: StringName) -> bool:
+	if build_system == null or not build_system.has_method("unlocked_tier"):
+		return false
+	var tier := UnitCatalog.tier_of(archetype)
+	if tier <= UnitCatalog.TIER_1 or tier > UnitCatalog.MAX_TRAINABLE_TIER:
+		return false
+	return tier > int(build_system.call("unlocked_tier", 1))
+
+# The parts of a unit card that only some units have: weapon modes, and where
+# this unit sits in an evolution chain. Both are read straight off the catalog
+# so a new unit gets them for free.
+func _card_extra_text(archetype: StringName, definition: Dictionary) -> String:
+	var parts: Array[String] = []
+	var modes := UnitCatalog.weapon_modes(archetype)
+	if not modes.is_empty():
+		var mode_parts: Array[String] = []
+		for key in modes.keys():
+			var mode: Dictionary = modes[key]
+			mode_parts.append("%s (%s dmg / %s rng)" % [
+				str(mode.get("display_name", key)),
+				mode.get("attack_damage", 0),
+				mode.get("attack_range_cells", 0),
+			])
+		parts.append("Weapons: " + "  |  ".join(mode_parts))
+	var evolves_to := StringName(definition.get("evolves_to", &""))
+	if not str(evolves_to).is_empty():
+		parts.append("Evolves into %s at %s XP" % [
+			str(UnitCatalog.get_definition(evolves_to).get("display_name", evolves_to)),
+			int(definition.get("evolution_xp_required", 0)),
+		])
+	var max_evolution := int(definition.get("max_evolution_level", 0))
+	if max_evolution > 1:
+		parts.append("Grows through %s evolution stages" % max_evolution)
+	if bool(definition.get("uncontrollable", false)):
+		parts.append("UNCONTROLLABLE -- obeys no player, attacks everything")
+	return "\n".join(parts)
+
 func _catalog_entries(structures: bool) -> Array[StringName]:
 	var entries: Array[StringName] = []
 	for key in UnitCatalog.DEFINITIONS.keys():
@@ -458,14 +585,35 @@ func _build_stat_card(archetype: StringName) -> Control:
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(500, 156)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var card_row := HBoxContainer.new()
+	card_row.add_theme_constant_override("separation", 14)
+	card.add_child(card_row)
+	var portrait := _build_card_portrait(archetype)
+	if portrait != null:
+		card_row.add_child(portrait)
 	var box := VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_theme_constant_override("separation", 6)
-	card.add_child(box)
+	card_row.add_child(box)
+	var header_row := HBoxContainer.new()
+	header_row.add_theme_constant_override("separation", 10)
+	box.add_child(header_row)
 	var header := _make_label()
 	header.text = str(definition.get("display_name", archetype))
 	header.add_theme_font_size_override("font_size", 18)
 	header.add_theme_color_override("font_color", _stat_accent(archetype))
-	box.add_child(header)
+	header_row.add_child(header)
+	var badge := _build_tier_badge(archetype, definition)
+	if badge != null:
+		header_row.add_child(badge)
+	var blurb_text := str(definition.get("card_blurb", ""))
+	if not blurb_text.is_empty():
+		var blurb := _make_label()
+		blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		blurb.add_theme_font_size_override("font_size", 14)
+		blurb.add_theme_color_override("font_color", Color("#A79880"))
+		blurb.text = blurb_text
+		box.add_child(blurb)
 	var meta := _make_label()
 	meta.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	meta.text = _stat_meta_text(archetype, definition)
@@ -474,6 +622,21 @@ func _build_stat_card(archetype: StringName) -> Control:
 	combat.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	combat.text = _combat_text(archetype, definition)
 	box.add_child(combat)
+	# Intelligence and aggro range get their own line, above the flavour text.
+	# Design doc section 38: a control level is a cost, and costs must be legible
+	# before purchase.
+	var control := _make_label()
+	control.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	control.add_theme_color_override("font_color", _intelligence_color(UnitCatalog.intelligence_of(archetype)))
+	control.text = _control_text(archetype)
+	box.add_child(control)
+	var extra := _card_extra_text(archetype, definition)
+	if not extra.is_empty():
+		var extra_label := _make_label()
+		extra_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		extra_label.add_theme_color_override("font_color", _kon_theme_color(archetype))
+		extra_label.text = extra
+		box.add_child(extra_label)
 	var role := _make_label()
 	role.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	role.text = _role_text(archetype, definition)
@@ -483,7 +646,14 @@ func _build_stat_card(archetype: StringName) -> Control:
 func _stat_meta_text(archetype: StringName, definition: Dictionary) -> String:
 	var parts: Array[String] = []
 	parts.append("Archetype %s" % str(archetype))
-	parts.append("HP %s" % int(definition.get("max_hp", 0)))
+	# Fielded HP, not the raw catalog number. An evolved form is created by
+	# _evolve(), which applies a growth multiplier on top of its catalog entry --
+	# so the card used to understate every evolved unit by ~24% HP.
+	var fielded_hp := UnitCatalog.fielded_max_hp(archetype)
+	if UnitCatalog.is_evolved_form(archetype):
+		parts.append("HP %s (base %s +growth)" % [fielded_hp, int(definition.get("max_hp", 0))])
+	else:
+		parts.append("HP %s" % fielded_hp)
 	if definition.has("armor") or definition.has("magic_armor"):
 		parts.append("Armor %s" % int(definition.get("armor", 0)))
 		parts.append("Magic %s" % int(definition.get("magic_armor", 0)))
@@ -503,13 +673,21 @@ func _combat_text(archetype: StringName, definition: Dictionary) -> String:
 	var range_cells := int(definition.get("attack_range_cells", 0))
 	var cooldown := float(definition.get("attack_speed_seconds", float(definition.get("attack_cooldown_ticks", 0)) / 20.0))
 	var parts: Array[String] = []
+	var casts := int(weapon.get("casts", 1))
+	var damage := UnitCatalog.fielded_attack_damage(archetype)
 	parts.append("Type %s" % str(definition.get("attack_type", weapon.get("kind", &"none"))).replace("_", " ").capitalize())
-	parts.append("Damage %s" % int(definition.get("attack_damage", weapon.get("damage", 0))))
-	parts.append("Range %s" % range_cells)
+	if UnitCatalog.is_evolved_form(archetype):
+		parts.append("Damage %s (base %s +growth)" % [damage, int(definition.get("attack_damage", 0))])
+	else:
+		parts.append("Damage %s" % damage)
+	parts.append("Range %s (%s px)" % [range_cells, range_cells * 64])
 	if cooldown > 0.0:
 		parts.append("Cooldown %.2fs" % cooldown)
-	if int(weapon.get("casts", 1)) > 1:
-		parts.append("Casts %s" % int(weapon.get("casts", 1)))
+		# Derived, because damage-per-hit alone hides that the blowpipe is half
+		# the DPS of the spear, and that Kon's double cast doubles his output.
+		parts.append("DPS %.1f" % (float(damage * maxi(1, casts)) / cooldown))
+	if casts > 1:
+		parts.append("Casts %s" % casts)
 	if weapon.has("aoe_radius"):
 		parts.append("AoE %s px" % int(weapon.get("aoe_radius", 0)))
 	elif float(definition.get("attack_splash_radius_cells", 0.0)) > 0.0:
@@ -520,26 +698,37 @@ func _unit_stat_breakdown(archetype: StringName, definition: Dictionary) -> Stri
 	var weapon := WeaponCatalog.get_weapon(archetype)
 	var lines: Array[String] = []
 	lines.append("Combat profile")
-	lines.append("Damage: %s | Range: %s cells | Cooldown: %.2fs | Weapon: %s" % [
-		int(definition.get("attack_damage", weapon.get("damage", 0))),
+	lines.append("Damage: %s | Range: %s cells (%s px) | Cooldown: %.2fs | Weapon: %s" % [
+		UnitCatalog.fielded_attack_damage(archetype),
 		int(definition.get("attack_range_cells", 0)),
+		int(definition.get("attack_range_cells", 0)) * 64,
 		float(definition.get("attack_speed_seconds", float(definition.get("attack_cooldown_ticks", 0)) / 20.0)),
 		str(definition.get("attack_type", weapon.get("kind", &"none"))).replace("_", " ").capitalize(),
 	])
 	lines.append("Durability: HP %s | Armor %s | Magic armor %s" % [
-		int(definition.get("max_hp", 0)),
+		UnitCatalog.fielded_max_hp(archetype),
 		int(definition.get("armor", 0)),
 		int(definition.get("magic_armor", 0)),
 	])
+	# Armour is flat subtraction with a floor of 1 (RTSUnit.take_damage), which
+	# is by far the least obvious rule in the stat system -- Armor 5 removes 71%
+	# of a 7-damage hit and 13% of a 38-damage one. Spelled out rather than left
+	# for the player to reverse-engineer.
+	lines.append("Control: %s" % _control_text(archetype))
+	if int(definition.get("armor", 0)) > 0 or int(definition.get("magic_armor", 0)) > 0:
+		lines.append("Armor subtracts flat damage per hit (minimum 1 gets through). Magic armor applies to poison and other magic damage only.")
 	if weapon.has("projectile_speed"):
 		lines.append("Projectile speed: %s" % int(weapon.get("projectile_speed", 0)))
 	if weapon.has("aoe_radius"):
 		lines.append("Area damage radius: %s px" % int(weapon.get("aoe_radius", 0)))
 	lines.append("")
 	lines.append("Economy and production")
-	lines.append("Bio cost: %s | Bio value: %s" % [
+	# "Bio value" used to read a `bio_value` catalog key that exists on no
+	# archetype, so it always printed 0. Now the real salvage formula, shared
+	# with RTSUnit.salvage_value().
+	lines.append("Bio cost: %s | Salvage value: %s Bio" % [
 		int(definition.get("cost_bio", 0)),
-		int(definition.get("bio_value", 0)),
+		UnitCatalog.salvage_value_for(archetype),
 	])
 	if definition.has("train_time_seconds"):
 		lines.append("Train time: %.1fs" % float(definition.get("train_time_seconds", 0.0)))
@@ -609,6 +798,24 @@ func _role_text(_archetype: StringName, definition: Dictionary) -> String:
 	if notes.is_empty():
 		return "Role framework: baseline combat unit/building."
 	return " | ".join(notes)
+
+# KoN's duo theme, from the roster doc: observer = silver, evolution = #67BED9
+# with an #a95766 warm accent, and the Biospawner is the single crossover.
+const KON_THEME_COLORS := {
+	&"observer": Color("#C9CDD4"),
+	&"evolution": Color("#67BED9"),
+	&"crossover": Color("#A95766"),
+}
+const TIER_LABELS := {
+	0: "Hero",
+	1: "Tier 1",
+	2: "Tier 2",
+	3: "Tier 3",
+	4: "Tier 4",
+}
+
+func _kon_theme_color(archetype: StringName) -> Color:
+	return KON_THEME_COLORS.get(UnitCatalog.kon_theme(archetype), Color("#D6C7AE"))
 
 func _stat_accent(archetype: StringName) -> Color:
 	match archetype:
@@ -683,6 +890,28 @@ func _update_ai_telemetry(delta: float) -> void:
 		nodes,
 	]
 
+func _refresh_control_group_label() -> void:
+	if control_group_label == null:
+		return
+	if selection_controller == null or selection_controller.control_groups == null:
+		control_group_label.text = ""
+		return
+	var groups: ControlGroupManager = selection_controller.control_groups
+	var reinforce := groups.reinforce_group()
+	var parts: Array[String] = []
+	for index in range(1, ControlGroupManager.GROUP_COUNT + 1):
+		var size := groups.count(index)
+		if size <= 0:
+			continue
+		parts.append("%s%s:%s" % [index, "*" if index == reinforce else "", size])
+	if parts.is_empty():
+		control_group_label.text = "Groups: none (Ctrl+1-9 to assign)"
+		return
+	control_group_label.text = "Groups: %s%s" % [
+		"  ".join(parts),
+		"   * = reinforce" if reinforce != ControlGroupManager.NO_REINFORCE_GROUP else "",
+	]
+
 func _clear_commands() -> void:
 	if command_container == null:
 		return
@@ -733,7 +962,13 @@ func _update_selection_details(selected: Array[Node]) -> void:
 	if selected.size() > 1:
 		detail_name_label.text = "%s selected" % selected.size()
 		detail_body_label.text = _mixed_selection_summary(selected)
-		detail_meta_label.text = "A attack-move | P patrol | H hold | S stop"
+		detail_meta_label.text = "%s attack-move | %s patrol | %s hold | %s stop | %s filter by type | Ctrl+1-9 assign group" % [
+			KeybindManager.get_key_label(KeybindManager.ACTION_ATTACK_MOVE),
+			KeybindManager.get_key_label(KeybindManager.ACTION_PATROL),
+			KeybindManager.get_key_label(KeybindManager.ACTION_HOLD),
+			KeybindManager.get_key_label(KeybindManager.ACTION_STOP),
+			KeybindManager.get_key_label(KeybindManager.ACTION_CYCLE_SUBGROUP),
+		]
 		_set_evolution_bar(null)
 		return
 	var node := selected[0]
@@ -756,7 +991,13 @@ func _update_selection_details(selected: Array[Node]) -> void:
 		var state := str(node.get("unit_state")).capitalize()
 		var armor := int(_property_or(node, "armor", int(definition.get("armor", 0))))
 		var magic_armor := int(_property_or(node, "magic_armor", int(definition.get("magic_armor", 0))))
-		detail_body_label.text = "HP %s/%s | Armor %s | Magic %s | %s | Bio value %s" % [hp, max_hp, armor, magic_armor, state, _salvage_for(node)]
+		var weapon_text := ""
+		if node.has_method("has_weapon_modes") and bool(node.call("has_weapon_modes")):
+			weapon_text = " | %s" % str(node.call("weapon_mode_display_name"))
+		# Live value, not the catalog one -- research can have raised it.
+		var live_intelligence := int(_property_or(node, "intelligence", UnitCatalog.intelligence_of(archetype)))
+		weapon_text += " | Int %s (%s)" % [live_intelligence, UnitCatalog.intelligence_label(live_intelligence)]
+		detail_body_label.text = "HP %s/%s | Armor %s | Magic %s | %s%s | Bio value %s" % [hp, max_hp, armor, magic_armor, state, weapon_text, _salvage_for(node)]
 		_set_evolution_bar(node)
 	var damage := int(definition.get("attack_damage", 0))
 	var range := int(definition.get("attack_range_cells", 0))
@@ -832,17 +1073,29 @@ func _rebuild_context_commands(selected: Array[Node]) -> void:
 		_add_button(command_container, "Bio Mend", _bio_mend)
 		_add_button(command_container, "Seal Away", _seal_away)
 		_add_button(command_container, "Observer Aura", func() -> void: _activate_selected("activate_observer_aura", "Observer Aura"))
+		var unleash := _add_button(command_container, "Unleash", _unleash_forbidden)
+		unleash.tooltip_text = "Tier 4: release The Forbidden. It obeys nobody and will attack you too."
+		unleash.add_theme_color_override("font_color", Color("#E85A5A"))
 	elif _selection_has_archetype(selected, &"barracks"):
 		_add_barracks_training_buttons()
 	elif _selection_has_archetype(selected, &"bio_absorber"):
 		_add_button(command_container, "Heal Aura", func() -> void: _absorber_upgrade(&"heal_aura"))
 		_add_button(command_container, "Bio Turret", func() -> void: _absorber_upgrade(&"bio_launcher"))
 	elif _selection_has_archetype(selected, &"terrible_vault"):
+		# Tier gates first -- these are what actually open the roster up.
+		_add_research_button(&"tier_two_hybrids", "Tier 2 Hybrids")
+		_add_research_button(&"tier_three_hybrids", "Tier 3 Hybrids")
+		_add_research_button(&"observer_sight", "Observer Sight")
+		_add_research_button(&"observer_command", "Observer Command")
+		_add_research_button(&"observer_oversight", "Oversight")
 		_add_research_button(&"thorned_vines", "Thorned Vines")
 		_add_research_button(&"accelerated_evolution", "Fast Evolution")
 		_add_research_button(&"hardened_horrors", "Harden Horrors")
 		_add_research_button(&"launcher_bile", "Launcher Bile")
+	elif _selection_has_archetype(selected, &"bio_launcher"):
+		_add_launcher_buttons(selected)
 	else:
+		_add_weapon_mode_button(selected)
 		_add_unit_active_buttons(selected)
 		if _is_testing_mode() and _selection_has_evolvable_kon_unit(selected):
 			_add_button(command_container, "Level Up", _debug_level_up_selected)
@@ -880,11 +1133,21 @@ func _selection_has_archetype(selected: Array[Node], archetype: StringName) -> b
 func _add_barracks_training_buttons() -> void:
 	var session := get_node_or_null("/root/GameSession")
 	var wizard_class_id := str(session.get("wizard_class_id")) if session != null else ""
+	# The Biospawner is where the player reads the roster, so its command panel
+	# opens the unit cards directly rather than burying them in a debug menu.
+	var roster_button := _add_button(command_container, "Roster", func() -> void: _open_unit_stat_window())
+	roster_button.tooltip_text = "Unit cards: portraits, tiers, stats and abilities for the whole roster"
 	for entry in BARRACKS_UNIT_BUTTONS:
 		var archetype: StringName = entry["archetype"]
 		if not UnitCatalog.is_unit_allowed_for_class(archetype, wizard_class_id):
 			continue
-		_add_button(command_container, str(entry["label"]), func() -> void: _produce_from_selected(archetype))
+		var label := str(entry["label"])
+		var locked := _tier_is_locked(archetype)
+		if locked:
+			label = "%s (T%s)" % [label, UnitCatalog.tier_of(archetype)]
+		var button := _add_button(command_container, label, func() -> void: _produce_from_selected(archetype))
+		button.disabled = locked
+		button.tooltip_text = "Locked -- research Tier %s Hybrids at the Observer Vault" % UnitCatalog.tier_of(archetype) if locked else str(UnitCatalog.get_definition(archetype).get("role", ""))
 
 func _archetype_for(node: Node) -> StringName:
 	if _has_property(node, "unit_archetype"):
@@ -1030,6 +1293,58 @@ func _spawn_ai_test_unit(archetype: StringName) -> void:
 		status_label.text = "Spawned test %s as third faction" % UnitCatalog.get_definition(archetype).get("display_name", archetype)
 	else:
 		status_label.text = "Could not spawn test unit: %s" % str(result.get("reason", "unknown")).capitalize()
+
+func _add_launcher_buttons(selected: Array[Node]) -> void:
+	if build_system == null:
+		return
+	var launcher: Node = null
+	for node in selected:
+		if _archetype_for(node) == &"bio_launcher":
+			launcher = node
+			break
+	if launcher == null:
+		return
+	var auto_on := bool(build_system.call("launcher_auto_fire", launcher)) if build_system.has_method("launcher_auto_fire") else true
+	_add_button(command_container, "Auto: %s" % ("ON" if auto_on else "OFF"), func() -> void:
+		if build_system.has_method("set_launcher_auto_fire"):
+			build_system.call("set_launcher_auto_fire", launcher, not auto_on)
+			status_label.text = "Bio Launcher auto-fire %s" % ("enabled" if not auto_on else "disabled")
+			_update_selection_panel(true)
+	)
+	_add_button(command_container, "Attack Ground", func() -> void:
+		if selection_controller != null and selection_controller.has_method("begin_launcher_attack_ground"):
+			selection_controller.call("begin_launcher_attack_ground", launcher)
+			status_label.text = "Pick a target point for the Bio Launcher"
+	)
+
+func _add_weapon_mode_button(selected: Array[Node]) -> bool:
+	var swappable: Array[Node] = []
+	for node in selected:
+		if node.has_method("has_weapon_modes") and bool(node.call("has_weapon_modes")):
+			swappable.append(node)
+	if swappable.is_empty():
+		return false
+	var current := str(swappable[0].call("weapon_mode_display_name"))
+	var button := _add_button(command_container, "Weapon: %s" % current, func() -> void:
+		var switched := ""
+		for node in swappable:
+			if is_instance_valid(node) and node.has_method("toggle_weapon_mode"):
+				node.call("toggle_weapon_mode")
+				switched = str(node.call("weapon_mode_display_name"))
+		if not switched.is_empty():
+			status_label.text = "Switched %s to %s" % ["Oaven" if swappable.size() == 1 else "%s units" % swappable.size(), switched]
+		_update_selection_panel(true)
+	)
+	button.tooltip_text = "Swap between the spear (melee) and the blowpipe (ranged)"
+	return true
+
+func _unleash_forbidden() -> void:
+	if build_system == null or not build_system.has_method("unleash_forbidden"):
+		return
+	var unit = build_system.call("unleash_forbidden", 1)
+	if unit != null:
+		status_label.text = "THE FORBIDDEN IS LOOSE"
+		_show_alert("THE FORBIDDEN IS LOOSE")
 
 func _add_unit_active_buttons(selected: Array[Node]) -> void:
 	if selected.is_empty():
@@ -1185,6 +1500,16 @@ func _upgrade_name(upgrade_id: StringName) -> String:
 			return "Hardened Horrors"
 		&"launcher_bile":
 			return "Launcher Bile"
+		&"observer_sight":
+			return "Observer Sight"
+		&"observer_oversight":
+			return "Observer Oversight"
+		&"observer_command":
+			return "Observer Command"
+		&"tier_two_hybrids":
+			return "Tier 2 Hybrids"
+		&"tier_three_hybrids":
+			return "Tier 3 Hybrids"
 	return str(upgrade_id).capitalize()
 
 func _on_build_rejected(reason: String) -> void:

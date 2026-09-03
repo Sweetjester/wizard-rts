@@ -4,12 +4,17 @@ extends SceneTree
 # (scripts/core/unit_catalog.gd CLASS_UNIT_ROSTERS, enforced in build_system.gd
 # produce_unit()/produce_unit_from_structure()). Before this, every wizard class
 # trained from the same shared KON roster with zero differentiation.
+#
+# Updated 2026-08-31: Bad Kon Willow's roster is now the KoN faction doc's own
+# (Oaven / Stone-Faced Serpent / Spawner / The Forbidden), so this test asserts
+# on oaven_spear rather than apex. apex was never in the faction doc -- the old
+# assertion encoded a placeholder roster, not intended design.
 
 func _initialize() -> void:
 	call_deferred("_run")
 
 func _run() -> void:
-	if not await _check_class_roster("bad_kon_willow", &"apex", &"terrible_thing"):
+	if not await _check_class_roster("bad_kon_willow", &"oaven_spear", &"terrible_thing"):
 		return
 	if not await _check_class_roster("hellfire_baby", &"terrible_thing", &"apex"):
 		return

@@ -43,12 +43,13 @@ The real project is nested: `wizard-rts/wizard-rts/` (the outer `wizard-rts/` ha
 ## Two rendering paths — know which is real
 
 - **Actual gameplay is 2D.** Units are `CharacterBody2D`, the map is `TileMapLayer`s, pathing is `AStarGrid2D`. This is what ships and what the player sees.
+- **A 3D *view mode* exists as of 2026-08-31** (`scripts/map/map_3d_view.gd`), toggled on the map-select screen. It is a presentation layer only: the 2D simulation is unchanged and authoritative, and the same `main_map.tscn` is used. It does not make the game 3D, and it does not reverse the "staying 2D" decision.
 - **`map_3d_renderer.gd`/`map_3d_preview.gd` is a prototyping tool**, not the shipping renderer — it instantiates its own headless `MapGenerator` and extrudes the same logical grid into 3D purely to evaluate art direction. Don't confuse "there's a polished 3D renderer" with "the game is 3D."
 - Similarly, the automated **unit art pipeline produces 3D GLB models** (Meshy → Blender → Godot `Node3D` scenes), but the live gameplay unit class (`RTSUnit`) is 2D. Only one unit (**Oaven Spear**) was manually bridged from the 3D pipeline into actual 2D gameplay. **This is now a closed decision, not an open question** — see "DECIDED: staying 2D" above. Units are moving toward sprite sheets, not more 3D bridging.
 
 ## Factions & roster
 
-**KON (player)** — most units have a base form + an evolved form, triggered by accumulated combat XP:
+**KON (player)** — as of 2026-08-31 the KoN faction follows Andrew's roster doc (`KoN (1).pdf`): Bad Kon Willow commands **Oaven (T1) → Stone-Faced Serpent (T2) → Spawner (T3) → The Forbidden (T4)**, tier-gated behind Observer Vault research. `apex`/`champion`, `terrible_thing`/`gripper` and `horror`/`hunter` still exist and are still trainable by the other two wizard classes, but they are **not** part of the KoN faction doc. Buildings are the **Observation Tower** (HQ), **Bio Absorber** (economy, passive heal aura), **Biospawner** (production), **Observer Vault** (research), Vinewall and Bio Launcher. KoN carries a deliberate duo colour scheme — observer black/silver for Kon, the tower and the vault; evolution #67BED9/#a95766 for every hybrid and living building; the Biospawner is the one crossover. Most units have a base form + an evolved form, triggered by accumulated combat XP:
 | Unit | HP (base→evo) | Role/gimmick |
 |---|---|---|
 | Wizard hero (`life_wizard`/`fire_wizard`/`evangalion_wizard`) | 260/165/190 | Player-controlled, dual-casts, respawns at tower on death |
@@ -75,7 +76,9 @@ Legacy biome enemies (`vampire_mushroom_forest` map type, likely superseded): `v
 - **SimulationState / SimulationRunner**: a **parallel, deterministic lockstep simulation** (20Hz, own pathing, own RNG, hash-based desync detection) that mirrors commands from real gameplay but does **not** drive actual gameplay yet — it's scaffolding for future multiplayer/replay, tested in isolation but not authoritative. Real gameplay uses its own separate physics/pathing.
 - **Multiplayer** (`multiplayer_session.gd`): real ENet networking plumbing, command relay works, but since it only synchronizes the (non-authoritative) SimulationState ledger and not actual unit positions/combat, it's unproven whether two peers would see a coherent shared game.
 - **Fog of war**: fully implemented, but **disabled on the current default map type** (`seeded_grid_frontier`) — only active on the legacy `vampire_mushroom_forest` map.
-- **Testing**: ~28 automated headless smoke/stress tests (`scripts/core/*_smoke_test.gd`, `extends SceneTree`, CI-shaped exit codes). Genuinely disciplined coverage — most core systems have at least one test enforcing invariants.
+- **Army control / input** (`scripts/input/selection_controller.gd`, `scripts/input/control_group_manager.gd`, hotkeys named in the `KeybindManager` autoload): drag/click select, attack-move, patrol, hold, stop, rally points, formation offsets, plus (2026-08-31) control groups 1-9 with double-tap-to-snap and auto-cleanup on death, F1 select-wizard / F2 select-army (F2 excludes the wizard on purpose), F3/F4 idle-Barracks and idle-unit cycling, Tab type filtering, and a "reinforce group" that auto-absorbs newly trained units. **All of it is key-press-driven — nothing here polls.** `selected` is no longer a blanket exemption from the mass-LOD system either: past `RTSWorld.BULK_SELECTION_THRESHOLD` (48) a selection counts as army-wide and keeps normal LOD/batched-movement treatment, which is what stops one press of Select Army from undoing the 2026-08-09 performance work.
+- **Unit cards**: `rts_hud.gd`'s stat window renders real unit cards (concept-art portrait, tier badge with live lock state, weapon modes, evolution chain, blurb), opened from a **Roster** button on the Biospawner. Portraits live in `assets/ui/unit_cards/`, sources in `art/concept/kon/`.
+- **Testing**: ~32 automated headless smoke/stress tests (`scripts/core/*_smoke_test.gd`, `extends SceneTree`, CI-shaped exit codes). Genuinely disciplined coverage — most core systems have at least one test enforcing invariants.
 
 ## Asset pipeline status (as of last docs, 2026-05-31)
 

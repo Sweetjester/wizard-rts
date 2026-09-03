@@ -196,6 +196,12 @@ func _spawn_outpost_objectives() -> void:
 func _update_outpost_offense(delta: float) -> void:
 	if wave_director == null or map_generator == null:
 		return
+	# Outposts push their own defenders on an independent timer, so the wave
+	# director's grace period did not hold them back -- enemies still turned up
+	# in the opening minutes. The grace period means no hostile pressure at all,
+	# not just no waves.
+	if wave_director.has_method("is_in_grace_period") and bool(wave_director.call("is_in_grace_period")):
+		return
 	if rts_world != null and rts_world.count_units_for_owner(ENEMY_ID) >= outpost_max_active_spawned_enemies:
 		return
 	for i in _outposts.size():

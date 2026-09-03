@@ -17,6 +17,12 @@ signal boss_defeated()
 @export var stone_face_serpent_scene: PackedScene = preload("res://scenes/units/stone_face_serpent.tscn")
 @export var deom_legion_scene: PackedScene = preload("res://scenes/units/deom_legion_unit.tscn")
 @export var enabled: bool = true
+# A settling period at the start of a run before the wave clock starts at all.
+# Everything downstream -- phases, waves and the boss -- is measured from the end
+# of it, so raising this pushes the whole schedule back rather than compressing
+# the gap between the first wave and the boss. Applies to both the 2D and the 3D
+# presentation, because both run this same director.
+@export var grace_period_seconds: float = 180.0
 @export var scouting_seconds: float = 45.0
 @export var buildup_seconds: float = 135.0
 @export var first_wave_seconds: float = 50.0
@@ -37,7 +43,7 @@ signal boss_defeated()
 
 var map_generator: Node
 var rts_world: RTSWorld
-var phase: StringName = &"scouting"
+var phase: StringName = &"grace"
 var elapsed := 0.0
 var next_wave_at := 75.0
 var wave_index := 0
@@ -66,10 +72,14 @@ func _process(delta: float) -> void:
 		return
 	elapsed += delta
 	_update_phase()
-	if elapsed >= next_wave_at:
+	# Nothing hostile happens during the grace period. Measuring waves, phases
+	# and the boss from combat_elapsed rather than from elapsed keeps their
+	# relative spacing exactly as tuned.
+	var combat_elapsed := combat_time_elapsed()
+	if combat_elapsed >= next_wave_at:
 		_spawn_wave()
 		next_wave_at += wave_interval_seconds
-	if not boss_has_spawned and elapsed >= boss_arrival_seconds:
+	if not boss_has_spawned and combat_elapsed >= boss_arrival_seconds:
 		_spawn_boss()
 	if boss_has_spawned and not boss_has_been_defeated and (boss_node == null or not is_instance_valid(boss_node)):
 		boss_has_been_defeated = true
@@ -81,12 +91,26 @@ func _process(delta: float) -> void:
 		_retarget_enemy_army()
 		_retarget_elapsed = 0.0
 
+# Seconds of hostile time so far: zero until the grace period is over.
+func combat_time_elapsed() -> float:
+	return maxf(0.0, elapsed - grace_period_seconds)
+
+func is_in_grace_period() -> bool:
+	return elapsed < grace_period_seconds
+
+func get_grace_seconds_remaining() -> int:
+	return maxi(0, ceili(grace_period_seconds - elapsed))
+
 func _update_phase() -> void:
 	var next_phase := phase
-	if elapsed >= scouting_seconds + buildup_seconds:
+	if is_in_grace_period():
+		next_phase = &"grace"
+	elif combat_time_elapsed() >= scouting_seconds + buildup_seconds:
 		next_phase = &"offense"
-	elif elapsed >= scouting_seconds:
+	elif combat_time_elapsed() >= scouting_seconds:
 		next_phase = &"buildup"
+	else:
+		next_phase = &"scouting"
 	if next_phase != phase:
 		phase = next_phase
 		phase_changed.emit(phase)
@@ -492,7 +516,7 @@ func _can_use_flow_field_for_enemy(enemy: Node2D, target: Vector2) -> bool:
 func get_boss_seconds_remaining() -> int:
 	if boss_has_spawned:
 		return 0
-	return maxi(0, ceili(boss_arrival_seconds - elapsed))
+	return maxi(0, ceili(boss_arrival_seconds - combat_time_elapsed()))
 
 func _enemy_archetype_for_wave(index: int) -> StringName:
 	if wave_index <= 1:

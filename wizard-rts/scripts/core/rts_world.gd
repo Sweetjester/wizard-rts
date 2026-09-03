@@ -1,6 +1,25 @@
 class_name RTSWorld
 extends Node
 
+# Above this many selected units, a selection counts as "bulk" (an army-wide
+# hotkey, not a hand-managed squad) and stops granting its members the
+# full-fidelity exemptions from the mass-LOD system -- see RTSUnit's
+# _selection_is_bulk(). Without this, one press of Select Army at a few hundred
+# units would force every one of them back to full detail, per-node physics and
+# per-frame redraws, silently undoing the 2026-08-09 LOD/movement work.
+const BULK_SELECTION_THRESHOLD := 48
+
+# Written by SelectionController on every selection change and read (as a plain
+# int) by units and the multimesh renderer. Never polled, never reflected.
+var selected_unit_count: int = 0
+
+# True while the 3D view is presenting the game. Units and structures skip their
+# own 2D _draw() when this is set, because in 3D mode they are drawn as
+# multimesh instances instead -- CanvasItems would otherwise still paint on top
+# of the 3D viewport. A plain bool read on an already-cached reference, checked
+# once per _draw call.
+var presentation_3d: bool = false
+
 @export var bucket_size: float = 384.0
 @export var projectile_pool_preload: int = 96
 @export var projectile_pool_cap: int = 512

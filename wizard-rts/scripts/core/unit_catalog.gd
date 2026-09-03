@@ -3,9 +3,15 @@ extends RefCounted
 
 const DEFINITIONS := {
 	&"life_wizard": {
+		"intelligence": 3,
+		"aggro_range_cells": 5,
 		"display_name": "Bad Kon Willow",
 		"unit_family": &"kon",
 		"form": &"hero",
+		"tier": 0,
+		"kon_theme": &"observer",
+		"card_portrait": "res://assets/ui/unit_cards/life_wizard_card.png",
+		"card_blurb": "Hero. An observer who sampled the forbidden against his kin's wishes and splices them into controllable hybrids, while keeping his observer magics.",
 		"max_hp": 260,
 		"armor": 2,
 		"magic_armor": 4,
@@ -33,6 +39,8 @@ const DEFINITIONS := {
 		},
 	},
 	&"fire_wizard": {
+		"intelligence": 3,
+		"aggro_range_cells": 5,
 		"display_name": "Fire Wizard",
 		"max_hp": 165,
 		"move_speed_cells": 1,
@@ -44,6 +52,8 @@ const DEFINITIONS := {
 		"population": 1,
 	},
 	&"evangalion_wizard": {
+		"intelligence": 3,
+		"aggro_range_cells": 5,
 		"display_name": "Evangalion",
 		"max_hp": 190,
 		"move_speed_cells": 1,
@@ -65,6 +75,8 @@ const DEFINITIONS := {
 		"population": 1,
 	},
 	&"terrible_thing": {
+		"intelligence": 3,
+		"aggro_range_cells": 5,
 		"display_name": "Terrible Thing",
 		"unit_family": &"terrible_thing",
 		"form": &"base",
@@ -103,6 +115,8 @@ const DEFINITIONS := {
 		},
 	},
 	&"gripper": {
+		"intelligence": 3,
+		"aggro_range_cells": 5,
 		"display_name": "Gripper",
 		"unit_family": &"terrible_thing",
 		"form": &"evolved",
@@ -161,6 +175,8 @@ const DEFINITIONS := {
 		"friendly_fire_explodes": false,
 	},
 	&"horror": {
+		"intelligence": 3,
+		"aggro_range_cells": 6,
 		"display_name": "Horror",
 		"unit_family": &"horror",
 		"form": &"base",
@@ -194,6 +210,8 @@ const DEFINITIONS := {
 		},
 	},
 	&"hunter": {
+		"intelligence": 3,
+		"aggro_range_cells": 6,
 		"display_name": "Hunter",
 		"unit_family": &"horror",
 		"form": &"evolved",
@@ -227,6 +245,8 @@ const DEFINITIONS := {
 		},
 	},
 	&"apex": {
+		"intelligence": 2,
+		"aggro_range_cells": 6,
 		"display_name": "Apex",
 		"unit_family": &"apex",
 		"form": &"base",
@@ -259,6 +279,8 @@ const DEFINITIONS := {
 		},
 	},
 	&"champion": {
+		"intelligence": 2,
+		"aggro_range_cells": 6,
 		"display_name": "Champion",
 		"unit_family": &"apex",
 		"form": &"evolved",
@@ -308,9 +330,15 @@ const DEFINITIONS := {
 		"actives": ["Eat ally"],
 	},
 	&"spawner": {
+		"intelligence": 2,
+		"aggro_range_cells": 9,
 		"display_name": "Spawner",
 		"unit_family": &"spawner",
 		"form": &"base",
+		"tier": 3,
+		"kon_theme": &"evolution",
+		"card_portrait": "res://assets/ui/unit_cards/spawner_card.png",
+		"card_blurb": "Tier 3. Kon's most capable obedient creation, unleashed only through great effort. Costs Bio every time it summons a drone or fires its cannon.",
 		"max_hp": 360,
 		"armor": 5,
 		"magic_armor": 3,
@@ -349,9 +377,15 @@ const DEFINITIONS := {
 		},
 	},
 	&"winged_spawner": {
+		"intelligence": 2,
+		"aggro_range_cells": 10,
 		"display_name": "Winged Spawner",
 		"unit_family": &"spawner",
 		"form": &"evolved",
+		"tier": 3,
+		"kon_theme": &"evolution",
+		"card_portrait": "res://assets/ui/unit_cards/spawner_card.png",
+		"card_blurb": "Evolved Spawner. Flies while moving and no longer roots to fire, but range and damage are halved while it is on the move.",
 		"max_hp": 430,
 		"armor": 5,
 		"magic_armor": 5,
@@ -390,10 +424,15 @@ const DEFINITIONS := {
 		},
 	},
 	&"stone_face_serpent": {
-		"display_name": "Stone Face Serpent",
+		"intelligence": 2,
+		"aggro_range_cells": 7,
+		"display_name": "Stone-Faced Serpent",
 		"unit_family": &"stone_face_serpent",
 		"form": &"growth",
 		"tier": 2,
+		"kon_theme": &"evolution",
+		"card_portrait": "res://assets/ui/unit_cards/stone_face_serpent_card.png",
+		"card_blurb": "Tier 2. A stronger species spliced with the forbidden. Grows up to five times, and can harden its whole length into a portable wall -- losing its attack, gaining HP by level.",
 		"max_hp": 240,
 		"armor": 5,
 		"magic_armor": 3,
@@ -432,9 +471,15 @@ const DEFINITIONS := {
 		},
 	},
 	&"oaven_spear": {
-		"display_name": "Oaven Spear",
+		"intelligence": 3,
+		"aggro_range_cells": 6,
+		"display_name": "Oaven",
 		"unit_family": &"oaven",
 		"form": &"base",
+		"tier": 1,
+		"kon_theme": &"evolution",
+		"card_portrait": "res://assets/ui/unit_cards/oaven_spear_card.png",
+		"card_blurb": "Hybrids of a particularly intelligent species and the forbidden. Subservient to Kon, and available to him from the first minute of a run.",
 		"max_hp": 58,
 		"armor": 1,
 		"magic_armor": 1,
@@ -464,16 +509,41 @@ const DEFINITIONS := {
 		"cripple_bonus_damage": 5,
 		"cripple_cooldown_seconds": 3.2,
 		"cripple_requires_moving_target": true,
+		"weapon_modes": {
+			&"spear": {
+				"display_name": "Spear",
+				"attack_damage": 7,
+				"attack_range_cells": 1,
+				"attack_speed_seconds": 0.75,
+				"attack_type": &"melee",
+			},
+			&"blowpipe": {
+				"display_name": "Blowpipe",
+				"attack_damage": 5,
+				"attack_range_cells": 5,
+				"attack_speed_seconds": 1.05,
+				"attack_type": &"ranged_single",
+				"projectile_speed": 660.0,
+			},
+		},
+		"default_weapon_mode": &"spear",
+		"weapon_swap_seconds": 0.6,
 		"animation_profile": {
 			"frame_size": Vector2i(128, 128),
 			"directions": 8,
-			"actions": [&"idle", &"move", &"attack_spear", &"taunt", &"charge", &"evolve", &"death"],
+			"actions": [&"idle", &"move", &"attack_spear", &"attack_blowpipe", &"swap_weapon", &"taunt", &"charge", &"evolve", &"death"],
 		},
 	},
 	&"oaven_jumper": {
+		"intelligence": 3,
+		"aggro_range_cells": 6,
 		"display_name": "Oaven Jumper",
 		"unit_family": &"oaven",
 		"form": &"evolved",
+		"tier": 1,
+		"kon_theme": &"evolution",
+		"card_portrait": "res://assets/ui/unit_cards/oaven_spear_card.png",
+		"card_blurb": "Evolved Oaven. Keeps both weapons, gains real defensive stats, and can hold itself airborne for a few seconds -- a Charge from up there lands on the enemy and slows them.",
 		"max_hp": 118,
 		"armor": 4,
 		"magic_armor": 3,
@@ -500,6 +570,25 @@ const DEFINITIONS := {
 		"cripple_bonus_damage": 7,
 		"cripple_cooldown_seconds": 2.7,
 		"cripple_requires_moving_target": false,
+		"weapon_modes": {
+			&"spear": {
+				"display_name": "Spear",
+				"attack_damage": 12,
+				"attack_range_cells": 1,
+				"attack_speed_seconds": 0.75,
+				"attack_type": &"melee",
+			},
+			&"blowpipe": {
+				"display_name": "Blowpipe",
+				"attack_damage": 9,
+				"attack_range_cells": 6,
+				"attack_speed_seconds": 1.0,
+				"attack_type": &"ranged_single",
+				"projectile_speed": 700.0,
+			},
+		},
+		"default_weapon_mode": &"spear",
+		"weapon_swap_seconds": 0.5,
 		"temporary_flight_seconds": 4.2,
 		"temporary_flight_speed_multiplier": 1.32,
 		"jumper_landing_radius": 92.0,
@@ -508,11 +597,17 @@ const DEFINITIONS := {
 		"animation_profile": {
 			"frame_size": Vector2i(128, 128),
 			"directions": 8,
-			"actions": [&"idle", &"move", &"attack_spear", &"taunt", &"takeoff", &"flying", &"landing_stun", &"death"],
+			"actions": [&"idle", &"move", &"attack_spear", &"attack_blowpipe", &"swap_weapon", &"taunt", &"takeoff", &"flying", &"landing_stun", &"death"],
 		},
 	},
 	&"spawner_drone": {
+		"intelligence": 1,
+		"aggro_range_cells": 7,
 		"display_name": "Spawner Drone",
+		"tier": 3,
+		"kon_theme": &"evolution",
+		"card_portrait": "res://assets/ui/unit_cards/spawner_card.png",
+		"card_blurb": "Summoned, short-lived flying support. Bound to its Spawner's brood cap of two.",
 		"max_hp": 34,
 		"move_speed_cells": 1,
 		"attack_damage": 5,
@@ -581,6 +676,7 @@ const DEFINITIONS := {
 		"ignores_terrain": true,
 	},
 	&"enemy_outpost": {
+		"sight_radius_cells": 9,
 		"display_name": "Enemy Outpost",
 		"max_hp": 720,
 		"armor": 2,
@@ -728,16 +824,65 @@ const DEFINITIONS := {
 		"actives": [],
 		"animation_profile": {"frame_size": Vector2i(192, 160), "directions": 8, "actions": [&"idle_flying", &"move_flying", &"attack_ranged", &"transport_idle", &"death"]},
 	},
+	&"the_forbidden": {
+		"intelligence": 1,
+		"aggro_range_cells": 14,
+		"display_name": "The Forbidden",
+		"unit_family": &"forbidden",
+		"form": &"unleashed",
+		"tier": 4,
+		"kon_theme": &"evolution",
+		"card_portrait": "res://assets/ui/unit_cards/stone_face_serpent_card.png",
+		"card_blurb": "Tier 4. The species the observers sealed away, too horrific and terrible to be allowed to exist. Only in great peril would Kon consider unleashing it. It will NOT obey him, and turns its wrath on all.",
+		"max_hp": 1400,
+		"armor": 8,
+		"magic_armor": 8,
+		"move_speed_cells": 1,
+		"attack_damage": 85,
+		"attack_range_cells": 2,
+		"attack_cooldown_ticks": 24,
+		"attack_speed_seconds": 1.2,
+		"attack_type": &"melee",
+		"attack_splash_radius_cells": 1.6,
+		"sight_radius_cells": 12,
+		"population": 0,
+		"cost_bio": 900,
+		"train_time_seconds": 0.0,
+		"role": "Uncontrollable siege horror. Hostile to every player including the one who unleashed it.",
+		"passives": ["Unleashed -- obeys nobody", "Hostile to all", "Cleaving strikes", "Decays over time"],
+		"actives": [],
+		"passive_abilities": [&"uncontrollable", &"hostile_to_all"],
+		"uncontrollable": true,
+		"hostile_to_all": true,
+		"lifetime_seconds": 120.0,
+		"unleash_cost_bio": 900,
+		"animation_profile": {
+			"frame_size": Vector2i(256, 256),
+			"directions": 8,
+			"actions": [&"idle", &"move", &"attack_cleave", &"unleash", &"death"],
+		},
+	},
 	&"wizard_tower": {
-		"display_name": "Wizard Tower",
+		"sight_radius_cells": 12,
+		"display_name": "Observation Tower",
+		"kon_theme": &"observer",
+		"card_blurb": "HQ. A tower under a glass dome. Kon can garrison inside to build his base from cover and project his observer auras while he micros.",
 		"max_hp": 700,
 		"build_time_seconds": 0.0,
 		"auto_evolves": true,
 		"evolution_seconds": 90.0,
+		"garrison_capacity": 1,
+		"garrison_build_radius_cells": 14,
+		"garrison_aura_radius": 620.0,
+		"garrison_aura_damage_bonus": 0.12,
+		"garrison_aura_armor_bonus": 1,
 		"footprint": Vector2i(3, 3),
 	},
 	&"bio_absorber": {
+		"sight_radius_cells": 7,
 		"display_name": "Bio Absorber",
+		"kon_theme": &"evolution",
+		"card_blurb": "Economy. A large sentient drill that tunnels in and absorbs the Bio of the area. Passively mends nearby units and buildings, so a harder base site with more eco slots pays twice.",
 		"max_hp": 260,
 		"income_per_tick": 16,
 		"cost_bio": 90,
@@ -745,10 +890,17 @@ const DEFINITIONS := {
 		"auto_evolves": true,
 		"evolution_seconds": 75.0,
 		"upgrade_choices": [&"heal_aura", &"bio_launcher"],
+		"heal_aura_radius": 460.0,
+		"heal_per_second": 2.0,
+		"upgraded_heal_aura_radius": 720.0,
+		"upgraded_heal_per_second": 6.0,
 		"footprint": Vector2i(2, 2),
 	},
 	&"barracks": {
-		"display_name": "Barracks",
+		"sight_radius_cells": 7,
+		"display_name": "Biospawner",
+		"kon_theme": &"crossover",
+		"card_blurb": "Production. A horrible living lab of biomass -- a normal lab overrun and controlled by evolution. The only Kon building where the observer and evolution themes cross over. Upgrades itself for free over time once built.",
 		"max_hp": 380,
 		"cost_bio": 120,
 		"build_time_seconds": 6.0,
@@ -758,7 +910,10 @@ const DEFINITIONS := {
 		"production": [&"terrible_thing", &"oaven_spear", &"horror", &"apex", &"spawner", &"stone_face_serpent"],
 	},
 	&"terrible_vault": {
-		"display_name": "Terrible Vault",
+		"sight_radius_cells": 7,
+		"display_name": "Observer Vault",
+		"kon_theme": &"observer",
+		"card_blurb": "Research. Studies ways to sharpen Kon's observer magics -- sight, oversight auras, and the tier gates that let his heavier hybrids out.",
 		"max_hp": 320,
 		"cost_bio": 140,
 		"build_time_seconds": 7.0,
@@ -767,7 +922,10 @@ const DEFINITIONS := {
 		"footprint": Vector2i(2, 2),
 	},
 	&"vinewall": {
+		"sight_radius_cells": 4,
 		"display_name": "Vinewall",
+		"kon_theme": &"evolution",
+		"card_blurb": "Wall. Retaliates and regenerates. Starts at half HP and gets tougher the more it fights and survives.",
 		"max_hp": 220,
 		"starts_at_hp_percent": 0.5,
 		"cost_bio": 35,
@@ -778,7 +936,10 @@ const DEFINITIONS := {
 		"footprint": Vector2i(1, 1),
 	},
 	&"bio_launcher": {
+		"sight_radius_cells": 10,
 		"display_name": "Bio Launcher",
+		"kon_theme": &"evolution",
+		"card_blurb": "Static long-ranged AoE defence. Can uproot, move and root again. Costs Bio per shot, fires automatically by default, and can be told to attack the ground manually.",
 		"max_hp": 260,
 		"cost_bio": 130,
 		"build_time_seconds": 6.0,
@@ -788,16 +949,145 @@ const DEFINITIONS := {
 		"shot_cost_bio": 3,
 		"aoe_radius": 92.0,
 		"can_uproot": true,
+		"can_attack_ground": true,
+		"manual_shot_cost_multiplier": 1.0,
 		"evolution_xp_required": 120,
 		"footprint": Vector2i(2, 2),
 	},
 }
 
+# Bad Kon Willow's roster is now exactly the KoN faction doc's: Oaven (T1),
+# Stone-Faced Serpent (T2), Spawner (T3), The Forbidden (T4), plus evolved forms.
+# Serpent and Spawner stay on the other two classes as well rather than being
+# stripped from them -- per-class exclusivity (design doc s16) is a later balance
+# pass to be made once Evangalion and Hellfire Baby have roster docs of their own.
 const CLASS_UNIT_ROSTERS := {
-	"bad_kon_willow": [&"apex", &"champion", &"oaven_spear", &"oaven_jumper"],
+	"bad_kon_willow": [
+		&"oaven_spear", &"oaven_jumper",
+		&"stone_face_serpent",
+		&"spawner", &"winged_spawner", &"spawner_drone",
+		&"the_forbidden",
+	],
 	"hellfire_baby": [&"terrible_thing", &"gripper", &"spawner", &"winged_spawner", &"spawner_drone"],
 	"evangalion": [&"horror", &"hunter", &"stone_face_serpent"],
 }
+
+# Which tier gate each production unit sits behind. Tier 1 is available from the
+# first minute; tier 2 and 3 are unlocked through Observer Vault research or map
+# discoveries (BuildSystem.unlocked_tier); tier 4 is not trained at all, it is
+# unleashed as a one-off from the Observation Tower.
+const TIER_1 := 1
+const MAX_TRAINABLE_TIER := 3
+
+# --- Evolution growth ------------------------------------------------------
+# RTSUnit._evolve() does not just swap to the evolved archetype -- it then
+# applies these multipliers ON TOP of that archetype's catalog stats. They live
+# here rather than in rts_unit.gd so the unit card can show what a player will
+# actually field. Before 2026-08-31 the card read the raw catalog entry and
+# understated every evolved form by ~24% HP and ~15% damage.
+const EVOLUTION_HP_BASE_MULTIPLIER := 1.18
+const EVOLUTION_HP_LEVEL_MULTIPLIER := 0.03
+const EVOLUTION_DAMAGE_MULTIPLIER := 1.15
+# The level an evolved form is at the moment it is first reached (units start at
+# evolution_level 1 and _evolve() increments before applying the multiplier).
+const FIRST_EVOLVED_LEVEL := 2
+
+static func evolution_hp_multiplier(level: int) -> float:
+	return EVOLUTION_HP_BASE_MULTIPLIER + float(level) * EVOLUTION_HP_LEVEL_MULTIPLIER
+
+# The evolution chain a unit belongs to (horror -> hunter are both &"horror").
+# Falls back to the archetype so units without a declared family still match
+# themselves.
+# --- Intelligence and aggro range (Master Design Doc section 38) ------------
+# Intelligence is how far a unit obeys the player at all:
+#   1  Feral   -- set behaviour only. Player orders are refused outright.
+#   2  Leashed -- takes move orders, but only while no enemy is inside its aggro
+#                 range. The moment something comes into range it drops the
+#                 order and reverts to its set behaviour.
+#   3  Bound   -- fully micromanageable. Every order, any time.
+# It is a runtime stat, not a constant: Observer Vault research raises it, and
+# RTSUnit re-reads it, so a unit's obedience can improve over a run.
+const INTELLIGENCE_FERAL := 1
+const INTELLIGENCE_LEASHED := 2
+const INTELLIGENCE_BOUND := 3
+const DEFAULT_INTELLIGENCE := INTELLIGENCE_BOUND
+
+static func intelligence_of(archetype: StringName) -> int:
+	return int(DEFINITIONS.get(archetype, {}).get("intelligence", DEFAULT_INTELLIGENCE))
+
+static func intelligence_label(level: int) -> String:
+	match level:
+		INTELLIGENCE_FERAL:
+			return "Feral"
+		INTELLIGENCE_LEASHED:
+			return "Leashed"
+		INTELLIGENCE_BOUND:
+			return "Bound"
+	return "Unknown"
+
+static func intelligence_description(level: int, aggro_cells: int) -> String:
+	match level:
+		INTELLIGENCE_FERAL:
+			return "Ignores orders entirely. Fights its own way."
+		INTELLIGENCE_LEASHED:
+			return "Takes move orders only while no enemy is within %s cells. Engages on its own after that." % aggro_cells
+		INTELLIGENCE_BOUND:
+			return "Obeys every order, at any time."
+	return ""
+
+# How close an enemy must be before the unit engages on its own. Defaults to a
+# little beyond its own reach so a melee unit does not stand still while
+# something hits it from just outside contact. Authored per unit where the
+# design wants a deliberately short leash or a long watch.
+static func aggro_range_cells(archetype: StringName) -> int:
+	var definition: Dictionary = DEFINITIONS.get(archetype, {})
+	if definition.has("aggro_range_cells"):
+		return int(definition["aggro_range_cells"])
+	return maxi(4, int(round(float(definition.get("attack_range_cells", 1)) * 1.5)))
+
+static func family_of(archetype: StringName) -> StringName:
+	return StringName(DEFINITIONS.get(archetype, {}).get("unit_family", archetype))
+
+static func is_evolved_form(archetype: StringName) -> bool:
+	return StringName(DEFINITIONS.get(archetype, {}).get("form", &"")) == &"evolved"
+
+# Max HP as actually fielded. For an evolved form that is the catalog value with
+# the first-evolution growth multiplier applied; for everything else it is the
+# catalog value unchanged.
+static func fielded_max_hp(archetype: StringName) -> int:
+	var base := max_hp(archetype)
+	if not is_evolved_form(archetype):
+		return base
+	return int(float(base) * evolution_hp_multiplier(FIRST_EVOLVED_LEVEL))
+
+static func fielded_attack_damage(archetype: StringName) -> int:
+	var base := attack_damage(archetype)
+	if not is_evolved_form(archetype):
+		return base
+	return int(float(base) * EVOLUTION_DAMAGE_MULTIPLIER)
+
+# Bio refunded when a unit is salvaged. Single source for both the live
+# RTSUnit.salvage_value() and the unit card, which used to read a "bio_value"
+# catalog key that does not exist on any archetype and therefore always
+# displayed 0.
+static func salvage_value_for(archetype: StringName, unit_max_health: int = -1) -> int:
+	var health_basis := unit_max_health if unit_max_health >= 0 else fielded_max_hp(archetype)
+	return int(float(cost_bio(archetype)) * 0.6) + int(float(health_basis) * 0.12)
+
+static func tier_of(archetype: StringName) -> int:
+	return int(DEFINITIONS.get(archetype, {}).get("tier", TIER_1))
+
+static func kon_theme(archetype: StringName) -> StringName:
+	return StringName(DEFINITIONS.get(archetype, {}).get("kon_theme", &"evolution"))
+
+static func card_portrait_path(archetype: StringName) -> String:
+	return str(DEFINITIONS.get(archetype, {}).get("card_portrait", ""))
+
+static func is_uncontrollable(archetype: StringName) -> bool:
+	return bool(DEFINITIONS.get(archetype, {}).get("uncontrollable", false))
+
+static func weapon_modes(archetype: StringName) -> Dictionary:
+	return DEFINITIONS.get(archetype, {}).get("weapon_modes", {})
 
 static func is_unit_allowed_for_class(archetype: StringName, wizard_class_id: String) -> bool:
 	var roster: Array = CLASS_UNIT_ROSTERS.get(wizard_class_id, [])

@@ -11,8 +11,10 @@ extends MultiMeshInstance2D
 var update_elapsed := 0.0
 var _full_detail_ids: Dictionary = {}
 var _blob_ids: Dictionary = {}
+var _rts_world: RTSWorld
 
 func _ready() -> void:
+	_rts_world = get_node_or_null(NodePath("../RTSWorld"))
 	z_index = 3000
 	z_as_relative = false
 	var quad := QuadMesh.new()
@@ -41,6 +43,10 @@ func _exit_tree() -> void:
 
 func _refresh_instances() -> void:
 	if multimesh == null:
+		return
+	# The 3D view renders units itself. Leaving this running would toggle unit
+	# visibility back on and paint 2D blobs over the 3D world.
+	if _rts_world != null and is_instance_valid(_rts_world) and _rts_world.presentation_3d:
 		return
 	if multimesh.instance_count != max_instances:
 		multimesh.instance_count = max_instances
@@ -84,11 +90,17 @@ func _choose_full_detail_units(units: Array[Node2D], camera: Camera2D, camera_po
 	var result: Dictionary = {}
 	var view_rect := _camera_view_rect(camera)
 	var closest: Array[Dictionary] = []
+	# Selected units normally get full detail wherever they are. That stops
+	# being affordable once "selected" can mean the entire army: honour it for
+	# a hand-managed squad, and fall back to the ordinary distance/view rules
+	# for a bulk selection. Evaluated once per refresh, not once per unit.
+	var honour_selection := _rts_world == null or not is_instance_valid(_rts_world) \
+		or _rts_world.selected_unit_count <= RTSWorld.BULK_SELECTION_THRESHOLD
 	for unit in units:
 		if not is_instance_valid(unit):
 			continue
 		var unit_id := unit.get_instance_id()
-		if bool(unit.get("selected")):
+		if honour_selection and bool(unit.get("selected")):
 			result[unit_id] = true
 			continue
 		var distance_sq := camera_position.distance_squared_to(unit.global_position)
