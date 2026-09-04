@@ -958,3 +958,21 @@ Also corrected: the demo's "elevated cell" overlay tested `level > 0`, which is 
 **Known limit:** A* runs ~170–290ms per query over 11,427 nodes. Fine for a demo click, not fine for wave movement — flow fields over the lattice remain the open item.
 
 **Suite:** 56/57. `seeded_grid_frontier` still pre-existing.
+
+### 2026-09-04 — Flow fields over the block lattice, and the citadel at map scale
+
+**Flow fields.** `BlockFlowField` expands once backwards from a goal and records, for every node, which neighbour to step to. After that a unit's move is a dictionary lookup. Same trade the 2D game already made for wave movement (2026-08-09), applied to the lattice.
+
+Measured on the citadel (11,427 nodes): **one field covers 7,186 nodes in 190ms; the same 100 routes via A* cost 10,336ms.** That is 54× at a hundred units, and the field's cost is flat as unit count grows — which is the property that matters for §5's hundreds.
+
+The field expands over `reverse_neighbours()` rather than assuming edges are symmetric. Authored links need not be: a one-way drop is walkable downward and not upward, and a field built on the assumption of symmetry would happily route units up a cliff they can only fall down. That required a reverse link index.
+
+The test's load-bearing assertion is **agreement**: the field and A* must reach the same conclusion about every sampled start. Units routed by the cheap system behaving differently from units routed by the expensive one is the worst available outcome — a divergence that only appears at wave scale. Both now share one `step_cost()` for the same reason.
+
+**A* got 2× faster as a side effect.** The terrain ramp check ran up to four `get_height()` and two `is_cliff_edge_cell()` calls per expanded node, every one a cross-object `call()` into MapGenerator; at 11,427 nodes that dominated. Flattened into `PackedInt32Array`/`PackedByteArray` at build time, and per-query cost fell from ~200ms to ~103ms. MapGenerator had learned this exact lesson already — its own `_height_edge_cache` exists for the same reason.
+
+**The citadel on the frontier map: it does not fit, and that is the finding.** The map is 96×96 cells. The citadel is 96×96. Placed at the origin it covers **100% of the playfield** — `find_flat_site()` cannot return a site for it with any margin at all, and the screenshot shows a sliver of forest at one edge and castle everywhere else.
+
+That is not a bug in either system; it is a scale decision that has not been made. A structure of this size is a map, not a landmark on one. Either the citadel shrinks to something like 40–50 cells so it reads as a fortress within a playfield, or maps grow substantially, or it becomes a dedicated map type rather than a placeable structure. Routed to Andrew.
+
+**Suite:** 57/58. `seeded_grid_frontier` still pre-existing.

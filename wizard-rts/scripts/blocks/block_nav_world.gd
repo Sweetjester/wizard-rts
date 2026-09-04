@@ -50,8 +50,21 @@ var _nodes: Dictionary = {}
 # than scanned: a map may hold dozens of structures, and walking every link for
 # every expanded node would make pathfinding quadratic in structure count.
 var _links_from: Dictionary = {}
+# The same links indexed by DESTINATION. A flow field expands backwards from its
+# goal and needs to know which nodes lead INTO a node -- which matters precisely
+# where it is least obvious, at one-way drops.
+var _links_to: Dictionary = {}
 var _terrain: Node
 var _placements: Array[Dictionary] = []
+# Terrain height and cliff flags, flattened at build time.
+#
+# The ramp check ran up to four get_height() and two is_cliff_edge_cell() calls
+# per expanded node, every one a cross-object call() into MapGenerator. At 11427
+# nodes that dominated pathfinding -- A* measured 170-290ms on the citadel.
+# MapGenerator learned this lesson once already; its own _height_edge_cache
+# exists for the same reason.
+var _terrain_height: PackedInt32Array = PackedInt32Array()
+var _terrain_cliff: PackedByteArray = PackedByteArray()
 # Vector2i -> sorted Array[int] of standable levels. See levels_at().
 var _columns: Dictionary = {}
 
@@ -131,13 +144,19 @@ func build_from_terrain(terrain: Node) -> void:
 	map_height = int(terrain.get("MAP_H"))
 	_nodes.clear()
 	_links_from.clear()
+	_links_to.clear()
 	_columns.clear()
+	_terrain_height.resize(map_width * map_height)
+	_terrain_cliff.resize(map_width * map_height)
 	for x in map_width:
 		for y in map_height:
 			var cell := Vector2i(x, y)
 			if not bool(terrain.call("is_walkable_cell", cell)):
 				continue
 			var height: int = int(terrain.call("get_height", cell))
+			var flat: int = x * map_height + y
+			_terrain_height[flat] = height
+			_terrain_cliff[flat] = 1 if bool(terrain.call("is_cliff_edge_cell", cell)) else 0
 			_nodes[encode(cell, height)] = {
 				"allowed": [],          # empty means every class
 				"type": &"TERRAIN",
@@ -202,6 +221,15 @@ func place_structure(definition: BlockStructureDefinition, origin: Vector2i, bas
 func _add_link(from_id: int, to_id: int, source: Dictionary, drop: int) -> void:
 	if not _links_from.has(from_id):
 		_links_from[from_id] = []
+	if not _links_to.has(to_id):
+		_links_to[to_id] = []
+	_links_to[to_id].append({
+		"to": from_id,
+		"type": source["type"],
+		"allowed": source.get("allowed", []),
+		"width": int(source.get("width", 1)),
+		"drop": drop,
+	})
 	_links_from[from_id].append({
 		"to": to_id,
 		"type": source["type"],
@@ -278,6 +306,36 @@ func neighbours(node_id: int, unit_class: StringName, out: Array[int]) -> void:
 		if not out.has(link["to"]):
 			out.append(link["to"])
 
+# Nodes that can step INTO `node_id`. Horizontal moves and terrain ramps are
+# symmetric, so only links need the reverse index -- which is exactly where the
+# asymmetry lives, at one-way drops.
+func reverse_neighbours(node_id: int, unit_class: StringName, out: Array[int]) -> void:
+	out.clear()
+	var base := decode(node_id)
+	var cell := Vector2i(base.x, base.z)
+	for offset in NEIGHBOUR_OFFSETS:
+		var previous_id: int = encode(cell + offset, base.y)
+		if not _nodes.has(previous_id) or not can_occupy(previous_id, unit_class):
+			continue
+		out.append(previous_id)
+	var scratch: Array[int] = []
+	_append_terrain_ramp_steps(base, cell, unit_class, scratch)
+	for candidate in scratch:
+		if not out.has(candidate):
+			out.append(candidate)
+	for link in _links_to.get(node_id, []):
+		if not rules.link_admits(link, unit_class):
+			continue
+		if not can_occupy(link["to"], unit_class):
+			continue
+		if not out.has(link["to"]):
+			out.append(link["to"])
+
+# The cost of one step. Shared by A* and the flow field so a route never
+# disagrees with itself depending on which system found it.
+func step_cost(from_id: int, to_id: int) -> float:
+	return 1.0 + absf(float(node_level(to_id) - node_level(from_id))) * 1.5
+
 # Two nodes owned by terrain must obey the terrain's own traversability rule.
 # Structure nodes are governed by their authored regions instead.
 func _terrain_step_allowed(from_id: int, to_id: int) -> bool:
@@ -295,17 +353,21 @@ func _append_terrain_ramp_steps(base: Vector3i, cell: Vector2i, unit_class: Stri
 		return
 	if not _nodes.has(encode(cell, base.y)) or _nodes[encode(cell, base.y)]["owner"] != &"terrain":
 		return
+	var here_flat: int = cell.x * map_height + cell.y
+	if here_flat < 0 or here_flat >= _terrain_cliff.size() or _terrain_cliff[here_flat] == 1:
+		return
 	for offset in NEIGHBOUR_OFFSETS:
 		var next_cell := cell + offset
 		if next_cell.x < 0 or next_cell.y < 0 or next_cell.x >= map_width or next_cell.y >= map_height:
 			continue
-		var next_height: int = int(_terrain.call("get_height", next_cell))
+		var next_flat: int = next_cell.x * map_height + next_cell.y
+		var next_height: int = _terrain_height[next_flat]
 		if next_height == base.y:
 			continue
 		var next_id: int = encode(next_cell, next_height)
 		if not _nodes.has(next_id) or _nodes[next_id]["owner"] != &"terrain":
 			continue
-		if bool(_terrain.call("is_cliff_edge_cell", cell)) or bool(_terrain.call("is_cliff_edge_cell", next_cell)):
+		if _terrain_cliff[next_flat] == 1:
 			continue
 		if not can_occupy(next_id, unit_class):
 			continue
@@ -353,8 +415,7 @@ func find_path(from_cell: Vector2i, from_level: int, to_cell: Vector2i, to_level
 		for next in scratch:
 			# Level changes cost more than a flat step, so a route that stays on
 			# one floor is preferred over one that pointlessly climbs.
-			var step := 1.0 + absf(float(node_level(next) - node_level(current))) * 1.5
-			var new_cost: float = current_cost + step
+			var new_cost: float = current_cost + step_cost(current, next)
 			if cost_so_far.has(next) and new_cost >= float(cost_so_far[next]):
 				continue
 			cost_so_far[next] = new_cost
