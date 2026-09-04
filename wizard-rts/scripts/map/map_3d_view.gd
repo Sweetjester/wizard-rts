@@ -1005,6 +1005,7 @@ func _update_edge_pan(delta: float) -> void:
 #   [ / ]   field of view   (framing is held constant, so this shows perspective)
 #   ; / '   camera pitch    (; shallower, ' steeper)
 #   \      print the constant lines to paste back into this file
+#   B       jump the camera to the next placed block structure
 #   Backspace  reset both to the defaults
 #
 # OS.is_debug_build() gates the whole thing, so none of it exists in an export.
@@ -1024,6 +1025,8 @@ func _handle_camera_tuning(event: InputEventKey) -> bool:
 		KEY_BACKSPACE:
 			camera_fov = DEFAULT_CAMERA_FOV
 			camera_pitch_degrees = DEFAULT_CAMERA_PITCH_DEGREES
+		KEY_B:
+			_focus_next_block_structure()
 		KEY_BACKSLASH:
 			print("[Map3DView] paste into scripts/map/map_3d_view.gd:")
 			print("const DEFAULT_CAMERA_PITCH_DEGREES := %.1f" % camera_pitch_degrees)
@@ -1034,6 +1037,34 @@ func _handle_camera_tuning(event: InputEventKey) -> bool:
 	_apply_camera_transform()
 	_update_tuning_readout()
 	return true
+
+# Jumps the camera to each placed block structure in turn.
+#
+# They are deliberately placed at least 16 cells from the tower, which puts them
+# outside the player's starting vision -- correct for the game, and infuriating
+# when you are trying to look at one. This is the difference between "go and
+# find it" and "press B".
+var _block_focus_index := -1
+
+func _focus_next_block_structure() -> void:
+	if _block_nav_bridge == null or not is_instance_valid(_block_nav_bridge):
+		return
+	var block_world = _block_nav_bridge.get("world")
+	if block_world == null:
+		return
+	var placements: Array = block_world.placements()
+	if placements.is_empty():
+		return
+	_block_focus_index = wrapi(_block_focus_index + 1, 0, placements.size())
+	var placement: Dictionary = placements[_block_focus_index]
+	var origin: Vector2i = placement["origin"]
+	var centre: Vector2 = map_generator.call("cell_to_world", origin + Vector2i(6, 5))
+	focus_on_sim_position(centre)
+	set_camera_distance(30.0)
+	if _overlay != null and is_instance_valid(_overlay):
+		_overlay.set("debug_text", "block structure %d/%d: %s at %s" % [
+			_block_focus_index + 1, placements.size(), placement["structure"], origin])
+		_overlay.call("queue_redraw")
 
 # Shows the live values, and the cross-frame angle spread they produce -- the
 # number that actually explains whether billboards will sit on the ground. See
