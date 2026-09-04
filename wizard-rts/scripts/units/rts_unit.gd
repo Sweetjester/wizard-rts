@@ -36,6 +36,16 @@ var selected := false
 var target_pos := Vector2.ZERO
 var moving := false
 var path: Array[Vector2] = []
+# Block elevation (experimental, 2026-09-04). The level this unit is standing
+# on. Terrain height for a unit on open ground, but a unit on a wall-walk or an
+# upper floor stands at a level the terrain cell below it knows nothing about --
+# which is the whole point of the lattice.
+#
+# `path_levels` runs parallel to `path`. It is EMPTY for every ordinary order,
+# and an empty list means "no elevation data, keep the level you have", so
+# nothing about normal 2D movement changes.
+var nav_level: int = 0
+var path_levels: Array[int] = []
 var terrain: Node
 var rts_world: RTSWorld
 var simulation_entity_id: int = 0
@@ -329,7 +339,7 @@ func rts_movement_tick(delta: float) -> void:
 	if dir.length() <= max(stop_distance, step):
 		global_position = target_pos
 		velocity = Vector2.ZERO
-		path.pop_front()
+		_pop_path_front()
 		moving = not path.is_empty()
 		if not moving:
 			if command_mode == &"patrol":
@@ -2140,6 +2150,30 @@ func _overlap_neighbor_budget() -> int:
 		return 2
 	return 8
 
+# Every removal from `path` goes through here, so `path_levels` cannot drift out
+# of step with it. Two callers pop -- arrival and the lookahead shortcut -- and a
+# desync between them would put a unit at the right place on the wrong floor.
+func _pop_path_front() -> void:
+	if path.is_empty():
+		return
+	path.pop_front()
+	if not path_levels.is_empty():
+		nav_level = path_levels.pop_front()
+
+# Orders a unit along a path produced by BlockNavWorld. Points are world
+# positions as usual; levels are the block level of each point, so the unit
+# knows which floor it is on rather than inferring it from the ground below.
+func follow_block_path(points: Array[Vector2], levels: Array[int]) -> void:
+	path = points.duplicate()
+	path_levels = levels.duplicate()
+	if not path_levels.is_empty():
+		# The first entry is where the unit already is; the level it will be at
+		# after the first step is what matters.
+		nav_level = path_levels[0]
+	moving = not path.is_empty()
+	if moving:
+		unit_state = &"move"
+
 func _advance_path_lookahead() -> void:
 	if _skip_path_lookahead_for_mass_mode():
 		return
@@ -2154,7 +2188,7 @@ func _advance_path_lookahead() -> void:
 			best_index = i
 			break
 	for i in best_index:
-		path.pop_front()
+		_pop_path_front()
 
 func _update_z_index() -> void:
 	var cell_y := int(global_position.y / 8.0)

@@ -595,7 +595,7 @@ func _sync_unit_sprites(units: Array[Node2D]) -> void:
 		# Owner tint and selection highlight, matching the capsule colours so the
 		# two tiers read as the same army.
 		sprite.modulate = _sprite_modulate(int(unit.get("owner_player_id")), bool(unit.get("selected")))
-		var transform := _instance_transform(unit.global_position, 0.0)
+		var transform := _unit_transform(unit)
 		# Lift by half the sprite's world height so its feet sit on the ground.
 		var cell_height := 0.0
 		if sprite.texture != null:
@@ -611,7 +611,7 @@ func _sync_unit_capsules(units: Array[Node2D]) -> void:
 	for unit in units:
 		if index >= MAX_UNIT_INSTANCES:
 			break
-		multimesh.set_instance_transform(index, _instance_transform(unit.global_position, UNIT_MESH_HEIGHT * 0.5))
+		multimesh.set_instance_transform(index, _unit_transform(unit, UNIT_MESH_HEIGHT * 0.5))
 		multimesh.set_instance_color(index, _owner_color(int(unit.get("owner_player_id")), bool(unit.get("selected"))))
 		index += 1
 	multimesh.visible_instance_count = index
@@ -804,6 +804,23 @@ func _structure_sprite_at(index: int) -> Sprite3D:
 		_sprite_root.add_child(sprite)
 		_structure_sprite_pool.append(sprite)
 	return _structure_sprite_pool[index]
+
+# A unit's position, taking its BLOCK LEVEL into account when it has one.
+#
+# Without this the 3D view puts every unit on the terrain surface under it, so a
+# unit standing on a wall-walk renders inside the passage below -- the elevation
+# would exist in the simulation and be invisible on screen. `nav_level` is 0 for
+# any unit that has never been given a lattice path, and level 0 IS the terrain
+# surface, so ordinary units are unaffected.
+func _unit_transform(unit: Node2D, lift: float = 0.0) -> Transform3D:
+	var level: Variant = unit.get("nav_level")
+	if level == null or int(level) <= 0:
+		return _instance_transform(unit.global_position, lift)
+	var ground := _renderer.call("sim_to_world_3d", unit.global_position, 0.0) as Vector3
+	# Block levels and the renderer's terrain heights share one vertical scale,
+	# which is what lets a structure's third floor and a plateau agree.
+	ground.y = float(level) * _renderer.TILE_SIZE + lift
+	return Transform3D(Basis.IDENTITY, ground)
 
 func _instance_transform(sim_position: Vector2, lift: float) -> Transform3D:
 	var ground := _renderer.call("sim_to_world_3d", sim_position, 0.0) as Vector3

@@ -873,3 +873,19 @@ Also fixed while building the demo: structures were pinned to level 0 regardless
 **Not done:** `RTSUnit` still has no level of its own, so the real game is not on this yet. Worth recording that the terrain contract turned out to be only three calls — `is_walkable_cell`, `get_height`, `is_cliff_edge_cell` — all of which `MapGenerator` already implements, so pointing this at the real map is a substitution rather than a port. Flow fields over the lattice are still needed before wave movement at hundreds of units; A* per unit suits the demo's 18 and will not suit 300.
 
 **Suite:** 53/54. `seeded_grid_frontier` still fails pre-existing.
+
+### 2026-09-04 — RTSUnit wired to the block lattice
+
+`BlockNavBridge` is the single place the elevation lattice and the live game meet. The lattice speaks in `(x, level, z)` nodes; `RTSUnit` speaks in world positions. Keeping that translation in one node means `BlockNavWorld` never depends on the game's units and `RTSUnit` never depends on the lattice — delete the bridge and both sides still work.
+
+`RTSUnit` gains `nav_level` and a `path_levels` array parallel to `path`, plus `follow_block_path()`. Both default to empty/zero, and level 0 *is* the terrain surface, so ordinary 2D movement is completely unaffected — asserted, not assumed: the smoke test checks a plain move order carries no elevation data, so the lattice cannot quietly start affecting units nobody put on it.
+
+One implementation detail worth recording: every removal from `path` now goes through a single `_pop_path_front()` helper. Two call sites pop — arrival, and the lookahead shortcut — and a desync between them would put a unit in the right place on the wrong floor, a bug that would present as "units sometimes render inside walls".
+
+`Map3DView` renders a unit at its `nav_level`. Without that the elevation would exist in the simulation and be invisible on screen.
+
+Proven against the **real procedural map**, not a stub: a live `RTSUnit` ordered onto a wall-walk six levels above its start runs its own movement tick until the route completes and finishes with `nav_level == 6`; a heavy given the identical order is refused, because it cannot use stairs. The test finds a flat site on the generated map rather than assuming one exists at a fixed cell.
+
+**Deliberately not done:** nothing in the game calls `order_to()` yet — right-click still routes through the 2D pathfinder, and map generation does not place block structures during a run. Combat and vision remain flat: `has_line_of_sight` takes a terrain height rather than a block level, so a unit on a wall-walk currently sees as though it were on the ground below it. That is the next real gap and it is not a small one.
+
+**Suite:** 54/55. `seeded_grid_frontier` still pre-existing.

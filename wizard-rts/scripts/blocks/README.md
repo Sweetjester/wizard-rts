@@ -164,6 +164,37 @@ uses `PackedFloat64Array`. Both are deliberate from the start: a 96×96 map is
 ~9000 terrain nodes before any structure, and float32 heap costs are what made
 the flow field silently reach 3384 cells instead of 7017.
 
+## Wiring the real game to it
+
+`block_nav_bridge.gd` is where the lattice and the live game meet, and the only
+place they do. The lattice speaks in nodes `(x, level, z)`; `RTSUnit` speaks in
+world positions. Keeping the translation in one node means `BlockNavWorld` never
+depends on the game's units and `RTSUnit` never depends on the lattice — delete
+the bridge and both sides still work, they just stop talking.
+
+On `RTSUnit`:
+
+- `nav_level` — the level the unit is standing on. `0` for anything that has
+  never been given a lattice path, and level 0 *is* the terrain surface, so
+  ordinary 2D movement is untouched.
+- `path_levels` — runs parallel to `path`, empty for every ordinary order.
+- `follow_block_path(points, levels)` — hands a unit a lattice route.
+
+Every removal from `path` goes through one `_pop_path_front()` helper, because
+two call sites pop (arrival and the lookahead shortcut) and a desync between
+them would put a unit in the right place on the wrong floor.
+
+`Map3DView` renders a unit at `nav_level` when it has one. Without that the
+elevation would exist in the simulation and be invisible on screen — a unit on a
+wall-walk would draw inside the passage below it.
+
+Proven in `unit_block_elevation_smoke_test.gd` against the **real procedural
+map**: a live `RTSUnit` is ordered onto a wall-walk six levels above where it
+started, runs its own movement tick until the route is done, and finishes with
+`nav_level == 6`. A heavy given the identical order is refused. And a plain move
+order is asserted to carry no elevation data at all, so the lattice cannot
+quietly start affecting units nobody put on it.
+
 ## Not built yet
 
 - Test agents that actually walk a path, rather than reachability colouring
@@ -171,13 +202,14 @@ the flow field silently reach 3384 cells instead of 7017.
 - Procedural placement into map generation
 - Destruction, and any tie-in to the `StructureComponents` work on the other
   branch — the two systems overlap and have not been reconciled
-- **Hooking the real game to it.** The lattice, pathing and per-class rules are
-  done and demonstrated, but `RTSUnit` still has no `level` — it derives height
-  from the terrain cell it stands on. Giving units a level and moving them along
-  `BlockNavWorld.find_path()` is the next real step. Note the terrain contract is
-  only three calls (`is_walkable_cell`, `get_height`, `is_cliff_edge_cell`), all
-  of which `MapGenerator` already implements — so pointing this at the real map
-  is a substitution, not a port.
+- **Orders.** `BlockNavBridge.order_to()` exists and works, but nothing in the
+  game calls it — right-click still routes through the 2D pathfinder. Selection
+  and commands are untouched.
+- **Structures are not placed by map generation yet.** The bridge can place one
+  (`bridge.place(id, origin)`); nothing does so during a real run.
 - Flow fields over the lattice, for wave movement at hundreds of units. A* per
   unit is fine for the demo's 18 and is not fine for 300.
+- Combat, vision and fog are all still flat: `has_line_of_sight` takes a terrain
+  height, not a block level, so a unit on a wall-walk sees as though it were on
+  the ground beneath it.
 - Destruction: reconciling this with `StructureComponents` on the other branch.
