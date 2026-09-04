@@ -42,6 +42,7 @@ var _camera: Camera3D
 var _pivot: Node3D
 var _legend: Label
 var _unit: MeshInstance3D
+var _xray: XraySilhouette
 var _nav_marks: MultiMeshInstance3D
 var _link_lines: MeshInstance3D
 var _path_lines: MeshInstance3D
@@ -52,7 +53,9 @@ var _path: Array[Vector3i] = []
 var _leg := 0
 var _leg_t := 0.0
 var _gate_open := false
-var _show_nav := false
+# On by default. The interior floors are behind stone, and being unable to see
+# where you may click is indistinguishable from the pathing being broken.
+var _show_nav := true
 var _show_links := true
 var _orbit := Vector2(-0.42, 0.62)
 var _distance := 58.0
@@ -119,7 +122,12 @@ func _build_world() -> void:
 	world.build_from_terrain(terrain)
 	# The structure's own declared default, not an assumption by this scene.
 	world.gate_states = library.gate_defaults_for(TOWER).duplicate()
-	_gate_open = bool(world.gate_states.get("main_gate_open", false))
+	# The spec declares this gate `default_state: closed`, which is correct for
+	# the game and useless as an opening state for a traversal demo -- a shut
+	# gate makes the entire tower unreachable, and the only clue is one word in
+	# the legend. Opened here, and G puts it back.
+	world.gate_states["main_gate_open"] = true
+	_gate_open = true
 	world.place_structure(definition, TOWER_ORIGIN, 0, TOWER)
 
 	_draw_ground()
@@ -131,6 +139,7 @@ func _build_world() -> void:
 	_builder.set_gate_open(&"main_gate_open", _gate_open)
 
 	_build_unit()
+	_build_xray()
 	_build_overlays()
 	_pivot.position = Vector3(float(TOWER_ORIGIN.x) + 9.0, 12.0, float(TOWER_ORIGIN.y) + 9.0)
 	_apply_camera()
@@ -160,6 +169,15 @@ func _build_unit() -> void:
 	material.albedo_color = CLASS_COLORS[CLASSES[_class_index]]
 	_unit.material_override = material
 	add_child(_unit)
+
+# Keeps the unit visible when it walks behind or inside the tower. Without this
+# the moment it steps through the gate it simply disappears, which reads as the
+# unit being destroyed rather than being indoors.
+func _build_xray() -> void:
+	_xray = XraySilhouette.new()
+	_xray.name = "UnitXray"
+	add_child(_xray)
+	_xray.setup(_unit, _camera, _unit.mesh, CLASS_COLORS[_unit_class()])
 
 func _build_overlays() -> void:
 	_nav_marks = MultiMeshInstance3D.new()
@@ -266,7 +284,8 @@ func _order_to(node: Vector3i) -> void:
 	var path := world.find_path(
 		Vector2i(_node.x, _node.z), _node.y, Vector2i(node.x, node.z), node.y, _unit_class())
 	if path.size() < 2:
-		_last_message = "no route to %s as %s" % [node, _unit_class()]
+		_last_message = "no route to %s as %s%s" % [node, _unit_class(),
+			"  (the gate is SHUT -- press G)" if not _gate_open else ""]
 		_path.clear()
 		_refresh()
 		return
@@ -279,11 +298,17 @@ func _order_to(node: Vector3i) -> void:
 
 # --- overlays ---------------------------------------------------------------
 
+# Only ELEVATED cells are marked. Open ground is obviously walkable, and drawing
+# it too -- through-walls, over the whole map -- buried the architecture under a
+# green grid and made the tower harder to read, not easier. What the player
+# actually needs to see is the floors they cannot see: the ones inside.
 func _draw_nav_cells() -> void:
 	var cells: Array[Vector3i] = []
 	for x in GROUND:
 		for z in GROUND:
 			for level in world.levels_at(Vector2i(x, z)):
+				if level <= 0:
+					continue
 				if world.can_occupy(world.encode(Vector2i(x, z), level), _unit_class()):
 					cells.append(Vector3i(x, level, z))
 	var multimesh := _nav_marks.multimesh
@@ -326,6 +351,8 @@ func _draw_path() -> void:
 
 func _refresh() -> void:
 	(_unit.material_override as StandardMaterial3D).albedo_color = CLASS_COLORS[_unit_class()]
+	if _xray != null and is_instance_valid(_xray):
+		_xray.set_color(CLASS_COLORS[_unit_class()])
 	if _show_nav:
 		_draw_nav_cells()
 	_draw_links()
@@ -345,7 +372,8 @@ func _refresh() -> void:
 		"cells above ground this class can stand on: %d" % standable,
 		_last_message,
 		"",
-		"click to move   C class   G gate   N nav cells   L links   R reset",
+		"click a green cell to send your unit there -- they show through walls",
+		"C class   G gate   N nav cells   L links   R reset",
 	])
 
 # --- input ------------------------------------------------------------------

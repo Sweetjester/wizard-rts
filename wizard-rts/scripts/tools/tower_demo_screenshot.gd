@@ -38,7 +38,7 @@ func _run() -> void:
 	await _shot(scene, "02_route_to_observatory")
 
 	# Let it actually climb.
-	for _i in 420:
+	for _i in 1100:
 		await process_frame
 	print("[Tower] unit ended at level ", (scene.get("_node") as Vector3i).y)
 	await _shot(scene, "03_arrived")

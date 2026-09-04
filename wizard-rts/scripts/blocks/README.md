@@ -285,6 +285,33 @@ This is the **one** place geometry is derived rather than authored — and it
 derives from the authored link, never the reverse. Navigation still comes from
 the link; the treads are decoration that happens to be honest about where it goes.
 
+### Seeing units through walls
+
+`xray_silhouette.gd`. An RTS where units vanish inside their own structures is
+unplayable -- you cannot select what you cannot see, and a unit on the far side
+of a tower reads as dead rather than indoors. A second copy of the unit is drawn
+with the depth test off, in a flat class colour, on top of whatever is occluding
+it.
+
+Why this shape, on performance grounds:
+
+- The silhouette is one extra draw of an already-tiny unshaded mesh. Almost free.
+- It shows **only when actually occluded**, decided by a single camera raycast.
+  Drawing it unconditionally is cheaper but looks wrong -- an unoccluded unit
+  renders over things genuinely in front of it, which reads as a z-fighting bug.
+- That raycast is **throttled**, not per frame. Occlusion changes when the camera
+  or unit moves, not at render rate, and a few frames of latency is invisible.
+
+Scaling: one raycast per tracked unit per tick. At hundreds of units you would
+track only the player's selection and anything inside a structure footprint --
+a small set by definition -- and the silhouette draw itself batches into a
+MultiMesh the same way unit sprites already do.
+
+The nav overlay marks **elevated cells only**. Drawing open ground too, through
+walls, across the whole map, buried the architecture under a green grid and made
+the tower harder to read rather than easier. What you need to see is the floors
+you cannot see.
+
 ### Structures test themselves
 
 Schema 1.1 lets a structure ship `validation_tests` alongside its geometry —
