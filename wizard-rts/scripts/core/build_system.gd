@@ -25,6 +25,7 @@ signal tier_unlocked(player_id: int, tier: int)
 signal forbidden_unleashed(player_id: int, unit: Node)
 signal module_installed(player_id: int, archetype: StringName)
 signal module_destroyed(player_id: int, module_id: StringName)
+signal tower_resummoned(cell: Vector2i)
 
 @export var economy_manager_path: NodePath = NodePath("../EconomyManager")
 @export var map_generator_path: NodePath = NodePath("../MapGenerator")
@@ -205,6 +206,45 @@ func build_module(player_id: int, archetype: StringName) -> bool:
 		return false
 	module_installed.emit(player_id, archetype)
 	queue_redraw()
+	return true
+
+# Moves the player's wizard tower into the captured citadel's keep.
+#
+# Master doc section 40: the reward for taking the citadel is GROUND, and this
+# is how the player banks it. It is also the largest bet the game offers --
+# section 11 makes tower loss end the run, so relocating it mid-run trades a
+# known position for a far stronger one.
+#
+# ORDER MATTERS. The defeat check scans the structures group every frame for a
+# player wizard_tower, so the new tower is built BEFORE the old one is removed.
+# Reversed, the player would lose the run at the moment of their reward.
+func resummon_tower_to_citadel(player_id: int = 1) -> bool:
+	var garrison: Node = get_parent().get_node_or_null("CitadelGarrison") if get_parent() != null else null
+	if garrison == null or not bool(garrison.call("is_captured")):
+		build_rejected.emit("The citadel is still held")
+		return false
+	var cell: Vector2i = garrison.call("keep_plinth_cell")
+	if cell.x < 0:
+		build_rejected.emit("The citadel keep has no plinth to summon onto")
+		return false
+	var old_index := -1
+	for i in structures.size():
+		if int(structures[i].get("player_id", -1)) == player_id 				and structures[i].get("archetype", &"") == &"wizard_tower":
+			old_index = i
+			break
+	if old_index < 0:
+		build_rejected.emit("No wizard tower to re-summon")
+		return false
+	# New first, old second. See the note above.
+	add_free_structure(player_id, &"wizard_tower", cell, "")
+	var old_structure: Dictionary = structures[old_index]
+	_unregister_blockers(old_structure)
+	var node = old_structure.get("node", null)
+	if node != null and is_instance_valid(node):
+		node.queue_free()
+	structures.remove_at(old_index)
+	tower_resummoned.emit(cell)
+	print("[BuildSystem] wizard tower re-summoned into the captured citadel at ", cell)
 	return true
 
 # The structure modules are installed into: the player's completed tower.

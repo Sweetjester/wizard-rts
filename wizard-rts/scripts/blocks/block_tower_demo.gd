@@ -92,15 +92,22 @@ func _build_view() -> void:
 	var environment := WorldEnvironment.new()
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color("#0E1117")
+	env.background_color = Color("#0A0D14")
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("#606A7C")
-	env.ambient_light_energy = 0.95
+	env.ambient_light_color = Color("#243247")
+	env.ambient_light_energy = 0.55
+	# Glow, so emissive windows bleed light the way the reference art does.
+	# Without it the cyan reads as flat paint rather than as something lit.
+	env.glow_enabled = true
+	env.glow_intensity = 0.55
+	env.glow_bloom = 0.15
+	env.glow_hdr_threshold = 0.85
 	environment.environment = env
 	add_child(environment)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-48.0, -36.0, 0.0)
-	sun.light_energy = 1.2
+	sun.light_energy = 0.75
+	sun.light_color = Color("#9FB6D6")
 	sun.shadow_enabled = true
 	add_child(sun)
 	_pivot = Node3D.new()

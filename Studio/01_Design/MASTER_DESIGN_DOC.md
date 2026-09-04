@@ -876,10 +876,19 @@ This gives Section 17's roguelike framing something it currently lacks — a *pl
 - The citadel is **authored, not generated**. It is the YAML structure, placed into the plot the map reserved for it, so its gatehouse, ramps, wall-walks and keep are the same ones the block demos use.
 - **It is not the player's start.** Base plots are placed around it, never inside it.
 
+### The garrison
+
+Implemented 2026-09-04. Twenty defenders, posted on the citadel's **own authored regions** rather than scattered near it — archers on the wall-walks because the structure declares wall-walks, holders in the gate tunnel because it declares a gate passage, a reserve in the courtyard, guards on the plinth, and a core in the keep. Change the YAML and the defence moves with it; nothing is hand-placed per map.
+
+They **hold**. A garrison that walks out to the player's base empties the fortress, which is the opposite of a fortress.
+
+**Capture is clearing the garrison, not destroying a building.** There is no building to destroy — the citadel is terrain the player wants intact, which is the whole reason to take it rather than raze it.
+
 ### Open questions
 
-- Whether re-summoning is a **build action, a research unlock, or an objective reward** — and what it costs.
-- What holds the citadel before the player does. It currently generates empty; a fortress worth taking needs a garrison worth beating.
+- What the citadel should cost in **wave pressure** while held. Right now the garrison sits still; a fortress that never threatens anything is a dungeon, not a rival.
+- Whether the garrison should **scale with run time**, so taking it late is harder rather than merely later.
+- Whether re-summoning should cost resources or a cast time, rather than being free once earned.
 - Whether the citadel should ever appear on standard-size maps at a **reduced footprint**, or stay exclusive to the march.
 - Whether losing a re-summoned tower inside the citadel should end the run as normal, or whether captured ground earns a second chance.
 

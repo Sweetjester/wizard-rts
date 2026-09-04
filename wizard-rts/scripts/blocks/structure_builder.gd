@@ -51,6 +51,7 @@ var _collision: StaticBody3D
 # gate opens. Collision and navigation already switch together; this is the
 # visual half, without which an open gate still looks shut.
 var _gate_meshes: Dictionary = {}
+var _family_meshes: Array[MultiMeshInstance3D] = []
 
 func build(structure: BlockStructureDefinition) -> void:
 	definition = structure
@@ -68,33 +69,44 @@ func _clear() -> void:
 	_blocks = null
 	_collision = null
 	_gate_meshes.clear()
+	_family_meshes.clear()
 
+# One MultiMesh per MATERIAL FAMILY rather than one for the whole structure.
+#
+# Emission is per material in Godot, not per instance, and the reference art is
+# carried almost entirely by the windows and domes glowing. A single
+# vertex-coloured mesh cannot express that, so the blocks are grouped and each
+# family gets its own material. Six draw calls instead of one, and six whether
+# the structure is a gatehouse or a 104,000-block citadel.
 func _build_blocks() -> void:
-	_blocks = MultiMeshInstance3D.new()
-	_blocks.name = "Blocks"
-	var mesh := BoxMesh.new()
-	mesh.size = Vector3.ONE
-	var multimesh := MultiMesh.new()
-	multimesh.transform_format = MultiMesh.TRANSFORM_3D
-	multimesh.use_colors = true
-	multimesh.mesh = mesh
-	multimesh.instance_count = maxi(1, definition.solid_cells.size())
-	var index := 0
 	var gated := _all_gate_cells()
+	var by_family := {}
 	for cell in definition.solid_cells:
 		if gated.has(cell):
 			continue
-		var material: StringName = definition.solid_cells[cell]
-		multimesh.set_instance_transform(index, Transform3D(Basis.IDENTITY, cell_centre(cell)))
-		multimesh.set_instance_color(index, MATERIAL_COLORS.get(material, Color("#9AA0A6")))
-		index += 1
-	multimesh.visible_instance_count = index
-	_blocks.multimesh = multimesh
-	var surface := StandardMaterial3D.new()
-	surface.vertex_color_use_as_albedo = true
-	surface.roughness = 0.95
-	_blocks.material_override = surface
-	add_child(_blocks)
+		var family := BlockMaterialPalette.family_for(definition.solid_cells[cell])
+		if not by_family.has(family):
+			by_family[family] = [] as Array[Vector3i]
+		(by_family[family] as Array[Vector3i]).append(cell)
+	for family in by_family:
+		var cells: Array[Vector3i] = by_family[family]
+		var instance := MultiMeshInstance3D.new()
+		instance.name = "Blocks_%d" % int(family)
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3.ONE
+		var multimesh := MultiMesh.new()
+		multimesh.transform_format = MultiMesh.TRANSFORM_3D
+		multimesh.use_colors = true
+		multimesh.mesh = mesh
+		multimesh.instance_count = cells.size()
+		for i in cells.size():
+			multimesh.set_instance_transform(i, Transform3D(Basis.IDENTITY, cell_centre(cells[i])))
+			multimesh.set_instance_color(i, BlockMaterialPalette.instance_tint(family, cells[i]))
+		multimesh.visible_instance_count = cells.size()
+		instance.multimesh = multimesh
+		instance.material_override = BlockMaterialPalette.make_material(family)
+		add_child(instance)
+		_family_meshes.append(instance)
 
 func _all_gate_cells() -> Dictionary:
 	var cells := {}
@@ -119,12 +131,10 @@ func _build_gates() -> void:
 		multimesh.instance_count = cells.size()
 		for i in cells.size():
 			multimesh.set_instance_transform(i, Transform3D(Basis.IDENTITY, cell_centre(cells[i])))
-			multimesh.set_instance_color(i, MATERIAL_COLORS.get(&"GATE", Color("#7A5230")))
+			multimesh.set_instance_color(i, BlockMaterialPalette.albedo_for(BlockMaterialPalette.Family.TIMBER))
 		multimesh.visible_instance_count = cells.size()
 		instance.multimesh = multimesh
-		var surface := StandardMaterial3D.new()
-		surface.vertex_color_use_as_albedo = true
-		instance.material_override = surface
+		instance.material_override = BlockMaterialPalette.make_material(BlockMaterialPalette.Family.TIMBER)
 		add_child(instance)
 		_gate_meshes[state_key] = instance
 
@@ -170,10 +180,7 @@ func _build_stairs() -> void:
 		multimesh.set_instance_color(i, tread["color"])
 	multimesh.visible_instance_count = treads.size()
 	instance.multimesh = multimesh
-	var surface := StandardMaterial3D.new()
-	surface.vertex_color_use_as_albedo = true
-	surface.roughness = 0.9
-	instance.material_override = surface
+	instance.material_override = BlockMaterialPalette.make_material(BlockMaterialPalette.Family.PALE_STONE)
 	add_child(instance)
 
 # One tread per step along the link, widened across the direction of travel.
@@ -187,7 +194,11 @@ func _tread_cells(link: Dictionary) -> Array[Dictionary]:
 	var steps: int = maxi(maxi(absi(delta.x), absi(delta.y)), absi(delta.z))
 	if steps <= 0:
 		return cells
-	var color: Color = STAIR_COLOR if link["type"] == &"STAIR" else RAMP_COLOR
+	# Treads are pale paving, a shade brighter than the walls around them,
+	# because their job is to read as circulation from an RTS camera.
+	var color: Color = BlockMaterialPalette.albedo_for(BlockMaterialPalette.Family.PALE_STONE)
+	if link["type"] == &"RAMP":
+		color = color.lightened(0.08)
 	# Widen perpendicular to the dominant horizontal direction.
 	var across := Vector3i(0, 0, 1) if absi(delta.x) >= absi(delta.z) else Vector3i(1, 0, 0)
 	var width: int = maxi(1, int(link.get("width", 1)))
@@ -232,8 +243,9 @@ func _build_collision() -> void:
 		_collision.add_child(shape)
 
 func set_blocks_visible(value: bool) -> void:
-	if _blocks != null and is_instance_valid(_blocks):
-		_blocks.visible = value
+	for instance in _family_meshes:
+		if is_instance_valid(instance):
+			instance.visible = value
 
 # A cell's centre in local space. Cell (0,0,0) occupies the unit cube from the
 # origin, so its centre is half a block along each axis.

@@ -29,7 +29,7 @@ func _run() -> void:
 	scene.set("_gate_open", true)
 	world.gate_states["main_gate_open"] = true
 	scene.get("_builder").call("set_gate_open", &"main_gate_open", true)
-	var origin: Vector2i = scene.get("TOWER_ORIGIN")
+	var origin: Vector2i = scene.get("structure_origin")
 	var observatory := Vector3i(origin.x + 8, 26, origin.y + 8)
 	scene.call("_order_to", observatory)
 	var path: Array = scene.get("_path")

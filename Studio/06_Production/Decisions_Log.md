@@ -994,3 +994,23 @@ The most valuable assertion in that test is the last one: **the standard frontie
 Design intent for capture and tower re-summoning is written up in section 40, including what is still open: what holds the citadel before the player does (it currently generates empty), and whether re-summoning is a build action, a research unlock or an objective reward.
 
 **Suite:** 58/59. `seeded_grid_frontier` still pre-existing.
+
+### 2026-09-04 — The citadel garrison, capture, and the arcane-stone skin
+
+**Garrison.** Twenty defenders posted on the citadel's own authored nav regions rather than scattered near it: archers on the wall-walks, holders in the gate tunnel, a courtyard reserve, plinth guards, and a keep core. Measured on the march — 8 defenders at level 18, 7 at level 2, 5 at level 5. Nothing is hand-placed; the defence is derived from the structure, so re-authoring the citadel moves the garrison with it.
+
+They hold position, and getting that right took two attempts, both instructive. `WaveDirector._spawn_enemy()` **defers** an attack-move order at the player's base, so setting `command_mode` inline was silently undone a frame later — twenty defenders spawned and none holding. Deferring the post assignment fixed the ordering, and it still failed, because `issue_stop_order()` sets `command_mode` to `idle`; calling it after the hold undid the hold. It now uses the unit's own `issue_hold_position_order()`, which does the whole job.
+
+**Capture is clearing the garrison, not destroying a building** — there is no building to destroy, because the citadel is terrain the player wants intact.
+
+**The reward is implemented.** `BuildSystem.resummon_tower_to_citadel()` moves the wizard tower onto the keep plinth, refused while the citadel is held. The order of operations is load-bearing and is commented as such: the defeat check scans the structures group every frame for a player wizard tower, so the new tower is built BEFORE the old is removed. Reversed, the player would lose the run at the exact moment they earned their reward. The smoke test asserts defeat did not fire.
+
+**Skin.** Andrew supplied reference art — weathered blue-teal masonry, glowing cyan arched windows and glass domes, dark timber, slate roofs. Almost all of that reading comes from one thing the old renderer could not do: emission. Godot takes emission per material, not per instance, so blocks are now grouped into six material families, each with its own MultiMesh and material. Six draw calls whether the structure is a gatehouse or a 104,544-block citadel.
+
+Emission was tuned down after the first render (glass 1.5 → 0.65, crystal 2.2 → 1.1): a whole observatory crown at the original strength blew out to flat white and lost the panelling the emission existed to show. The reference art glows, it does not burn.
+
+Per-instance tint varies each block slightly, derived from cell position rather than randomly, so a wall reads as masonry rather than a solid and a rebuilt structure looks identical to the one before it.
+
+**Worth noting for art direction:** the citadel's YAML authors almost no glass — its palette is nearly all `exterior_wall`/`keep_wall`, so it reads as blue stone with a few crystal markers. The reference's lit windows are a *data* gap, not a renderer one. Adding a `glass` role to the window bands would close it.
+
+**Suite:** 59/60. `seeded_grid_frontier` still pre-existing.
