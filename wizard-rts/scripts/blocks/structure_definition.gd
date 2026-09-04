@@ -40,6 +40,10 @@ var sockets: Array[Dictionary] = []
 # Vector3i -> nav type declared on a BLOCK. Headroom and carved volume, kept for
 # clearance checks and debug, never treated as standable ground.
 var open_cells: Dictionary = {}
+# state_key -> Array[Vector3i] the gate leaf occupies. The builder uses this to
+# hide the leaf when the gate opens, so collision and navigation switch together
+# rather than leaving a visible door units walk through.
+var gate_cells: Dictionary = {}
 
 static func from_data(structure_id: StringName, data: Dictionary, materials: Dictionary) -> BlockStructureDefinition:
 	var definition := BlockStructureDefinition.new()
@@ -85,6 +89,37 @@ static func from_data(structure_id: StringName, data: Dictionary, materials: Dic
 		}
 		for cell in expand_region(region.get("region", {})):
 			definition.nav_cells[cell] = entry.duplicate()
+
+	# Gates (schema 1.1). A gate declares a `passage_region` -- the strip units
+	# walk through -- and a `block_region`, which is what the leaf physically
+	# occupies. Only the block_region is conditional.
+	#
+	# Gating the whole passage instead is too coarse and was wrong in a way the
+	# structure's own tests caught: a unit standing on the apron in FRONT of a
+	# shut gate is not blocked by it, and treating the apron as gated made a
+	# heavy unable to even approach the door.
+	for gate in data.get("gates", []):
+		var state_key := StringName(gate.get("state_key", &""))
+		var blocked := {}
+		for cell in expand_region(gate.get("block_region", {})):
+			blocked[cell] = true
+		# Anything in the passage but outside the leaf is ordinary floor.
+		for cell in expand_region(gate.get("passage_region", {})):
+			if not definition.nav_cells.has(cell):
+				continue
+			if blocked.has(cell):
+				continue
+			definition.nav_cells[cell] = definition.nav_cells[cell].duplicate()
+			definition.nav_cells[cell]["type"] = &"FLOOR"
+			definition.nav_cells[cell]["state_key"] = &""
+		# And the leaf's own cells are gated, whatever region they fell in.
+		for cell in blocked:
+			if not definition.nav_cells.has(cell):
+				continue
+			definition.nav_cells[cell] = definition.nav_cells[cell].duplicate()
+			definition.nav_cells[cell]["type"] = &"GATE"
+			definition.nav_cells[cell]["state_key"] = state_key
+		definition.gate_cells[state_key] = blocked.keys()
 
 	for link in data.get("links", []):
 		definition.links.append({

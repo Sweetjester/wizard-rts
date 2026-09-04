@@ -236,6 +236,76 @@ first multi-level one, because not every raised surface is reachable on foot —
 tower roof served only by a climb point is climber-only, and an infantry order
 there correctly falls back to the ground floor.
 
+## Kon's Observation Wizard Tower (schema 1.1)
+
+```bash
+Godot --path . res://scenes/blocks/block_tower_demo.tscn
+```
+
+Click to send your unit, `C` change class, `G` open/shut the gate, `N` nav cells,
+`L` links, `R` reset. 18x32x18, 2432 solid blocks, 329 nav cells, 13 links — all
+from `data/block_structures/kons_observation_wizard_tower.yaml`.
+
+The demonstration in one keypress: as **infantry** there are 297 standable cells
+above ground and a 22-step route from the south road to the observatory crown.
+Press `C` to **heavy** and that becomes **2** — a heavy reaches the gateway and
+nothing above it, because it cannot use stairs. Shut the gate and even that goes.
+
+### Schema 1.1
+
+Both schema versions load. 1.1 uses a single `structure:` rather than a
+`structures:` map, renames `nav:`→`navigation:` and `links:`→`traversal_links:`,
+nests `dimensions` as a mapping, moves sockets under `procedural_generation`,
+and adds a `gates:` block with `default_state`. The converter normalises all of
+that; the 1.0 pack is left untouched because it is the reference data the
+original test cases were written against.
+
+Every YAML in `data/block_structures/` is merged, so adding a structure is
+adding a file.
+
+### Gates: passage vs leaf
+
+1.1 separates `passage_region` (the strip units walk through) from
+`block_region` (what the leaf physically occupies). Only the leaf is
+conditional. Gating the whole passage is too coarse, and the structure's own
+tests caught it: a unit standing on the apron *in front of* a shut gate is not
+blocked by it, and treating the apron as gated made a heavy unable to even
+approach the door. The builder hides the leaf when the gate opens, so collision,
+navigation and what you can see all switch together.
+
+### Visible stairs
+
+The spec insists stairs be built as block steps rather than existing only as
+invisible links, and it is right: a tower whose floors are connected by nothing
+you can see reads as a stack of disconnected platforms. `StructureBuilder`
+generates a tread per step along every STAIR and RAMP link, widened by the
+link's `width` and skipped wherever it would land inside authored stone.
+
+This is the **one** place geometry is derived rather than authored — and it
+derives from the authored link, never the reverse. Navigation still comes from
+the link; the treads are decoration that happens to be honest about where it goes.
+
+### Structures test themselves
+
+Schema 1.1 lets a structure ship `validation_tests` alongside its geometry —
+PASS/FAIL cases the author states about their own building.
+`structure_validation_smoke_test.gd` runs them verbatim for **any** structure
+that declares them, so authoring a new one needs no test file edited.
+
+Three defects in the authored tower were found this way and corrected in the
+YAML, each commented in place:
+
+- `gate_entry` excluded `heavy`, while the `heavy_approach` case expected a
+  heavy to reach a cell inside it — the spec contradicted its own test.
+- `east_balcony_link` and `north_balcony_link` began at cells no nav region
+  declares (there is no interior floor at y17 or y20), so both balconies were
+  completely unreachable. A reachability sweep caught it; the structure's own
+  tests did not cover it.
+- `heavy_approach` declared no gate state, so it ran against the default
+  (closed). Its destination is inside the gate passage, and a 2x2 heavy standing
+  there straddles the leaf — with the gate shut the case is not failing, it is
+  unevaluable.
+
 ## Not built yet
 
 - Test agents that actually walk a path, rather than reachability colouring

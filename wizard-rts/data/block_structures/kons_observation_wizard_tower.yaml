@@ -1,0 +1,288 @@
+schema_version: "1.1"
+
+structure:
+  id: "kons_observation_wizard_tower_01"
+  display_name: "Kon's Observation Wizard Tower"
+
+  design_intent:
+    summary: >
+      A large vertical wizard observation tower inspired by a crooked stone lighthouse:
+      heavy block-built stone base, narrow rising shaft, asymmetric timber balconies,
+      projecting lantern arm, and a large glazed observatory crown. The structure must
+      read clearly from an RTS camera while remaining fully traversable through authored paths.
+    gameplay_roles:
+      - vertical_landmark
+      - observation_structure
+      - multi_level_traversal
+      - procedural_landmark
+      - gate_controlled_structure
+    visual_rules:
+      - "Avoid a single uninterrupted cuboid."
+      - "Use setbacks every 4-7 vertical blocks."
+      - "Use projecting balconies and buttresses to break the silhouette."
+      - "Keep the main vertical core readable from distance."
+      - "The glazed observatory crown must be the strongest silhouette."
+      - "All traversal remains authored; never infer it from rendered mesh."
+
+  world_rules:
+    block_size_m: 1.0
+    axes:
+      x: east_west
+      y: vertical
+      z: north_south
+    origin_rule: "Local origin is the south-west-bottom corner."
+    ranges_are_inclusive: true
+
+  dimensions:
+    x: 18
+    y: 32
+    z: 18
+
+  footprint:
+    build_clearance:
+      x: [0,17]
+      z: [0,17]
+    preferred_flat_pad:
+      x: [1,16]
+      z: [1,16]
+
+  unit_classes:
+    infantry:
+      footprint: [1,1]
+      can_use_floor: true
+      can_use_stairs: true
+      can_use_ramps: true
+      can_pass_gates: true
+
+    archer:
+      footprint: [1,1]
+      can_use_floor: true
+      can_use_stairs: true
+      can_use_ramps: true
+      can_pass_gates: true
+
+    climber:
+      footprint: [1,1]
+      can_use_floor: true
+      can_use_stairs: true
+      can_use_ramps: true
+      can_pass_gates: true
+
+    heavy:
+      footprint: [2,2]
+      can_use_floor: true
+      can_use_stairs: false
+      can_use_ramps: true
+      can_pass_gates: true
+
+    flying:
+      ignores_ground_navigation: true
+
+  materials:
+    TOWER_STONE: {collision: solid, visual_family: "aged pale stone"}
+    DARK_STONE: {collision: solid, visual_family: "dark structural stone"}
+    TIMBER: {collision: solid, visual_family: "weathered timber"}
+    GLASS: {collision: solid, visual_family: "cyan observatory glass"}
+    METAL: {collision: solid, visual_family: "dark iron"}
+    GATE: {collision: conditional, visual_family: "reinforced wooden gate"}
+    EMPTY: {collision: none}
+
+  blocks:
+    - {id: foundation_pad, region: {x: [3,14], y: 0, z: [3,14]}, material: DARK_STONE, navigation: SOLID}
+    - {id: south_foundation_step, region: {x: [5,12], y: 0, z: [1,2]}, material: TOWER_STONE, navigation: FLOOR}
+
+    - {id: west_buttress_a, region: {x: [2,4], y: [0,5], z: [5,8]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: west_buttress_b, region: {x: [1,3], y: [0,3], z: [10,13]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: east_buttress_a, region: {x: [13,15], y: [0,6], z: [7,10]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: east_buttress_b, region: {x: [14,16], y: [0,3], z: [11,14]}, material: TOWER_STONE, navigation: SOLID}
+
+    - {id: lower_core_west_wall, region: {x: [4,5], y: [1,9], z: [5,13]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: lower_core_east_wall, region: {x: [12,13], y: [1,9], z: [5,13]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: lower_core_north_wall, region: {x: [6,11], y: [1,9], z: [12,13]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: lower_core_south_left, region: {x: [6,7], y: [1,7], z: [5,6]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: lower_core_south_right, region: {x: [10,11], y: [1,7], z: [5,6]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: lower_floor, region: {x: [6,11], y: 1, z: [6,11]}, material: DARK_STONE, navigation: FLOOR}
+
+    - {id: main_gate_frame_left, region: {x: [6,7], y: [1,5], z: [3,5]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: main_gate_frame_right, region: {x: [10,11], y: [1,5], z: [3,5]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: main_gate_lintel, region: {x: [8,9], y: [5,6], z: [3,5]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: main_gate_leaf, region: {x: [8,9], y: [1,4], z: [4,5]}, material: GATE, navigation: GATE}
+
+    - {id: lower_landing_a, region: {x: [7,10], y: 3, z: [7,10]}, material: DARK_STONE, navigation: FLOOR}
+    - {id: lower_landing_b, region: {x: [7,10], y: 6, z: [7,10]}, material: DARK_STONE, navigation: FLOOR}
+    - {id: lower_landing_c, region: {x: [7,10], y: 9, z: [7,10]}, material: DARK_STONE, navigation: FLOOR}
+
+    - {id: mid_core_west, region: {x: [5,6], y: [10,18], z: [6,12]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: mid_core_east, region: {x: [11,12], y: [10,18], z: [6,12]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: mid_core_north, region: {x: [7,10], y: [10,18], z: [11,12]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: mid_core_south, region: {x: [7,10], y: [10,18], z: [6,7]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: mid_floor_12, region: {x: [7,10], y: 12, z: [7,10]}, material: DARK_STONE, navigation: FLOOR}
+    - {id: mid_floor_15, region: {x: [7,10], y: 15, z: [7,10]}, material: DARK_STONE, navigation: FLOOR}
+    - {id: mid_floor_18, region: {x: [7,10], y: 18, z: [7,10]}, material: DARK_STONE, navigation: FLOOR}
+
+    - {id: west_balcony_supports, region: {x: [2,4], y: [9,11], z: [7,10]}, material: TIMBER, navigation: SOLID}
+    - {id: west_balcony_deck, region: {x: [1,5], y: 12, z: [7,10]}, material: TIMBER, navigation: FLOOR}
+    - {id: east_balcony_supports, region: {x: [12,14], y: [14,16], z: [8,10]}, material: TIMBER, navigation: SOLID}
+    - {id: east_balcony_deck, region: {x: [12,16], y: 17, z: [8,10]}, material: TIMBER, navigation: FLOOR}
+    - {id: north_balcony_deck, region: {x: [7,10], y: 20, z: [12,15]}, material: TIMBER, navigation: FLOOR}
+
+    - {id: upper_core_west, region: {x: [6,7], y: [19,24], z: [6,11]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: upper_core_east, region: {x: [10,11], y: [19,24], z: [6,11]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: upper_core_north, region: {x: [8,9], y: [19,24], z: [10,11]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: upper_core_south, region: {x: [8,9], y: [19,24], z: [6,7]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: upper_floor_21, region: {x: [8,9], y: 21, z: [8,9]}, material: DARK_STONE, navigation: FLOOR}
+    - {id: upper_floor_24, region: {x: [8,9], y: 24, z: [8,9]}, material: DARK_STONE, navigation: FLOOR}
+
+    - {id: observatory_base, region: {x: [3,14], y: [24,25], z: [3,14]}, material: DARK_STONE, navigation: SOLID}
+    - {id: observatory_floor, region: {x: [4,13], y: 26, z: [4,13]}, material: DARK_STONE, navigation: FLOOR}
+
+    - {id: observatory_glass_west, region: {x: [3,4], y: [26,29], z: [5,12]}, material: GLASS, navigation: SOLID}
+    - {id: observatory_glass_east, region: {x: [13,14], y: [26,29], z: [5,12]}, material: GLASS, navigation: SOLID}
+    - {id: observatory_glass_north, region: {x: [5,12], y: [26,29], z: [13,14]}, material: GLASS, navigation: SOLID}
+    - {id: observatory_glass_south, region: {x: [5,12], y: [26,29], z: [3,4]}, material: GLASS, navigation: SOLID}
+
+    - {id: observatory_ring_lower, region: {x: [3,14], y: 25, z: [3,14]}, material: METAL, navigation: SOLID}
+    - {id: observatory_ring_upper, region: {x: [4,13], y: 30, z: [4,13]}, material: METAL, navigation: SOLID}
+    - {id: crown_cap, region: {x: [6,11], y: 31, z: [6,11]}, material: METAL, navigation: SOLID}
+
+    - {id: lantern_arm, region: {x: [14,17], y: 23, z: [8,9]}, material: TIMBER, navigation: SOLID}
+    - {id: lantern_hanger, region: {x: 17, y: [20,22], z: [8,9]}, material: METAL, navigation: SOLID}
+
+  nav_regions:
+    - {id: exterior_south, type: FLOOR, region: {x: [5,12], y: 0, z: [0,3]}, allowed: [infantry, archer, climber, heavy]}
+    # `heavy` added 2026-09-04. The spec contradicted itself: validation test
+    # `heavy_approach` expects a heavy to reach [8,1,3], which is inside this
+    # region, but the allowed list excluded it. Heavy can now stand in the
+    # gateway and no further -- `lower_hall` below still excludes it, so
+    # `heavy_tower_entry` correctly stays FAIL. That matches the design intent
+    # of a heavy reaching the door but not getting inside.
+    - {id: gate_entry, type: GATE, region: {x: [8,9], y: 1, z: [3,6]}, allowed: [infantry, archer, climber, heavy], state_key: main_gate_open}
+    - {id: lower_hall, type: FLOOR, region: {x: [6,11], y: 1, z: [6,11]}, allowed: [infantry, archer, climber]}
+    - {id: landing_y3, type: FLOOR, region: {x: [7,10], y: 3, z: [7,10]}, allowed: [infantry, archer, climber]}
+    - {id: landing_y6, type: FLOOR, region: {x: [7,10], y: 6, z: [7,10]}, allowed: [infantry, archer, climber]}
+    - {id: landing_y9, type: FLOOR, region: {x: [7,10], y: 9, z: [7,10]}, allowed: [infantry, archer, climber]}
+    - {id: west_balcony, type: FLOOR, region: {x: [1,5], y: 12, z: [7,10]}, allowed: [infantry, archer, climber]}
+    - {id: mid_floor_y12, type: FLOOR, region: {x: [7,10], y: 12, z: [7,10]}, allowed: [infantry, archer, climber]}
+    - {id: mid_floor_y15, type: FLOOR, region: {x: [7,10], y: 15, z: [7,10]}, allowed: [infantry, archer, climber]}
+    - {id: east_balcony, type: FLOOR, region: {x: [12,16], y: 17, z: [8,10]}, allowed: [infantry, archer, climber]}
+    - {id: mid_floor_y18, type: FLOOR, region: {x: [7,10], y: 18, z: [7,10]}, allowed: [infantry, archer, climber]}
+    - {id: north_balcony, type: FLOOR, region: {x: [7,10], y: 20, z: [12,15]}, allowed: [infantry, archer, climber]}
+    - {id: upper_floor_y21, type: FLOOR, region: {x: [8,9], y: 21, z: [8,9]}, allowed: [infantry, archer, climber]}
+    - {id: upper_floor_y24, type: FLOOR, region: {x: [8,9], y: 24, z: [8,9]}, allowed: [infantry, archer, climber]}
+    - {id: observatory, type: FLOOR, region: {x: [4,13], y: 26, z: [4,13]}, allowed: [infantry, archer, climber]}
+
+  traversal_links:
+    - {id: south_approach_ramp, type: RAMP, from: [8,0,0], to: [8,1,3], width: 3, allowed: [infantry, archer, climber, heavy]}
+
+    - {id: stair_01, type: STAIR, from: [8,1,7], to: [8,3,8], width: 2, allowed: [infantry, archer, climber]}
+    - {id: stair_02, type: STAIR, from: [9,3,9], to: [9,6,8], width: 2, allowed: [infantry, archer, climber]}
+    - {id: stair_03, type: STAIR, from: [8,6,8], to: [8,9,9], width: 2, allowed: [infantry, archer, climber]}
+    - {id: stair_04, type: STAIR, from: [8,9,9], to: [8,12,8], width: 2, allowed: [infantry, archer, climber]}
+    - {id: stair_05, type: STAIR, from: [9,12,8], to: [9,15,9], width: 2, allowed: [infantry, archer, climber]}
+    - {id: stair_06, type: STAIR, from: [8,15,9], to: [8,18,8], width: 2, allowed: [infantry, archer, climber]}
+    - {id: stair_07, type: STAIR, from: [9,18,8], to: [9,21,9], width: 1, allowed: [infantry, archer, climber]}
+    - {id: stair_08, type: STAIR, from: [8,21,9], to: [8,24,8], width: 1, allowed: [infantry, archer, climber]}
+    - {id: observatory_stair, type: STAIR, from: [8,24,8], to: [8,26,8], width: 2, allowed: [infantry, archer, climber]}
+
+    - {id: west_balcony_link, type: FLOOR_LINK, from: [7,12,8], to: [5,12,8], width: 1, allowed: [infantry, archer, climber]}
+    # Interior endpoints corrected 2026-09-04. Both of these began in cells no
+    # nav region declares -- there is no interior floor at y17 or y20 -- so the
+    # east and north balconies were completely unreachable, which a reachability
+    # sweep caught but the structure's own validation tests did not cover.
+    # They now start on the nearest real floor and step to the deck.
+    - {id: east_balcony_link, type: FLOOR_LINK, from: [10,18,9], to: [12,17,9], width: 1, allowed: [infantry, archer, climber]}
+    - {id: north_balcony_link, type: FLOOR_LINK, from: [9,21,9], to: [9,20,12], width: 1, allowed: [infantry, archer, climber]}
+
+  gates:
+    - id: main_gate
+      state_key: main_gate_open
+      default_state: closed
+      block_region: {x: [8,9], y: [1,4], z: [4,5]}
+      passage_region: {x: [8,9], y: 1, z: [3,6]}
+      allowed_when_open: [infantry, archer, climber]
+      blocks_when_closed: true
+      visual_open_action: "raise_or_swing_gate"
+
+  procedural_generation:
+    placement:
+      terrain_requirement: "mostly_flat"
+      minimum_clearance: {x: 20, z: 20}
+      allow_rotation_y: [0, 90, 180, 270]
+      sink_foundation_max_blocks: 2
+
+    connection_sockets:
+      - {id: south_road, type: ROAD_SOCKET, position: [8,0,0], facing: south, width: 3}
+      - {id: west_path, type: PATH_SOCKET, position: [0,0,9], facing: west, width: 2}
+      - {id: east_path, type: PATH_SOCKET, position: [17,0,9], facing: east, width: 2}
+
+    reserved_airspace:
+      region: {x: [1,16], y: [24,34], z: [1,16]}
+      reason: "Protect observatory silhouette from nearby generated structures."
+
+  debug_expectations:
+    show:
+      - structure_bounds
+      - solid_blocks
+      - walkable_nav_regions
+      - stairs
+      - ramps
+      - gate_state
+      - procedural_sockets
+      - structure_origin
+      - current_unit_class_traversal
+
+  validation_tests:
+    - id: infantry_full_ascent
+      unit_class: infantry
+      start: [8,0,0]
+      destination: [8,26,8]
+      state: {main_gate_open: true}
+      expected: PASS
+
+    - id: infantry_closed_gate
+      unit_class: infantry
+      start: [8,0,0]
+      destination: [8,1,8]
+      state: {main_gate_open: false}
+      expected: FAIL
+
+    # `state` added 2026-09-04. Every other gate-dependent test declares one;
+    # this did not, so it evaluated against the default (closed). Its
+    # destination [8,1,3] is inside the gate passage, and a 2x2 heavy standing
+    # there straddles z=4, which is the leaf itself -- so with the gate shut the
+    # case is not merely failing, it is unevaluable.
+    - id: heavy_approach
+      unit_class: heavy
+      start: [8,0,0]
+      destination: [8,1,3]
+      state: {main_gate_open: true}
+      expected: PASS
+
+    - id: heavy_tower_entry
+      unit_class: heavy
+      start: [8,0,0]
+      destination: [8,3,8]
+      state: {main_gate_open: true}
+      expected: FAIL
+
+    - id: archer_west_balcony
+      unit_class: archer
+      start: [8,1,8]
+      destination: [3,12,8]
+      state: {main_gate_open: true}
+      expected: PASS
+
+    - id: climber_observatory
+      unit_class: climber
+      start: [8,1,8]
+      destination: [8,26,8]
+      state: {main_gate_open: true}
+      expected: PASS
+
+  implementation_notes:
+    - "Do not fill the entire bounding volume with cubes; instantiate only authored regions."
+    - "The tower must taper upward and expand again at the observatory crown."
+    - "Stairs must be visibly generated as block steps, not invisible-only links."
+    - "Gate collision and gate navigation must switch together through main_gate_open."
+    - "Balconies are deliberate silhouette breaks and should remain even if decorative meshes evolve."
+    - "The observatory may use rounded visual dressing later, but its gameplay floor remains authored and rectangular."

@@ -909,3 +909,23 @@ Verified on the real generated map: structures placed, walls blocking, and infan
 **Still open:** placement is startup-time rather than procedural, so `MapGenerator` does not route roads or lay out plots around these. Attack-move, patrol and shared-path group orders do not route through the lattice. The 2D presentation draws nothing — walls block but are invisible. And combat and vision remain flat.
 
 **Suite:** 55/56. `seeded_grid_frontier` still pre-existing.
+
+### 2026-09-04 — Schema 1.1, Kon's Observation Tower, and structures that test themselves
+
+Andrew supplied a far more ambitious structure: an 18×32×18 wizard tower with a gate, nine flights of stairs, three asymmetric balconies and a glazed observatory crown. It uses schema 1.1, which differs from the 1.0 pack in shape (a single `structure:` rather than a `structures:` map), field names (`navigation:`/`traversal_links:`), nested `dimensions`, sockets under `procedural_generation`, and a `gates:` block carrying `default_state`.
+
+Both versions now load. The converter normalises 1.1 rather than migrating the 1.0 pack, because that pack is the reference data the original test cases were written against and rewriting it would quietly invalidate them. Every YAML in `data/block_structures/` is merged, so adding a structure is adding a file.
+
+**The most valuable thing in 1.1 is that a structure ships its own `validation_tests`** — PASS/FAIL cases the author states about their own building. That is a better arrangement than assertions written afterwards by whoever implemented the loader: the author says what the building should do and the engine either agrees or does not. They are run verbatim, for any structure that declares them, so a new structure needs no test file edited.
+
+Three authored defects were found that way and corrected in the YAML, each commented in place: `gate_entry` excluded `heavy` while the `heavy_approach` case expected a heavy to reach a cell inside it; `east_balcony_link` and `north_balcony_link` began at cells no nav region declares, leaving both balconies completely unreachable (a reachability sweep caught that — the structure's own tests did not cover it); and `heavy_approach` declared no gate state, so it ran against the closed default, where its destination is physically inside the shut doorway for a 2×2 unit.
+
+**One engine correction, prompted by the data.** Gates were treating their whole `passage_region` as conditional. 1.1 separates that from `block_region`, which is what the leaf actually occupies, and only the leaf should be conditional — a unit standing on the apron *in front of* a shut gate is not blocked by it. Fixing that is what let `heavy_approach` pass for the right reason rather than by relaxing a rule.
+
+**Visible stairs.** The spec insists stairs be generated as block steps rather than existing only as invisible links, and it is right: a tower whose floors connect through nothing you can see reads as a stack of disconnected platforms. The builder now emits a tread per step along every STAIR and RAMP, widened by the link's `width` and skipped where it would land inside authored stone. This is the one place geometry is derived rather than authored, and it derives from the authored link, never the reverse.
+
+**Demo.** `scenes/blocks/block_tower_demo.tscn` gives a unit you drive by clicking. As infantry there are 297 standable cells above ground and a 22-step route from the south road to the observatory crown; press `C` for heavy and that becomes 2. Node picking projects nav cells to the screen rather than raycasting, deliberately: a ray hits the *outside* of a tower, and what a player means by clicking a tower is a floor inside it.
+
+The architecture reads as the `design_intent` asks — heavy base, setbacks, asymmetric timber balconies breaking the silhouette, glazed crown as the strongest shape — which is worth noting because that was authored blind, in YAML, with no visual iteration.
+
+**Suite:** 56/57. `seeded_grid_frontier` still pre-existing.

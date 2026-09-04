@@ -63,6 +63,18 @@ func get_definition(structure_id: StringName) -> BlockStructureDefinition:
 	_cache[structure_id] = definition
 	return definition
 
+# The PASS/FAIL cases a structure ships with itself. Schema 1.1 authors these
+# alongside the geometry, which makes them the structure's own acceptance
+# criteria rather than assertions invented after the fact -- so they are run
+# verbatim instead of being reinterpreted.
+func validation_tests_for(structure_id: StringName) -> Array:
+	return _raw_structures.get(str(structure_id), {}).get("validation_tests", [])
+
+# Gate states a structure wants at rest. A gate with no declared default stays
+# closed, which is the safe reading of an unconfigured gate.
+func gate_defaults_for(structure_id: StringName) -> Dictionary:
+	return _raw_structures.get(str(structure_id), {}).get("gate_defaults", {})
+
 func navigation_for(structure_id: StringName) -> BlockStructureNavigation:
 	var definition := get_definition(structure_id)
 	if definition == null:

@@ -27,8 +27,81 @@ import sys
 import yaml
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SRC = os.path.join(ROOT, "data", "block_structures", "structures.yaml")
+SRC_DIR = os.path.join(ROOT, "data", "block_structures")
 DST = os.path.join(ROOT, "resources", "block_structures", "structures.json")
+
+# Schema 1.1 renamed several fields and moved from a `structures:` map to a
+# single `structure:`. Both are supported rather than migrating the 1.0 pack,
+# because that pack is the reference data the original test cases were written
+# against and rewriting it would quietly invalidate them.
+FIELD_ALIASES = {
+    "navigation": "nav",          # 1.1 blocks say `navigation:`
+    "traversal_links": "links",   # 1.1 calls them traversal_links
+}
+CLASS_ALIASES = {
+    "can_pass_gates": "can_pass_open_gates",
+}
+
+
+def normalise_structure(structure):
+    """Rewrites a 1.1 structure in place into the shape the runtime expects."""
+    for block in structure.get("blocks", []):
+        for old_key, new_key in FIELD_ALIASES.items():
+            if old_key in block:
+                block[new_key] = block.pop(old_key)
+    if "traversal_links" in structure:
+        structure["links"] = structure.pop("traversal_links")
+    # 1.1 nests dimensions as a mapping; the runtime wants [x, y, z].
+    dims = structure.get("dimensions")
+    if isinstance(dims, dict):
+        structure["dimensions"] = [int(dims["x"]), int(dims["y"]), int(dims["z"])]
+    # `sockets` was renamed and moved under procedural_generation.
+    generation = structure.get("procedural_generation", {})
+    if "connection_sockets" in generation:
+        structure["sockets"] = generation["connection_sockets"]
+    # Gates carry their own default state. Recorded on the structure so the
+    # runtime can start them closed without the caller having to know.
+    defaults = {}
+    for gate in structure.get("gates", []):
+        defaults[str(gate.get("state_key", ""))] = str(gate.get("default_state", "closed")) == "open"
+    if defaults:
+        structure["gate_defaults"] = defaults
+    return structure
+
+
+def normalise_classes(classes):
+    for data in classes.values():
+        if not isinstance(data, dict):
+            continue
+        for old_key, new_key in CLASS_ALIASES.items():
+            if old_key in data:
+                data[new_key] = data.pop(old_key)
+    return classes
+
+
+def load_all():
+    """Merges every YAML in the source directory into one document."""
+    merged = {"structures": {}, "unit_classes": {}, "nav_types": {}, "materials": {}, "world": {}}
+    for name in sorted(os.listdir(SRC_DIR)):
+        if not name.endswith((".yaml", ".yml")):
+            continue
+        with open(os.path.join(SRC_DIR, name), "r", encoding="utf-8") as handle:
+            data = yaml.safe_load(handle) or {}
+        merged["world"].update(data.get("world", {}))
+        merged["world"].update(data.get("world_rules", {}))
+        merged["nav_types"].update(data.get("nav_types", {}))
+        merged["materials"].update(data.get("materials", {}))
+        merged["unit_classes"].update(normalise_classes(data.get("unit_classes", {})))
+        # 1.0: a map of many structures.
+        for sid, structure in (data.get("structures") or {}).items():
+            merged["structures"][sid] = normalise_structure(structure)
+        # 1.1: one structure, carrying its own classes and materials.
+        single = data.get("structure")
+        if single:
+            merged["materials"].update(single.get("materials", {}))
+            merged["unit_classes"].update(normalise_classes(single.get("unit_classes", {})))
+            merged["structures"][str(single["id"])] = normalise_structure(single)
+    return merged
 
 
 def as_range(value):
@@ -105,9 +178,7 @@ def validate(data):
 
 
 def main():
-    with open(SRC, "r", encoding="utf-8") as handle:
-        data = yaml.safe_load(handle)
-
+    data = load_all()
     problems = validate(data)
 
     # Precompute what the runtime would otherwise recompute on every load.
@@ -117,6 +188,11 @@ def main():
             region_cell_count(b["region"]) for b in structure.get("blocks", []))
         structure["nav_cell_count"] = sum(
             region_cell_count(n["region"]) for n in structure.get("nav_regions", []))
+
+    # 1.1 introduces FLOOR_LINK (a horizontal connection between floors that do
+    # not touch, like a balcony reached across a gap). Declared here rather than
+    # in the data so both schema versions resolve against one table.
+    data.setdefault("nav_types", {}).setdefault("FLOOR_LINK", {"walkable": False, "link_only": True})
 
     data["_generated_by"] = "tools/blocks/convert_structures.py"
     data["_schema_problems"] = problems
