@@ -794,3 +794,58 @@ Open questions:
 - Whether control level is a property of the unit, of its current evolution stage, or of its distance from Kon and the Observation Tower — an observer-magic leash, where the army is more obedient near its wizard and more feral far from him.
 - Whether the other classes express this axis at all, or whether it belongs to KoN alone as a class identity.
 - Whether Intelligence 1 needs more than one "set behaviour". Today a Feral unit simply fights on its own; the doc's original framing also imagined defend-only postures, which would need a stance to sit alongside the stat.
+
+---
+
+## 39. Tower Modules and Structure Components
+
+The Wizard Tower is not a 3×3 box that happens to be important. It is a **megastructure**, and the buildings that used to sit around it — production, research — are built *inside* it as modules.
+
+Everything a structure is made of, tower and hut alike, is described by the same thing: a list of **components**. A component has hit points and can be destroyed on its own. Some components are structural (foundation, walls, roof). Some are functional (a production module, a research module). They share one schema, because there is no reason for a barracks-inside-a-tower and a wall-of-a-gatehouse to be different kinds of object.
+
+### Why modules exist
+
+- **They turn base building from accumulation into commitment.** Today, given enough time and Bio, the player builds one of everything inside the tower's 14-cell radius. There is no point at which a build is chosen over another build. Finite module capacity means a production-heavy tower is not a research-heavy tower, and the player has to decide which run they are having. That is what Section 17's roguelike framing wants and what the current system does not provide.
+- **They make the tower's destruction legible.** Section 11 says the tower is the main object enemies want to destroy and that losing it ends the run. When the tower is also where production and research physically live, an attack on it costs the player something *before* it costs them the game. A siege that knocks out the production module is a real defeat that is not yet a loss.
+- **They give Section 12 a second axis.** Base placement already decides the player's economic ceiling, because Bio Absorbers can only be built on a plot's finite `economy_spaces`. Modules decide the player's *functional* ceiling. Where you settle and what you install are two different commitments.
+
+### What is inside and what stays outside
+
+The split is not arbitrary. A thing lives outside the tower when its **position on the map is part of the decision**.
+
+- **Inside, as modules:** production and research. Their location has never mattered; only that the player owns one.
+- **Outside, on the ground:** economy, walls, and defensive structures. Bio Absorbers must sit on `economy_spaces`, which is what makes base sites differ from one another. Walls and defences interact with terrain, roads and chokepoints, which Section 14 explicitly wants base layouts to do.
+
+Moving economy inside the tower would delete the base-placement decision. Moving walls inside would delete the terrain decision. Neither is worth the tidiness.
+
+### Slots
+
+Tower capacity is a fixed number of **module slots**, raised by research. Decided 2026-09-04, over two alternatives: floors (each storey granting slots) and interior spatial packing. Fixed slots was chosen because it is the version that adds a decision without adding a second building game — Section 14 warns that buildings must not become the whole game, and an interior layout puzzle is exactly that. Floors remain the natural upgrade if slots prove too flat, and the 3D monolith prototype already carries the groundwork for them.
+
+A module occupies one slot. Slots are the scarce thing; Bio is merely the price.
+
+### Destruction
+
+Structures are not one hit-point bar. Damage lands on components, and components fall independently.
+
+- **Critical** components take the whole structure with them. A tower's core is critical; its roof is not.
+- **Dependencies** collapse what they were holding up. A roof that lists both walls as dependencies falls when the second one does, without anyone needing to shoot the roof.
+- **Destruction has consequences beyond the visual.** A destroyed component releases its cells back to navigation, so a breached wall is a route the enemy can actually path through — not just a hole in a sprite.
+- **A destroyed module frees its slot and can be rebuilt** at full cost. Permanent loss of a slot would turn one bad siege into an unrecoverable run, which is a death spiral rather than a setback.
+
+### Design rules
+
+- **Slot count must be visible before it is spent.** A commitment the player cannot see coming is a trap, not a decision. Same principle as Intelligence on the unit card, Section 38.
+- **Nothing is derived from the rendered mesh.** Collision, navigation and destruction are authored per component and stay authoritative; the visual layer follows them. This is the same rule that keeps the 3D view a presentation layer, and it holds for the same reason.
+- **One schema for both scales.** A four-component hut and a twenty-component landmark differ in the length of their component list and nothing else.
+- **Components are chunks, not bricks.** A building should have roughly three to eight of them. Per-cell destructibility is a different game and a much more expensive one.
+- **Losing a module must be recoverable.** It costs tempo and Bio, never the run.
+
+The game should avoid: modules becoming a strictly-ordered build queue where one correct opening exists. If the best three modules are always the same three, the slot is not a decision, it is a formality — the same failure mode Section 29 calls out as pure stat scaling.
+
+Open questions:
+
+- Whether modules should offer **adjacency or set bonuses**, which would give the choice texture but pushes back toward an interior layout game.
+- Whether other classes get **different slot counts** as a balance axis, or whether that belongs to upgrades alone.
+- Whether a damaged-but-alive module should run **degraded** (slower production) rather than being binary alive/destroyed.
+- Whether the tower should be **buildable outward** as well — annexes on adjacent cells, in the manner of StarCraft's Terran add-ons — for players who want more than slots allow.

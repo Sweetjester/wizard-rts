@@ -30,15 +30,18 @@ func _run() -> void:
 		quit(1)
 		return
 	var build_system: Node = scene.get_node("BuildSystem")
-	if not build_system.call("try_place_structure", 1, &"barracks", target):
-		push_error("Expected test barracks placement to succeed")
+	# Deliberately a GROUND building. Production and research are tower modules
+	# (master doc section 39) and have no map position, so they cannot block a
+	# cell or collide with anything -- using one here would assert nothing.
+	if not build_system.call("try_place_structure", 1, &"bio_launcher", target):
+		push_error("Expected test building placement to succeed")
 		quit(1)
 		return
 	if map.is_walkable_cell(target):
 		push_error("Placed building did not block its origin cell")
 		quit(1)
 		return
-	if build_system.call("try_place_structure", 1, &"terrible_vault", target):
+	if build_system.call("try_place_structure", 1, &"vinewall", target):
 		push_error("Overlapping building placement should be rejected")
 		quit(1)
 		return

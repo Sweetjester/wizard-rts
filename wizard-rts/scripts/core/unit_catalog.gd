@@ -877,6 +877,17 @@ const DEFINITIONS := {
 		"garrison_aura_damage_bonus": 0.12,
 		"garrison_aura_armor_bonus": 1,
 		"footprint": Vector2i(3, 3),
+		# Megastructure (master doc section 39). Production and research are built
+		# INSIDE it as modules; economy and walls stay on the ground, because their
+		# position on the map is part of the decision, and moving them inside would
+		# delete the base-placement choice section 12 depends on.
+		"module_slots": 3,
+		# Shell and core sum to the old 700 max_hp, so this changes how the tower
+		# dies without rebalancing how much damage it takes.
+		"components": [
+			{"id": &"shell", "hp": 250, "region": Rect2i(0, 0, 3, 3)},
+			{"id": &"core", "hp": 450, "critical": true, "region": Rect2i(1, 1, 1, 1)},
+		],
 	},
 	&"bio_absorber": {
 		"sight_radius_cells": 7,
@@ -907,13 +918,17 @@ const DEFINITIONS := {
 		"auto_evolves": true,
 		"evolution_seconds": 100.0,
 		"footprint": Vector2i(3, 3),
+		# Installed into a tower slot rather than placed on the ground: where a
+		# barracks sits has never been part of any decision, only that you own one.
+		"module_role": &"production",
 		"production": [&"terrible_thing", &"oaven_spear", &"horror", &"apex", &"spawner", &"stone_face_serpent"],
 	},
 	&"terrible_vault": {
 		"sight_radius_cells": 7,
 		"display_name": "Observer Vault",
 		"kon_theme": &"observer",
-		"card_blurb": "Research. Studies ways to sharpen Kon's observer magics -- sight, oversight auras, and the tier gates that let his heavier hybrids out.",
+		"card_blurb": "Research. Studies ways to sharpen Kon's observer magics -- sight, oversight auras, and the tier gates that let his heavier hybrids out. Installed as a tower module.",
+		"module_role": &"research",
 		"max_hp": 320,
 		"cost_bio": 140,
 		"build_time_seconds": 7.0,

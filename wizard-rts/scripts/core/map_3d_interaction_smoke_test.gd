@@ -134,7 +134,9 @@ func _run() -> void:
 	# --- building: preview appears, and placement actually lands ----------
 	# Barracks rather than bio_absorber: the absorber additionally requires an
 	# economy plot, which would make a placement failure ambiguous here.
-	build_system.call("start_placement", &"barracks")
+	# A ground building on purpose: tower modules never enter placement mode, so
+	# they have no footprint to preview (master doc section 39).
+	build_system.call("start_placement", &"bio_launcher")
 	for _i in 3:
 		await process_frame
 	var placement_root: Node = view.get_node_or_null("PlacementPreview3D")
@@ -152,7 +154,7 @@ func _run() -> void:
 	# And the placement path itself still works through the 3D mouse bridge.
 	var before := int(build_system.call("get_structures").size())
 	var target_cell: Vector2i = map_generator.call("nearest_walkable_cell", Vector2i(36, 36), 20)
-	if not bool(build_system.call("try_place_structure", 1, &"barracks", target_cell)):
+	if not bool(build_system.call("try_place_structure", 1, &"bio_launcher", target_cell)):
 		_fail("Placing a structure should succeed in the 3D mode")
 		return
 	if int(build_system.call("get_structures").size()) <= before:

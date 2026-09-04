@@ -23,6 +23,8 @@ signal unit_trained(player_id: int, archetype: StringName, unit: Node)
 signal upgrade_researched(player_id: int, upgrade_id: StringName)
 signal tier_unlocked(player_id: int, tier: int)
 signal forbidden_unleashed(player_id: int, unit: Node)
+signal module_installed(player_id: int, archetype: StringName)
+signal module_destroyed(player_id: int, module_id: StringName)
 
 @export var economy_manager_path: NodePath = NodePath("../EconomyManager")
 @export var map_generator_path: NodePath = NodePath("../MapGenerator")
@@ -169,13 +171,93 @@ func set_rally_point_for_structure(producer_node: Node, world_pos: Vector2) -> b
 	return true
 
 func start_placement(archetype: StringName) -> void:
+	# A module has no location to choose, so it never enters placement mode -- it
+	# is installed into the player's tower directly. Routing it here rather than
+	# in the HUD means every existing build button keeps working unchanged.
+	if UnitCatalog.get_definition(archetype).get("module_role", &"") != &"":
+		build_module(1, archetype)
+		return
 	pending_archetype = archetype
+
+# Installs a module into the player's tower. Slots are the scarce thing and Bio
+# is only the price, so a full tower is refused with a reason rather than
+# silently eating the cost.
+func build_module(player_id: int, archetype: StringName) -> bool:
+	var definition := UnitCatalog.get_definition(archetype)
+	if definition.get("module_role", &"") == &"":
+		build_rejected.emit("%s is not a module" % archetype)
+		return false
+	var host := _module_host(player_id)
+	if host.is_empty():
+		build_rejected.emit("Requires a completed Observation Tower")
+		return false
+	var components: StructureComponents = host.get("components", null)
+	if components == null or components.free_slots() <= 0:
+		build_rejected.emit("No free module slots")
+		return false
+	var costs := {&"bio": int(definition.get("cost_bio", 0))}
+	if economy_manager == null or not economy_manager.spend(player_id, costs):
+		build_rejected.emit("Not enough Bio")
+		return false
+	if components.install_module(archetype, definition) == &"":
+		economy_manager.add_resource(player_id, &"bio", int(costs[&"bio"]))
+		build_rejected.emit("No free module slots")
+		return false
+	module_installed.emit(player_id, archetype)
+	queue_redraw()
+	return true
+
+# The structure modules are installed into: the player's completed tower.
+func _module_host(player_id: int) -> Dictionary:
+	for structure in structures:
+		if int(structure.get("player_id", -1)) != player_id or not bool(structure.get("complete", false)):
+			continue
+		var components: StructureComponents = structure.get("components", null)
+		if components != null and components.slot_capacity > 0:
+			return structure
+	return {}
+
+func module_slots_free(player_id: int) -> int:
+	var host := _module_host(player_id)
+	if host.is_empty():
+		return 0
+	var components: StructureComponents = host.get("components", null)
+	return 0 if components == null else components.free_slots()
+
+func module_slots_total(player_id: int) -> int:
+	var host := _module_host(player_id)
+	if host.is_empty():
+		return 0
+	var components: StructureComponents = host.get("components", null)
+	return 0 if components == null else components.slot_capacity
+
+func installed_modules(player_id: int) -> Array[StringName]:
+	var host := _module_host(player_id)
+	if host.is_empty():
+		return []
+	var components: StructureComponents = host.get("components", null)
+	return [] if components == null else components.module_archetypes()
+
+# Units a structure can train: its own list plus every installed module's, so a
+# tower with a production module trains what that module trains.
+func production_list_for(structure: Dictionary) -> Array:
+	var produced: Array = []
+	produced.append_array(UnitCatalog.get_definition(structure.get("archetype", &"")).get("production", []))
+	var components: StructureComponents = structure.get("components", null)
+	if components != null:
+		for module_archetype in components.module_archetypes():
+			for entry in UnitCatalog.get_definition(module_archetype).get("production", []):
+				if not produced.has(entry):
+					produced.append(entry)
+	return produced
 
 func try_place_structure(player_id: int, archetype: StringName, cell: Vector2i) -> bool:
 	var definition := UnitCatalog.get_definition(archetype)
 	if definition.is_empty():
 		build_rejected.emit("Unknown structure: %s" % archetype)
 		return false
+	if definition.get("module_role", &"") != &"":
+		return build_module(player_id, archetype)
 	var costs := {&"bio": int(definition.get("cost_bio", 0))}
 	if economy_manager == null or not economy_manager.spend(player_id, costs):
 		build_rejected.emit("Not enough Bio")
@@ -273,6 +355,10 @@ func _make_structure_data(player_id: int, archetype: StringName, cell: Vector2i,
 		"max_hp": int(definition.get("max_hp", 200)),
 		"footprint": footprint,
 		"blocked_cells": _footprint_cells(cell, footprint),
+		# Component state (master doc section 39). A structure with no authored
+		# components gets one implicit critical component holding all its HP, so
+		# this can be adopted building by building rather than all at once.
+		"components": StructureComponents.new(definition),
 		"build_time": build_time,
 		"build_progress": 0.0,
 		"complete": build_time <= 0.0,
@@ -415,7 +501,7 @@ func produce_unit_from_structure(player_id: int, archetype: StringName, producer
 		build_rejected.emit("Barracks is still building")
 		return false
 	var definition := UnitCatalog.get_definition(producer["archetype"])
-	if not definition.get("production", []).has(archetype):
+	if not production_list_for(producer).has(archetype):
 		build_rejected.emit("This building cannot train that unit")
 		return false
 	if not UnitCatalog.is_unit_allowed_for_class(archetype, _current_wizard_class_id()):
@@ -602,6 +688,28 @@ func _register_blockers(structure: Dictionary) -> void:
 	if map_generator != null and map_generator.has_method("add_dynamic_blockers"):
 		map_generator.add_dynamic_blockers(structure.get("blocked_cells", []))
 
+# Destroyed components release their cells back to navigation, so a breached
+# wall becomes a route units can actually path through rather than a hole in a
+# sprite. Re-registered wholesale rather than diffed: a structure is a handful
+# of cells, and this only runs when something actually breaks.
+func _apply_component_damage(structure: Dictionary, amount: int) -> void:
+	var components: StructureComponents = structure.get("components", null)
+	if components == null:
+		return
+	var destroyed := components.take_damage(amount)
+	if destroyed.is_empty():
+		return
+	_unregister_blockers(structure)
+	structure["blocked_cells"] = components.blocked_cells(
+		structure.get("cell", Vector2i.ZERO), structure.get("footprint", Vector2i.ONE))
+	_register_blockers(structure)
+	for id in destroyed:
+		# A destroyed module is removed outright so its slot is genuinely free
+		# again -- permanent slot loss would turn one bad siege into an
+		# unrecoverable run (section 39).
+		if components.remove_module(id):
+			module_destroyed.emit(int(structure.get("player_id", 1)), id)
+
 func _unregister_blockers(structure: Dictionary) -> void:
 	if map_generator != null and map_generator.has_method("remove_dynamic_blockers"):
 		map_generator.remove_dynamic_blockers(structure.get("blocked_cells", []))
@@ -615,7 +723,17 @@ func _sync_structure_damage_and_cleanup() -> void:
 			structures.remove_at(i)
 			continue
 		if node is KonStructure:
-			structure["hp"] = int(node.health)
+			var previous := int(structure.get("hp", node.health))
+			var current := int(node.health)
+			if current < previous:
+				_apply_component_damage(structure, previous - current)
+				# A critical component going down takes the structure with it, even
+				# if the node's own HP bar has not reached zero.
+				var components: StructureComponents = structure.get("components", null)
+				if components != null and not components.is_alive():
+					current = 0
+					node.health = 0
+			structure["hp"] = current
 			if int(structure["hp"]) <= 0:
 				_unregister_blockers(structure)
 				structures.remove_at(i)
@@ -959,8 +1077,7 @@ func _first_structure_with_production(unit_archetype: StringName, player_id: int
 			continue
 		if not bool(structure.get("complete", false)):
 			continue
-		var definition := UnitCatalog.get_definition(structure["archetype"])
-		if definition.get("production", []).has(unit_archetype):
+		if production_list_for(structure).has(unit_archetype):
 			return structure
 	return {}
 
@@ -984,14 +1101,22 @@ func _has_incomplete_structure_with_production(unit_archetype: StringName, playe
 			continue
 		if bool(structure.get("complete", false)):
 			continue
-		var definition := UnitCatalog.get_definition(structure["archetype"])
-		if definition.get("production", []).has(unit_archetype):
+		if production_list_for(structure).has(unit_archetype):
 			return true
 	return false
 
+# A capability counts whether it comes from a standalone building on the ground
+# or a module installed in a tower. This is the single seam that let modules
+# arrive without rewriting research and production: those systems ask "does this
+# player have an Observer Vault", and a tower module now answers yes.
 func _has_completed_structure(player_id: int, archetype: StringName) -> bool:
 	for structure in structures:
-		if int(structure.get("player_id", -1)) == player_id and structure.get("archetype", &"") == archetype and bool(structure.get("complete", false)):
+		if int(structure.get("player_id", -1)) != player_id or not bool(structure.get("complete", false)):
+			continue
+		if structure.get("archetype", &"") == archetype:
+			return true
+		var components: StructureComponents = structure.get("components", null)
+		if components != null and components.module_archetypes().has(archetype):
 			return true
 	return false
 
