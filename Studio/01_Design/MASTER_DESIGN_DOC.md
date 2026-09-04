@@ -849,3 +849,40 @@ Open questions:
 - Whether other classes get **different slot counts** as a balance axis, or whether that belongs to upgrades alone.
 - Whether a damaged-but-alive module should run **degraded** (slower production) rather than being binary alive/destroyed.
 - Whether the tower should be **buildable outward** as well — annexes on adjacent cells, in the manner of StarCraft's Terran add-ons — for players who want more than slots allow.
+
+---
+
+## 40. The Citadel March
+
+A map type twice the size of the standard frontier, carrying **Kon's Arcane Citadel** as a guaranteed content plot.
+
+The citadel exists because of a scale problem that turned into a design opportunity. It is a 96×96 authored fortress, and every map in this game was 96×96 — so placing it covered the entire playfield. A structure that large is not a landmark on a level, it *is* the level. The choice was to shrink it, grow the map, or make it a map of its own. The march grows the map: 192×192, where the citadel occupies a quarter of the ground and the rest is frontier.
+
+### Why it is worth a map type of its own
+
+Section 12 says base placement should create tradeoffs and that the player should rarely have an obviously correct choice. A fortress sitting in a quarter of the map is the strongest possible version of that: it is the best ground on the level and it is already held.
+
+The intended play, and the reason this is not just scenery:
+
+- **It can be taken.** The citadel is defended and difficult early, and the reward for taking it is not loot but *ground* — walls, a gatehouse choke, wall-walks for ranged units, and a keep.
+- **The wizard tower can be re-summoned into its centre plinth.** That is the payoff and the commitment in one move: Section 11 already says tower placement should be a serious commitment and that losing the tower ends the run. Moving it mid-run into captured ground is the largest version of that bet the game can offer — enormous defensive upside, and a window during the move where the run is at its most fragile.
+- **Taking it early is a gamble against the wave clock.** Section 24's pressure curve is the opposing force: every minute spent assaulting the citadel is a minute not spent on economy or defence at home.
+
+This gives Section 17's roguelike framing something it currently lacks — a *place* on the map that changes a run, rather than another numeric upgrade.
+
+### Rules
+
+- The citadel plot is **reserved first**, before any other content or base plot. A 96-cell reservation has to claim its ground before the map fragments; asked for last it would never find a site.
+- The citadel is **authored, not generated**. It is the YAML structure, placed into the plot the map reserved for it, so its gatehouse, ramps, wall-walks and keep are the same ones the block demos use.
+- **It is not the player's start.** Base plots are placed around it, never inside it.
+
+### Open questions
+
+- Whether re-summoning is a **build action, a research unlock, or an objective reward** — and what it costs.
+- What holds the citadel before the player does. It currently generates empty; a fortress worth taking needs a garrison worth beating.
+- Whether the citadel should ever appear on standard-size maps at a **reduced footprint**, or stay exclusive to the march.
+- Whether losing a re-summoned tower inside the citadel should end the run as normal, or whether captured ground earns a second chance.
+
+### Known cost
+
+Map generation is roughly linear in area, so the march costs about 3.4× a standard map: measured at ~6s for 96×96 and ~21s for 192×192 in a headless harness. That is a real loading cost and it is generation, not the citadel — structure placement measured 666ms on both. Either generation gets optimised or the march carries a loading screen.

@@ -57,10 +57,32 @@ func _build_when_map_ready() -> void:
 	_auto_place()
 
 func _auto_place() -> void:
-	if world == null or auto_place.is_empty():
+	if world == null:
 		return
 	var taken: Array[Rect2i] = []
 	var placed: Array = []
+	# Plots that ASK for a block structure are honoured first and exactly.
+	#
+	# A map-generated plot has already reserved its ground, routed roads to it
+	# and kept other content clear of it. Searching for a flat site instead
+	# would put the structure somewhere the map knows nothing about, which is
+	# the difference between a landmark the level is built around and a building
+	# dropped on top of one.
+	for plot in terrain.get("plots"):
+		var structure_id := StringName(plot.get("block_structure", &""))
+		if structure_id == &"":
+			continue
+		var rect: Rect2i = plot.get("rect", Rect2i())
+		if rect.size.x <= 0:
+			continue
+		if place_and_block(structure_id, rect.position, structure_id):
+			taken.append(_expanded(rect, 2))
+			placed.append({"id": structure_id, "origin": rect.position,
+				"base_level": int(terrain.call("get_height", rect.position))})
+	if auto_place.is_empty():
+		if not placed.is_empty():
+			structures_placed.emit(placed)
+		return
 	for structure_id in auto_place:
 		var definition := library.get_definition(structure_id)
 		if definition == null:
@@ -218,6 +240,9 @@ func find_flat_site(size: Vector2i, taken: Array[Rect2i]) -> Vector2i:
 
 # The player's tower, if one exists yet. Structures are placed relative to it so
 # they sit in the part of the map the player actually moves through.
+func _expanded(rect: Rect2i, margin: int) -> Rect2i:
+	return Rect2i(rect.position - Vector2i(margin, margin), rect.size + Vector2i(margin, margin) * 2)
+
 func _player_anchor_cell(fallback: Vector2i) -> Vector2i:
 	if not is_inside_tree():
 		return fallback

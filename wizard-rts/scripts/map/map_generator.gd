@@ -4,8 +4,32 @@ extends Node
 signal map_generated(summary: Dictionary)
 
 # ── CONFIG ─────────────────────────────────────────────────────────────────────
-const MAP_W = 96
-const MAP_H = 96
+# Map size is per map type as of 2026-09-04, not a project-wide constant.
+#
+# Every map was 96x96 because nothing had ever needed otherwise. Kon's Arcane
+# Citadel is 96x96 by itself, so on the old maps it WAS the playfield -- placing
+# it covered 100% of the ground. A landmark you can lose a run to has to sit
+# inside a map, not be one.
+#
+# These stay named MAP_W/MAP_H because 127 references across the project read
+# them, and a var reads exactly like a const at every one of those sites. No
+# other constant is derived from them and nothing accesses them statically,
+# which is what made the change safe rather than sweeping.
+var MAP_W := DEFAULT_MAP_SIZE
+var MAP_H := DEFAULT_MAP_SIZE
+
+const DEFAULT_MAP_SIZE := 96
+# The citadel march. Large enough that a 96-cell fortress is a quarter of the
+# map rather than all of it, which is the difference between a landmark and a
+# level.
+const CITADEL_MAP_SIZE := 192
+# The citadel's own footprint, matched to the authored structure. A quarter of
+# the march's area, which reads as a fortress dominating a region rather than
+# as the region itself.
+const CITADEL_PLOT_SIZE := 96
+
+# Chosen before base plots on the march, empty on every other map type.
+var _citadel_rect := Rect2i()
 
 const E_BLOCKED = -2
 const E_WATER = -1
@@ -39,6 +63,9 @@ const MAP_TYPE_GRID_TEST_CANVAS := "grid_test_canvas"
 const MAP_TYPE_AI_TESTING_GROUND := "ai_testing_ground"
 const MAP_TYPE_FORTRESS_AI_ARENA := "fortress_ai_arena"
 const MAP_TYPE_PLOT_GENERATOR_TEST := "plot_generator_test"
+# Frontier rules at double the scale, carrying Kon's Arcane Citadel as a
+# guaranteed content plot. See master doc section 40.
+const MAP_TYPE_CITADEL_MARCH := "citadel_march"
 const GRID_TEST_CELL_SIZE := 64
 const FRONTIER_MAIN_ROAD_X := 48
 const FRONTIER_MAIN_ROAD_Y := 48
@@ -206,12 +233,12 @@ func _ready() -> void:
 	_build_elevation_zones()
 	_stamp_plots_into_grid()
 	_flatten_tiny_high_fragments()
-	if map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER:
+	if _uses_frontier_rules():
 		_build_landmarks()
 	_build_roads()
 	_flatten_tiny_high_fragments()
 	_validate_frontier_elevation_layout(true)
-	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+	if not _uses_frontier_rules():
 		_build_landmarks()
 	_validate_frontier_landmarks(true)
 	_validate_content_structures(true)
@@ -266,7 +293,7 @@ func get_map_type_name() -> String:
 	return map_type_id
 
 func get_map_type_data() -> Dictionary:
-	if map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER:
+	if _uses_frontier_rules():
 		return {
 			"id": MAP_TYPE_SEEDED_GRID_FRONTIER,
 			"name": "Seeded Grid Frontier",
@@ -338,6 +365,9 @@ func _hash_seed_text(text: String) -> int:
 	return hash
 
 func _configure_map_type() -> void:
+	# Size first: everything downstream sizes its arrays off these.
+	MAP_W = CITADEL_MAP_SIZE if map_type_id == MAP_TYPE_CITADEL_MARCH else DEFAULT_MAP_SIZE
+	MAP_H = MAP_W
 	if _uses_square_grid_map():
 		return
 	if map_type_id != MAP_TYPE_VAMPIRE_MUSHROOM_FOREST:
@@ -569,7 +599,7 @@ func _build_grid() -> void:
 				else:
 					grid[x].append(E_LOW)
 					feature_grid[x].append("siege_lane" if lane_edge else "ai_arena")
-			elif map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER:
+			elif _uses_frontier_rules():
 				if cell.x <= 1 or cell.x >= MAP_W - 2 or cell.y <= 1 or cell.y >= MAP_H - 2:
 					grid[x].append(E_BLOCKED)
 					feature_grid[x].append("map_border")
@@ -583,8 +613,16 @@ func _build_grid() -> void:
 				grid[x].append(_generate_cell_elevation(cell))
 				feature_grid[x].append("")
 
+# The citadel march is the frontier map at double scale, so it wants every rule
+# the frontier map has -- plots, landmarks, roads, elevation validation. Adding
+# it as a second equality check at each of the 21 sites that asked "is this the
+# frontier map" would have meant 21 chances to miss one, and the ones missed
+# would be the quiet kind: a map that generates but has no roads.
+func _uses_frontier_rules() -> bool:
+	return map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER or map_type_id == MAP_TYPE_CITADEL_MARCH
+
 func _uses_square_grid_map() -> bool:
-	return map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER or map_type_id == MAP_TYPE_GRID_TEST_CANVAS or map_type_id == MAP_TYPE_AI_TESTING_GROUND or map_type_id == MAP_TYPE_FORTRESS_AI_ARENA or map_type_id == MAP_TYPE_PLOT_GENERATOR_TEST
+	return map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER or map_type_id == MAP_TYPE_GRID_TEST_CANVAS or map_type_id == MAP_TYPE_AI_TESTING_GROUND or map_type_id == MAP_TYPE_FORTRESS_AI_ARENA or map_type_id == MAP_TYPE_PLOT_GENERATOR_TEST or map_type_id == MAP_TYPE_CITADEL_MARCH
 
 func _build_plot_generator_test_map() -> void:
 	layer_low.clear()
@@ -1218,7 +1256,7 @@ func _has_clear_path_segment(from_cell: Vector2i, to_cell: Vector2i) -> bool:
 			return false
 		if not _can_step_between(previous, cell):
 			return false
-		if map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER and not _frontier_step_has_clearance(previous, cell):
+		if _uses_frontier_rules() and not _frontier_step_has_clearance(previous, cell):
 			return false
 		previous = cell
 	return true
@@ -1447,7 +1485,7 @@ func _hash_cell(cell: Vector2i, salt: int) -> int:
 func _build_plots() -> void:
 	plots.clear()
 	base_plots.clear()
-	if map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER:
+	if _uses_frontier_rules():
 		_build_seeded_grid_frontier_plots()
 		return
 	if map_type_id == MAP_TYPE_FORTRESS_AI_ARENA:
@@ -1591,6 +1629,18 @@ func _build_grid_test_plots() -> void:
 
 func _build_seeded_grid_frontier_plots() -> void:
 	var reserved_rects: Array[Rect2i] = []
+	# The citadel claims its ground before ANYTHING else, base plots included.
+	#
+	# Reserving it first among content plots was not enough: base plots are laid
+	# out before any content plot, so a starting base landed inside the fortress
+	# -- which hands the player the thing the whole map exists to make them
+	# fight for. The smoke test caught it, and it is exactly the kind of failure
+	# that would otherwise have read as "nice, I spawned somewhere good".
+	_citadel_rect = Rect2i()
+	if map_type_id == MAP_TYPE_CITADEL_MARCH:
+		var citadel_size := Vector2i(CITADEL_PLOT_SIZE, CITADEL_PLOT_SIZE)
+		_citadel_rect = _find_open_frontier_rect(citadel_size, reserved_rects, Vector2(0.62, 0.58), 120)
+		reserved_rects.append(_expanded_rect(_citadel_rect, 6))
 	var base_specs: Array[Dictionary] = [
 		{"archetype": BASE_ARCHETYPE_FORTRESS, "target": Vector2(0.20, 0.22)},
 		{"archetype": BASE_ARCHETYPE_HOLDFAST, "target": Vector2(0.76, 0.23)},
@@ -1681,13 +1731,20 @@ func _apply_base_archetype(plot: Dictionary, archetype: String) -> void:
 
 func _build_blank_frontier_content_plots(reserved_rects: Array[Rect2i]) -> void:
 	var content_specs := _frontier_content_specs()
-	var index_by_size := {"small": 0, "medium": 0, "large": 0}
+	var index_by_size := {"small": 0, "medium": 0, "large": 0, "citadel": 0}
 	for spec in content_specs:
 		var size_label := str(spec["label"])
 		index_by_size[size_label] = int(index_by_size[size_label]) + 1
 		var size: Vector2i = spec["size"]
 		var target: Vector2 = spec["target"]
-		var placement := _find_open_frontier_rect_debug(size, reserved_rects, target, 320)
+		var placement := {"rect": Rect2i(), "candidate_count": 0,
+			"chosen_candidate_index": -1, "fallback_used": false}
+		if size_label == "citadel" and _citadel_rect.size.x > 0:
+			# Already chosen, before the bases. Searching again here would find
+			# somewhere else and leave the reservation stranded.
+			placement["rect"] = _citadel_rect
+		else:
+			placement = _find_open_frontier_rect_debug(size, reserved_rects, target, 320)
 		var rect: Rect2i = placement["rect"]
 		var reservation_rect := _expanded_rect(rect, 4)
 		reserved_rects.append(reservation_rect)
@@ -1715,6 +1772,13 @@ func _build_blank_frontier_content_plots(reserved_rects: Array[Rect2i]) -> void:
 		}
 		if size_label == "large" and serial == 1:
 			_attach_abandoned_wizard_monolith(plot)
+		if size_label == "citadel":
+			# Marked so BlockNavBridge can find it without matching on a name.
+			plot["block_structure"] = "kons_arcane_citadel_01"
+			plot["story"] = ("Kon's Arcane Citadel. Held ground, taken rather than built: "
+				+ "its centre plinth will accept a re-summoned wizard tower.")
+			plot["difficulty"] = 0.95
+			plot["defensibility"] = 0.9
 		_register_plot(plot)
 		_log_content_plot_debug(plot)
 
@@ -1769,7 +1833,19 @@ func _frontier_content_specs() -> Array[Dictionary]:
 		Vector2(0.62, 0.62),
 	]
 	var large_target := large_targets[_rng.range_int(0, large_targets.size() - 1)]
-	return [
+	var specs: Array[Dictionary] = []
+	if map_type_id == MAP_TYPE_CITADEL_MARCH:
+		# FIRST, and deliberately so. A 96x96 reservation has to claim its ground
+		# before anything else fragments the map; asked for last it would never
+		# find a site and fall back on top of something. Everything after it
+		# packs into what remains, which is how a landmark this size becomes the
+		# thing the rest of the map is arranged around.
+		specs.append({
+			"label": "citadel", "archetype": "arcane_citadel",
+			"size": Vector2i(CITADEL_PLOT_SIZE, CITADEL_PLOT_SIZE),
+			"target": Vector2(0.62, 0.58),
+		})
+	specs.append_array([
 		{"label": "medium", "archetype": "blank_medium_outpost", "size": Vector2i(10, 10), "target": Vector2(0.24, 0.62)},
 		{"label": "small", "archetype": "blank_small_encounter", "size": Vector2i(5, 5), "target": Vector2(0.38, 0.24)},
 		{"label": "large", "archetype": "blank_large_landmark", "size": Vector2i(14, 14), "target": large_target},
@@ -1779,7 +1855,8 @@ func _frontier_content_specs() -> Array[Dictionary]:
 		{"label": "small", "archetype": "blank_small_shrine", "size": Vector2i(5, 5), "target": Vector2(0.78, 0.62)},
 		{"label": "medium", "archetype": "blank_medium_camp", "size": Vector2i(10, 10), "target": Vector2(0.34, 0.78)},
 		{"label": "small", "archetype": "blank_small_ambush", "size": Vector2i(5, 5), "target": Vector2(0.52, 0.24)},
-	]
+	])
+	return specs
 
 func _log_content_plot_debug(plot: Dictionary) -> void:
 	var rect: Rect2i = plot.get("rect", Rect2i())
@@ -2088,7 +2165,7 @@ func _register_plot(plot: Dictionary) -> void:
 		base_plots.append(plot)
 
 func _assign_plot_elevations() -> void:
-	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+	if not _uses_frontier_rules():
 		for plot in plots:
 			plot["elevation"] = ELEVATION_LOW
 		return
@@ -2115,7 +2192,7 @@ func _assign_plot_elevations() -> void:
 				plot["elevation"] = ELEVATION_LOW
 
 func _build_elevation_zones() -> void:
-	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+	if not _uses_frontier_rules():
 		return
 	_frontier_plateaus.clear()
 	var original_grid := grid.duplicate(true)
@@ -2579,7 +2656,7 @@ func _stamp_content_structure_exterior(plot: Dictionary, floor_elevation: int) -
 func _stamp_base_plot(plot: Dictionary) -> void:
 	var rect: Rect2i = plot["rect"]
 	var floor_elevation := E_HIGH if str(plot.get("elevation", ELEVATION_LOW)) == ELEVATION_HIGH else E_LOW
-	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+	if not _uses_frontier_rules():
 		floor_elevation = _dominant_elevation_near(rect.position + Vector2i(rect.size.x / 2, rect.size.y / 2))
 	for x in range(rect.position.x, rect.end.x):
 		for y in range(rect.position.y, rect.end.y):
@@ -2588,7 +2665,7 @@ func _stamp_base_plot(plot: Dictionary) -> void:
 				continue
 			grid[x][y] = floor_elevation
 			feature_grid[x][y] = "base_floor"
-	if map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER and plot.has("ramp_rect"):
+	if _uses_frontier_rules() and plot.has("ramp_rect"):
 		var ramp_rects: Array = plot.get("ramp_rects", [plot["ramp_rect"]])
 		for ramp_rect_value in ramp_rects:
 			var ramp_rect: Rect2i = ramp_rect_value
@@ -2816,7 +2893,7 @@ func _build_roads() -> void:
 		return
 	if plots.is_empty():
 		return
-	if map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER:
+	if _uses_frontier_rules():
 		_build_frontier_road_network_for_mode()
 		_smooth_roads_with_validation()
 		_debug_print_frontier_road_summary()
@@ -3383,7 +3460,7 @@ func _carve_frontier_single_road_cell(cell: Vector2i) -> void:
 	road_cells[cell] = true
 
 func _is_frontier_plot_reserved_for_roads(cell: Vector2i) -> bool:
-	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+	if not _uses_frontier_rules():
 		return false
 	for plot in plots:
 		var rect: Rect2i = plot.get("rect", Rect2i())
@@ -3416,7 +3493,7 @@ func _carve_road_cell(center: Vector2i, width: int) -> void:
 			if existing_feature.ends_with("_wall") or existing_feature == "giant_mushroom":
 				continue
 			if grid[x][y] == E_BLOCKED or grid[x][y] == E_WATER:
-				if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER and not _is_near_ramp_cell(cell, 2):
+				if not _uses_frontier_rules() and not _is_near_ramp_cell(cell, 2):
 					continue
 				grid[x][y] = _dominant_elevation_near(cell)
 			feature_grid[x][y] = "path"
@@ -3436,7 +3513,7 @@ func _smooth_roads_with_validation() -> void:
 		_restore_road_cells(original_roads)
 		push_warning("[MapGenerator] Road smoothing failed validation. Reverted to original road grid.")
 		print("[MapGenerator] Road smoothing original=", original_count, " smoothed=", original_count, " added=0 removed=0 validation=false")
-		if map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER:
+		if _uses_frontier_rules():
 			_frontier_road_debug["thinning_before"] = original_count
 			_frontier_road_debug["thinning_after"] = original_count
 			_frontier_road_debug["thinning_validation"] = false
@@ -3452,7 +3529,7 @@ func _smooth_roads_with_validation() -> void:
 			removed += 1
 	_restore_road_cells(candidate_roads)
 	print("[MapGenerator] Road smoothing original=", original_count, " smoothed=", smoothed_count, " added=", added, " removed=", removed, " validation=true")
-	if map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER:
+	if _uses_frontier_rules():
 		_frontier_road_debug["thinning_before"] = original_count
 		_frontier_road_debug["thinning_after"] = smoothed_count
 		_frontier_road_debug["thinning_validation"] = true
@@ -3632,7 +3709,7 @@ func _validate_road_smoothing(candidate_roads: Dictionary, protected_cells: Dict
 	return true
 
 func _validate_frontier_elevation_layout(verbose: bool = false) -> bool:
-	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+	if not _uses_frontier_rules():
 		return true
 	var errors: Array[String] = []
 	var high_zones := _collect_elevation_zones(E_HIGH)
@@ -3673,7 +3750,7 @@ func _validate_frontier_elevation_layout(verbose: bool = false) -> bool:
 	return passed
 
 func _validate_frontier_landmarks(verbose: bool = false) -> bool:
-	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+	if not _uses_frontier_rules():
 		return true
 	var errors: Array[String] = []
 	var start := _road_validation_start_cell(Vector2i(FRONTIER_MAIN_ROAD_X, FRONTIER_MAIN_ROAD_Y))
@@ -3792,7 +3869,7 @@ func _base_access_count(plot: Dictionary) -> int:
 	return count
 
 func _flatten_tiny_high_fragments() -> void:
-	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+	if not _uses_frontier_rules():
 		return
 	var zones := _collect_elevation_zones(E_HIGH)
 	for zone in zones:
@@ -3913,7 +3990,7 @@ func _restore_road_cells(new_roads: Dictionary) -> void:
 
 func _build_landmarks() -> void:
 	landmarks.clear()
-	if map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER:
+	if _uses_frontier_rules():
 		_build_frontier_landmarks()
 		_build_frontier_blockers()
 		return
@@ -4338,7 +4415,7 @@ func _paint_square_grid_map() -> void:
 			var feature: String = feature_grid[x][y]
 			match elevation:
 				E_BLOCKED:
-					if map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER and feature != "map_border":
+					if _uses_frontier_rules() and feature != "map_border":
 						if feature == "forest_blocker":
 							layer_low.set_cell(pos, pick("foliage"), Vector2i(0,0))
 				E_WATER:
@@ -4375,7 +4452,7 @@ func _paint_water_cell(cell: Vector2i) -> void:
 	layer_low.set_cell(cell, _water_source_id, _water_atlas)
 
 func _update_elevation_debug_overlay() -> void:
-	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+	if not _uses_frontier_rules():
 		if _elevation_debug_overlay != null and is_instance_valid(_elevation_debug_overlay):
 			_elevation_debug_overlay.set_debug_enabled(false)
 		return
@@ -4660,7 +4737,7 @@ func _register_zones() -> void:
 			enemy_spawns.append(Vector2i(82, y))
 		chokepoints.append_array([Vector2i(29, 38), Vector2i(48, 38), Vector2i(66, 38)])
 		return
-	if map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER:
+	if _uses_frontier_rules():
 		for plot in base_plots:
 			var rect: Rect2i = plot["rect"]
 			for x in range(rect.position.x, rect.end.x):
@@ -4818,7 +4895,7 @@ func get_map_summary() -> Dictionary:
 	}
 
 func _debug_print_elevation_summary() -> void:
-	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+	if not _uses_frontier_rules():
 		return
 	var high_zones := _collect_elevation_zones(E_HIGH)
 	var low_zones := _collect_elevation_zones(E_LOW)
@@ -4856,7 +4933,7 @@ func _debug_print_elevation_summary() -> void:
 		" validation=", _validate_frontier_base_archetypes(false))
 
 func _validate_frontier_base_archetypes(verbose: bool = false) -> bool:
-	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+	if not _uses_frontier_rules():
 		return true
 	var errors: Array[String] = []
 	for plot in base_plots:
@@ -4877,7 +4954,7 @@ func _validate_frontier_base_archetypes(verbose: bool = false) -> bool:
 	return errors.is_empty()
 
 func _debug_print_frontier_road_summary() -> void:
-	if map_type_id != MAP_TYPE_SEEDED_GRID_FRONTIER:
+	if not _uses_frontier_rules():
 		return
 	print("[MapGenerator] Road layout mode=", _frontier_road_debug.get("mode", frontier_road_layout_mode),
 		" main_spine_nodes=", _frontier_road_debug.get("main_spine_node_count", 0),

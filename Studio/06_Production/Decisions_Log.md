@@ -976,3 +976,21 @@ The test's load-bearing assertion is **agreement**: the field and A* must reach 
 That is not a bug in either system; it is a scale decision that has not been made. A structure of this size is a map, not a landmark on one. Either the citadel shrinks to something like 40–50 cells so it reads as a fortress within a playfield, or maps grow substantially, or it becomes a dedicated map type rather than a placeable structure. Routed to Andrew.
 
 **Suite:** 57/58. `seeded_grid_frontier` still pre-existing.
+
+### 2026-09-04 — The citadel march: map size becomes per-type
+
+Master doc section 40. A 192×192 map type carrying Kon's Arcane Citadel as a guaranteed content plot, so the fortress is a landmark on a level rather than being the level.
+
+**Map size stopped being a project-wide constant.** `MAP_W`/`MAP_H` were `const 96` and are now vars set in `_configure_map_type()`. 127 references across the project read them and a var reads exactly like a const at every one; no other constant derives from them and nothing accesses them statically, which is what made this safe rather than sweeping. Checked before changing rather than after.
+
+**One predicate, not 21 equality checks.** The march wants every frontier rule — plots, landmarks, roads, elevation validation — and 25 sites asked "is this the frontier map". Adding a second comparison at each would have been 25 chances to miss one, and a missed one fails quietly: a map that generates but has no roads. Replaced with `_uses_frontier_rules()`.
+
+**The test caught a design failure, not a crash.** The citadel was reserved first *among content plots*, but base plots are laid out before any content plot — so a starting base landed inside the fortress, handing the player the thing the map exists to make them fight for. It would have read in play as "nice, I spawned somewhere good". The citadel now claims its ground before anything else, and the smoke test asserts no base plot sits inside it.
+
+The most valuable assertion in that test is the last one: **the standard frontier map is still 96×96**. Map size became a variable to make this map type possible, and "did every other map change size" is cheaper to ask in a test than to discover from a broken fog texture.
+
+**Measured cost, and it is not the citadel.** Structure placement takes 666ms on a 96×96 map and 666ms on a 192×192 one. Map *generation* is roughly linear in area: ~6s at 96×96, ~21s at 192×192 in a headless harness. Quadrupling the map quadruples generation. That is a real loading cost and it belongs to the generator, not to blocks — either generation gets optimised or the march carries a loading screen. Recorded rather than fixed; optimising map generation is its own pass.
+
+Design intent for capture and tower re-summoning is written up in section 40, including what is still open: what holds the citadel before the player does (it currently generates empty), and whether re-summoning is a build action, a research unlock or an objective reward.
+
+**Suite:** 58/59. `seeded_grid_frontier` still pre-existing.
