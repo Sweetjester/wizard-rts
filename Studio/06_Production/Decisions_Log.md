@@ -889,3 +889,23 @@ Proven against the **real procedural map**, not a stub: a live `RTSUnit` ordered
 **Deliberately not done:** nothing in the game calls `order_to()` yet — right-click still routes through the 2D pathfinder, and map generation does not place block structures during a run. Combat and vision remain flat: `has_line_of_sight` takes a terrain height rather than a block level, so a unit on a wall-walk currently sees as though it were on the ground below it. That is the next real gap and it is not a small one.
 
 **Suite:** 54/55. `seeded_grid_frontier` still pre-existing.
+
+### 2026-09-04 — Block structures reach a live run
+
+Two connections, both small, that take the elevation system from demonstrable to playable.
+
+**Placement.** `BlockNavBridge` is now a node in `main_map.tscn`. It waits for map generation to settle — retried deferred, the way `ImpassableOverlay` handles the same ordering — then builds the lattice from the real `MapGenerator` and drops structures onto flat sites. Placement is anchored to the **wizard tower**: scanning from (2,2) put structures in the far map corner, and scanning from the map centre put them 50 cells away in permanent fog. Either way nothing ever walked past them, which for a landmark system is the one outcome that makes it pointless.
+
+Placing a structure also registers its ground-level walls as 2D dynamic blockers, because the 2D pathfinder knows nothing about levels and would otherwise walk units straight through a building that is solid in the lattice. Only ground level is registered, and cells the structure declares standable are skipped — blocking those would seal the gate passage shut.
+
+**Orders.** `SelectionController._try_block_move_order()` fires only when the destination column has more than one standable level. Ordinary ground has exactly one, so it returns false there and the existing 2D pathfinder keeps its formation offsets, shared paths and flow fields untouched. That negative is asserted directly: an order to open ground must carry no elevation data at all.
+
+On a multi-level column each unit is sent to the highest level it can both stand on and reach. That is deliberately demo-grade — you cannot click the ground *underneath* a wall-walk — and wants a real level-picking gesture before it is anything more.
+
+**Two things the screenshots caught that tests did not.** Tall structures poked through the fog: fog is a horizontal plane at height 6 and the gatehouse is 9, so it stood lit in unexplored blackness. The plane now rises above the tallest placed structure. And the first placement policy put everything in the map corner, which no test would ever have called wrong.
+
+Verified on the real generated map: structures placed, walls blocking, and infantry right-clicked **six levels up** onto a wall-walk. The test scans for a climbable column rather than taking the first multi-level one — a tower roof served only by a climb point is climber-only, and an infantry order there correctly falls back to the ground floor, which would have read as a failure.
+
+**Still open:** placement is startup-time rather than procedural, so `MapGenerator` does not route roads or lay out plots around these. Attack-move, patrol and shared-path group orders do not route through the lattice. The 2D presentation draws nothing — walls block but are invisible. And combat and vision remain flat.
+
+**Suite:** 55/56. `seeded_grid_frontier` still pre-existing.

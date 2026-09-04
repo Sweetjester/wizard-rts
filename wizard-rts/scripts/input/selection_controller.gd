@@ -16,6 +16,9 @@ const DOUBLE_TAP_MSEC := 350
 @export var combat_debug_logging: bool = false
 
 var selected_units: Array[Node] = []
+# Looked up once and kept: the bridge is a sibling that never moves, and this is
+# consulted on every right-click.
+var _cached_block_bridge: Node
 var command_dispatcher: CommandDispatcher
 var build_system: Node
 var rts_world: RTSWorld
@@ -548,6 +551,11 @@ func _order_selected_units(target: Vector2) -> void:
 	var movable_units := _movable_selected_units()
 	if movable_units.is_empty():
 		return
+	# Multi-level destinations route through the block lattice. Ordinary ground
+	# has exactly one level, so this returns false there and the existing 2D
+	# pathfinder handles the order exactly as it always has.
+	if _try_block_move_order(target, movable_units):
+		return
 	var offsets := _formation_offsets(movable_units.size())
 	var shared_path: Array[Vector2] = []
 	if movable_units.size() >= shared_path_threshold:
@@ -562,6 +570,37 @@ func _order_selected_units(target: Vector2) -> void:
 		elif is_instance_valid(unit):
 			if unit.has_method("issue_move_order_offset"):
 				unit.issue_move_order_offset(target, offsets[i])
+
+# Routes a move order through BlockNavBridge when the destination column has
+# more than one standable level -- a wall-walk over a passage, an upper floor.
+#
+# Returns false for anything else, which is almost every order on almost every
+# map, so flat-ground movement keeps its formation offsets, shared paths and
+# flow fields untouched. Units the lattice cannot route (no path to any level
+# they can stand on) fall through to the normal order rather than silently
+# refusing to move.
+func _try_block_move_order(target: Vector2, movable_units: Array) -> bool:
+	var bridge := _block_nav_bridge()
+	if bridge == null:
+		return false
+	var terrain_node: Node = bridge.get("terrain")
+	if terrain_node == null or not is_instance_valid(terrain_node):
+		return false
+	var cell: Vector2i = terrain_node.call("world_to_cell", target)
+	if not bool(bridge.call("is_multi_level", cell)):
+		return false
+	var routed := 0
+	for unit in movable_units:
+		if is_instance_valid(unit) and bool(bridge.call("order_to_column", unit, cell)):
+			routed += 1
+	return routed > 0
+
+func _block_nav_bridge() -> Node:
+	if _cached_block_bridge != null and is_instance_valid(_cached_block_bridge):
+		return _cached_block_bridge
+	if get_parent() != null:
+		_cached_block_bridge = get_parent().get_node_or_null("BlockNavBridge")
+	return _cached_block_bridge
 
 func _try_order_attack_target(world_pos: Vector2) -> bool:
 	if selected_units.is_empty():

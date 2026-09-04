@@ -1,4 +1,4 @@
-[gd_scene load_steps=34 format=4 uid="uid://cadog5s2ne74q"]
+[gd_scene load_steps=35 format=4 uid="uid://cadog5s2ne74q"]
 
 [ext_resource type="Script" uid="uid://c55e5b81k5mcw" path="res://scripts/map/map_manager.gd" id="1_yq3ld"]
 [ext_resource type="Script" uid="uid://co8oyntpicxw5" path="res://scripts/camera/camera_controller.gd" id="2_v4mqy"]
@@ -30,6 +30,7 @@
 [ext_resource type="Script" path="res://scripts/units/mass_unit_multimesh_renderer.gd" id="32_lod"]
 [ext_resource type="Script" path="res://scripts/map/map_3d_view.gd" id="33_map3d"]
 [ext_resource type="Script" path="res://scripts/map/impassable_overlay.gd" id="34_impass"]
+[ext_resource type="Script" path="res://scripts/blocks/block_nav_bridge.gd" id="35_blocknav"]
 
 [node name="Node2D" type="Node2D" unique_id=2018844996]
 script = ExtResource("1_yq3ld")
@@ -121,6 +122,9 @@ script = ExtResource("13_boot")
 
 [node name="ImpassableOverlay" type="Node2D" parent="."]
 script = ExtResource("34_impass")
+
+[node name="BlockNavBridge" type="Node" parent="."]
+script = ExtResource("35_blocknav")
 
 [node name="Map3DView" type="Node3D" parent="."]
 script = ExtResource("33_map3d")

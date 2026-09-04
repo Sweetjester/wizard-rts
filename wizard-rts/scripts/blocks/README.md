@@ -195,6 +195,47 @@ started, runs its own movement tick until the route is done, and finishes with
 order is asserted to carry no elevation data at all, so the lattice cannot
 quietly start affecting units nobody put on it.
 
+## In the live game
+
+`BlockNavBridge` is a node in `main_map.tscn`. On startup it waits for map
+generation to settle, builds the lattice from the real `MapGenerator`, and drops
+its `auto_place` structures onto flat sites near the player's base.
+
+Placement is anchored to the **wizard tower**, not the map origin or centre.
+Scanning from (2,2) put structures in the far corner; scanning from the centre
+put them 50 cells away in permanent fog. Either way nothing ever walked past
+them, which for a landmark system is the one outcome that makes it pointless.
+A 16-cell minimum keeps them outside the player's build radius.
+
+Placing a structure also registers its **ground-level walls as 2D dynamic
+blockers**. The 2D pathfinder knows nothing about levels, so without that,
+ordinary units walk straight through a building that is solid in the lattice.
+Only ground level is registered — a wall-walk six levels up must not block
+anything on the floor — and cells the structure declares standable (the gate
+passage) are skipped, or the gate would be sealed shut.
+
+Right-click routing lives in `SelectionController._try_block_move_order()`. It
+fires **only when the destination column has more than one standable level**.
+Ordinary ground has exactly one, so it returns false there and the existing 2D
+pathfinder handles the order with its formation offsets, shared paths and flow
+fields completely untouched. On a multi-level column it sends each unit to the
+highest level it can both stand on and reach.
+
+That last rule is demo-grade and worth knowing: you cannot currently click the
+ground *underneath* a wall-walk. A proper level-picking gesture — a modifier, or
+picking from the camera ray — is the fix.
+
+`Map3DView` draws the placed structures and raises the fog plane above the
+tallest one. Fog is a horizontal plane at height 6; the gatehouse is 9 tall, so
+without that it poked through and stood lit in unexplored blackness.
+
+Verified in `block_structures_in_game_smoke_test.gd` on the real generated map:
+structures placed, walls blocking 2D, and infantry right-clicked **6 levels up**
+onto a wall-walk. The test scans for a climbable column rather than taking the
+first multi-level one, because not every raised surface is reachable on foot — a
+tower roof served only by a climb point is climber-only, and an infantry order
+there correctly falls back to the ground floor.
+
 ## Not built yet
 
 - Test agents that actually walk a path, rather than reachability colouring
@@ -202,11 +243,13 @@ quietly start affecting units nobody put on it.
 - Procedural placement into map generation
 - Destruction, and any tie-in to the `StructureComponents` work on the other
   branch — the two systems overlap and have not been reconciled
-- **Orders.** `BlockNavBridge.order_to()` exists and works, but nothing in the
-  game calls it — right-click still routes through the 2D pathfinder. Selection
-  and commands are untouched.
-- **Structures are not placed by map generation yet.** The bridge can place one
-  (`bridge.place(id, origin)`); nothing does so during a real run.
+- **Placement is startup-time, not procedural.** The bridge drops structures
+  onto flat sites; `MapGenerator` itself knows nothing about them, so they do not
+  participate in road routing, plot layout or landmark selection.
+- **Attack-move, patrol and shared-path group orders** do not route through the
+  lattice — only plain move orders do.
+- **2D presentation shows nothing.** Placed structures render in the 3D view
+  only; in 2D their walls block movement but are invisible.
 - Flow fields over the lattice, for wave movement at hundreds of units. A* per
   unit is fine for the demo's 18 and is not fine for 300.
 - Combat, vision and fog are all still flat: `has_line_of_sight` takes a terrain

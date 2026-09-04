@@ -90,6 +90,7 @@ const EDGE_PAN_SPEED := 26.0
 @export var rts_world_path: NodePath = NodePath("../RTSWorld")
 @export var build_system_path: NodePath = NodePath("../BuildSystem")
 @export var fog_of_war_path: NodePath = NodePath("../FogOfWar")
+@export var block_nav_bridge_path: NodePath = NodePath("../BlockNavBridge")
 # Units are mirrored on a fixed interval rather than every frame. The 2D sim
 # already budgets its own work; re-uploading a multimesh transform buffer at
 # render rate would add a cost that scales with army size for no visible gain
@@ -138,6 +139,13 @@ var _bake_viewport: SubViewport
 var _marked_economy_count := -1
 var _sprite_root: Node3D
 var _live_sprite_count := 0
+var _block_nav_bridge: Node
+var _block_structure_root: Node3D
+# Raised when a placed block structure is taller than the default. The fog is a
+# horizontal plane, so anything taller than it simply pokes through and stands
+# lit in unexplored blackness -- which is exactly how the first placed gatehouse
+# looked.
+var _fog_plane_height := FOG_PLANE_HEIGHT
 
 func _ready() -> void:
 	# Inert unless the session asked for the 3D view. main_map.tscn is a single
@@ -151,6 +159,9 @@ func _ready() -> void:
 	rts_world = get_node_or_null(rts_world_path)
 	build_system = get_node_or_null(build_system_path)
 	fog_of_war = get_node_or_null(fog_of_war_path)
+	_block_nav_bridge = get_node_or_null(block_nav_bridge_path)
+	if _block_nav_bridge != null and _block_nav_bridge.has_signal("structures_placed"):
+		_block_nav_bridge.connect("structures_placed", _on_block_structures_placed)
 	_build_renderer()
 	_build_lighting()
 	_build_camera()
@@ -476,7 +487,7 @@ func _refresh_fog_plane() -> void:
 	# sin(52 degrees) * distance, so at CAMERA_MIN_DISTANCE (12) the camera sits
 	# at about 9.5. The plane has to stay below that or zooming in puts the
 	# camera underneath the fog and blacks out the whole view.
-	_fog_plane.position = Vector3(float(size.x) * 0.5, FOG_PLANE_HEIGHT, float(size.y) * 0.5)
+	_fog_plane.position = Vector3(float(size.x) * 0.5, _fog_plane_height, float(size.y) * 0.5)
 	_fog_plane.visible = true
 
 func _make_unit_mesh() -> Mesh:
@@ -812,6 +823,40 @@ func _structure_sprite_at(index: int) -> Sprite3D:
 # would exist in the simulation and be invisible on screen. `nav_level` is 0 for
 # any unit that has never been given a lattice path, and level 0 IS the terrain
 # surface, so ordinary units are unaffected.
+# Draws the block structures the nav bridge placed on the live map.
+#
+# Signal-driven rather than polled: placement happens once, after map generation
+# settles, and a per-frame check for something that changes once would be exactly
+# the kind of cost this file has had to remove twice already.
+#
+# Blocks are one world unit and a map cell is one TILE_SIZE, so the two grids
+# line up without conversion -- which is the same coincidence that lets a
+# structure's floors and a terrain plateau share one vertical scale.
+func _on_block_structures_placed(placements: Array) -> void:
+	if _block_structure_root == null or not is_instance_valid(_block_structure_root):
+		_block_structure_root = Node3D.new()
+		_block_structure_root.name = "BlockStructures3D"
+		add_child(_block_structure_root)
+	var library: BlockStructureLibrary = _block_nav_bridge.get("library")
+	if library == null:
+		return
+	for placement in placements:
+		var definition := library.get_definition(placement["id"])
+		if definition == null:
+			continue
+		var builder := BlockStructureBuilder.new()
+		builder.name = "Block_%s" % placement["id"]
+		_block_structure_root.add_child(builder)
+		builder.build(definition)
+		var origin: Vector2i = placement["origin"]
+		builder.position = Vector3(
+			float(origin.x) * _renderer.TILE_SIZE,
+			float(placement["base_level"]) * _renderer.TILE_SIZE,
+			float(origin.y) * _renderer.TILE_SIZE)
+		var top: float = float(int(placement["base_level"]) + definition.dimensions.y) * float(_renderer.TILE_SIZE)
+		_fog_plane_height = maxf(_fog_plane_height, top + 1.5)
+	_refresh_fog_plane()
+
 func _unit_transform(unit: Node2D, lift: float = 0.0) -> Transform3D:
 	var level: Variant = unit.get("nav_level")
 	if level == null or int(level) <= 0:
