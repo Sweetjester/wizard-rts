@@ -1,0 +1,1164 @@
+id: kons_arcane_citadel_01
+name: "Kon's Arcane Citadel"
+schema_version: 1
+intent:
+  summary: >
+    A very large square wizard castle mega-structure for YAML-driven block
+    construction in a Godot RTS. Visual construction, authored navigation,
+    traversal links, gates, ramps, and procedural connection sockets are kept
+    explicit and practical for implementation.
+  includes:
+    - YAML-driven building generation
+    - large block-based structure construction
+    - architectural readability
+    - pathing
+    - stairs
+    - ramps
+    - gates
+    - wall_walks
+    - procedural_connection_sockets
+  excludes:
+    - combat
+    - line_of_sight
+    - cover
+    - destruction
+    - ranged_systems
+
+dimensions:
+  units: blocks
+  size: [96, 46, 96]
+  axes:
+    x: east_west
+    y: vertical
+    z: north_south
+  origin:
+    mode: south_west_ground_corner
+    coordinate: [0, 0, 0]
+  build_bounds:
+    min: [0, 0, 0]
+    max: [95, 45, 95]
+
+placement:
+  footprint:
+    shape: square
+    size: [96, 96]
+    anchor: center
+    ground_contact_y: 0
+  clearance:
+    horizontal_margin_blocks: 6
+    vertical_margin_blocks: 4
+  terrain_requirements:
+    preferred: flat_or_terraced
+    max_allowed_slope_blocks: 2
+    foundation_autofill: true
+  rotation:
+    allowed_y_degrees: [0, 90, 180, 270]
+  snapping:
+    grid_size: 1
+    socket_snap_priority:
+      - main_gate_road
+      - service_gate_road
+      - wall_walk_bridge
+      - courtyard_path
+
+materials:
+  palette:
+    foundation: dark_basalt_block
+    exterior_wall: pale_arcane_stone_block
+    exterior_trim: blue_slate_block
+    interior_floor: worn_limestone_block
+    keep_wall: silver_granite_block
+    tower_wall: pale_arcane_stone_block
+    roof: deep_cobalt_roof_block
+    stair: pale_arcane_stone_stair
+    ramp: pale_arcane_stone_ramp
+    gate: reinforced_oak_gate
+    arch: carved_arcane_arch_block
+    crystal: blue_mana_crystal_block
+    marker: debug_marker_block
+  material_roles_are_visual_only: true
+
+generation:
+  composition_model: prefab_instances_plus_block_volumes
+  visual_layers:
+    - foundations
+    - curtain_walls
+    - towers
+    - gatehouse
+    - wall_walks
+    - central_keep
+    - ramps_and_stairs
+    - courtyard_features
+    - rooflines
+    - decorative_readability_markers
+  navigation_is_authored_separately_from_visuals: true
+  block_volume_format:
+    origin: [x, y, z]
+    size: [x, y, z]
+    material: material_role_or_block_id
+  prefab_instance_format:
+    prefab: prefab_id
+    origin: [x, y, z]
+    rotation_y: degrees
+    sockets:
+      expose: true
+
+instances:
+  - id: north_west_existing_observation_tower
+    prefab: kons_observation_wizard_tower_01
+    role: existing_scale_reference_and_corner_observatory
+    # y raised 0 -> 2 on 2026-09-04. The citadel's full_citadel_slab occupies
+    # y0-y1 and every courtyard sits at y2, so a tower instanced at y0 had its
+    # entrance apron buried inside the foundation and two levels below the
+    # ground everything else walks on. It was unreachable from anywhere.
+    origin: [4, 2, 74]
+    rotation_y: 0
+    footprint: [18, 18]
+    expected_height: 32
+    connect_to:
+      - west_wall_walk_north_socket
+      - north_wall_walk_west_socket
+      - inner_court_nw_path_socket
+
+  - id: north_east_astrolabe_tower
+    prefab: citadel_astrolabe_corner_tower_01
+    role: celestial_readability_landmark
+    origin: [74, 0, 74]
+    rotation_y: 90
+    footprint: [18, 18]
+    expected_height: 42
+    connect_to:
+      - north_wall_walk_east_socket
+      - east_wall_walk_north_socket
+      - inner_court_ne_path_socket
+
+  - id: south_west_archive_tower
+    prefab: citadel_archive_corner_tower_01
+    role: heavy_square_library_tower
+    origin: [4, 0, 4]
+    rotation_y: 270
+    footprint: [18, 18]
+    expected_height: 36
+    connect_to:
+      - west_wall_walk_south_socket
+      - south_wall_walk_west_socket
+      - inner_court_sw_path_socket
+
+  - id: south_east_gatewatch_tower
+    prefab: citadel_gatewatch_corner_tower_01
+    role: stair_and_gate_orientation_tower
+    origin: [74, 0, 4]
+    rotation_y: 180
+    footprint: [18, 18]
+    expected_height: 38
+    connect_to:
+      - east_wall_walk_south_socket
+      - south_wall_walk_east_socket
+      - inner_court_se_path_socket
+
+substructures:
+  prefab_contracts:
+    - prefab: kons_observation_wizard_tower_01
+      expected_sockets:
+        - id: ground_entry
+          type: path
+          local_position: [9, 0, 0]
+        - id: wall_walk_left
+          type: wall_walk
+          local_position: [0, 18, 9]
+        - id: wall_walk_right
+          type: wall_walk
+          local_position: [17, 18, 9]
+        - id: roof_access
+          type: vertical_route
+          local_position: [9, 31, 9]
+
+    - prefab: citadel_astrolabe_corner_tower_01
+      size: [18, 42, 18]
+      visual_blocks:
+        - id: astrolabe_tower_base
+          origin: [0, 0, 0]
+          size: [18, 18, 18]
+          material: tower_wall
+        - id: astrolabe_tower_upper_core
+          origin: [3, 18, 3]
+          size: [12, 16, 12]
+          material: tower_wall
+        - id: astrolabe_ring_platform
+          origin: [1, 34, 1]
+          size: [16, 2, 16]
+          material: exterior_trim
+        - id: astrolabe_roof_cap
+          origin: [4, 36, 4]
+          size: [10, 6, 10]
+          material: roof
+      sockets:
+        - { id: ground_entry, type: path, local_position: [9, 0, 0], direction: south }
+        - { id: wall_walk_left, type: wall_walk, local_position: [0, 18, 9], direction: west }
+        - { id: wall_walk_right, type: wall_walk, local_position: [17, 18, 9], direction: east }
+        - { id: roof_access, type: vertical_route, local_position: [9, 35, 9], direction: up }
+
+    - prefab: citadel_archive_corner_tower_01
+      size: [18, 36, 18]
+      visual_blocks:
+        - id: archive_tower_base
+          origin: [0, 0, 0]
+          size: [18, 16, 18]
+          material: tower_wall
+        - id: archive_inner_stack
+          origin: [2, 16, 2]
+          size: [14, 14, 14]
+          material: keep_wall
+        - id: archive_flat_roof
+          origin: [1, 30, 1]
+          size: [16, 2, 16]
+          material: exterior_trim
+        - id: archive_roof_beacon
+          origin: [7, 32, 7]
+          size: [4, 4, 4]
+          material: crystal
+      sockets:
+        - { id: ground_entry, type: path, local_position: [9, 0, 17], direction: north }
+        - { id: wall_walk_left, type: wall_walk, local_position: [0, 18, 9], direction: west }
+        - { id: wall_walk_right, type: wall_walk, local_position: [17, 18, 9], direction: east }
+        - { id: archive_service_stair, type: vertical_route, local_position: [4, 0, 4], direction: up }
+
+    - prefab: citadel_gatewatch_corner_tower_01
+      size: [18, 38, 18]
+      visual_blocks:
+        - id: gatewatch_tower_base
+          origin: [0, 0, 0]
+          size: [18, 18, 18]
+          material: tower_wall
+        - id: gatewatch_tall_core
+          origin: [4, 18, 4]
+          size: [10, 14, 10]
+          material: tower_wall
+        - id: gatewatch_roof
+          origin: [3, 32, 3]
+          size: [12, 6, 12]
+          material: roof
+      sockets:
+        - { id: ground_entry, type: path, local_position: [0, 0, 9], direction: west }
+        - { id: wall_walk_left, type: wall_walk, local_position: [0, 18, 9], direction: west }
+        - { id: wall_walk_right, type: wall_walk, local_position: [17, 18, 9], direction: east }
+        - { id: gatehouse_bridge, type: wall_walk, local_position: [9, 18, 0], direction: south }
+
+foundations:
+  visual_blocks:
+    - id: full_citadel_slab
+      origin: [0, 0, 0]
+      size: [96, 2, 96]
+      material: foundation
+    - id: raised_keep_plinth
+      origin: [29, 2, 29]
+      size: [38, 3, 38]
+      material: foundation
+    - id: south_gate_approach_plinth
+      origin: [38, 2, 0]
+      size: [20, 2, 18]
+      material: foundation
+    - id: north_service_plinth
+      origin: [42, 2, 78]
+      size: [12, 2, 18]
+      material: foundation
+
+repeated_wall_segments:
+  defaults:
+    base_y: 2
+    height: 18
+    thickness: 6
+    parapet_height: 3
+    wall_walk_y: 18
+    wall_walk_width: 4
+    crenel_interval: 4
+  segments:
+    - id: north_curtain_wall_west_run
+      orientation: east_west
+      origin: [22, 2, 86]
+      length: 26
+      thickness_axis: z
+      material: exterior_wall
+      sockets:
+        west: north_wall_walk_west_socket
+        east: north_keep_bridge_socket
+
+    - id: north_curtain_wall_east_run
+      orientation: east_west
+      origin: [48, 2, 86]
+      length: 26
+      thickness_axis: z
+      material: exterior_wall
+      sockets:
+        west: north_keep_bridge_socket
+        east: north_wall_walk_east_socket
+
+    - id: south_curtain_wall_west_run
+      orientation: east_west
+      origin: [22, 2, 4]
+      length: 16
+      thickness_axis: z
+      material: exterior_wall
+      sockets:
+        west: south_wall_walk_west_socket
+        east: gatehouse_west_wall_walk_socket
+
+    - id: south_curtain_wall_east_run
+      orientation: east_west
+      origin: [58, 2, 4]
+      length: 16
+      thickness_axis: z
+      material: exterior_wall
+      sockets:
+        west: gatehouse_east_wall_walk_socket
+        east: south_wall_walk_east_socket
+
+    - id: west_curtain_wall_south_run
+      orientation: north_south
+      origin: [4, 2, 22]
+      length: 26
+      thickness_axis: x
+      material: exterior_wall
+      sockets:
+        south: west_wall_walk_south_socket
+        north: west_keep_bridge_socket
+
+    - id: west_curtain_wall_north_run
+      orientation: north_south
+      origin: [4, 2, 48]
+      length: 26
+      thickness_axis: x
+      material: exterior_wall
+      sockets:
+        south: west_keep_bridge_socket
+        north: west_wall_walk_north_socket
+
+    - id: east_curtain_wall_south_run
+      orientation: north_south
+      origin: [86, 2, 22]
+      length: 26
+      thickness_axis: x
+      material: exterior_wall
+      sockets:
+        south: east_wall_walk_south_socket
+        north: east_keep_bridge_socket
+
+    - id: east_curtain_wall_north_run
+      orientation: north_south
+      origin: [86, 2, 48]
+      length: 26
+      thickness_axis: x
+      material: exterior_wall
+      sockets:
+        south: east_keep_bridge_socket
+        north: east_wall_walk_north_socket
+  generated_features:
+    wall_body:
+      size_rules:
+        east_west: [length, 18, 6]
+        north_south: [6, 18, length]
+    wall_walk:
+      y: 18
+      material: exterior_trim
+      width: 4
+      centered_on_wall: true
+    crenellation:
+      y: 20
+      material: exterior_trim
+      block_size: [2, 2, 2]
+      every_blocks: 4
+      leave_open_notches: true
+
+wall_walks:
+  authored_visual_decks:
+    - id: north_wall_walk_deck
+      origin: [22, 18, 87]
+      size: [52, 1, 4]
+      material: exterior_trim
+    - id: south_wall_walk_deck_west
+      origin: [22, 18, 5]
+      size: [16, 1, 4]
+      material: exterior_trim
+    - id: south_wall_walk_deck_east
+      origin: [58, 18, 5]
+      size: [16, 1, 4]
+      material: exterior_trim
+    - id: west_wall_walk_deck
+      origin: [5, 18, 22]
+      size: [4, 1, 52]
+      material: exterior_trim
+    - id: east_wall_walk_deck
+      origin: [87, 18, 22]
+      size: [4, 1, 52]
+      material: exterior_trim
+    - id: gatehouse_top_walk
+      origin: [38, 20, 5]
+      size: [20, 1, 8]
+      material: exterior_trim
+    - id: north_keep_bridge
+      origin: [44, 18, 67]
+      size: [8, 1, 20]
+      material: exterior_trim
+    - id: west_keep_bridge
+      origin: [9, 18, 44]
+      size: [20, 1, 8]
+      material: exterior_trim
+    - id: east_keep_bridge
+      origin: [67, 18, 44]
+      size: [20, 1, 8]
+      material: exterior_trim
+
+central_keep:
+  id: central_arcane_keep
+  role: readable_square_inner_castle_and_primary_vertical_mass
+  footprint:
+    origin: [31, 5, 31]
+    size: [34, 34]
+  visual_blocks:
+    - id: keep_ground_hall
+      origin: [31, 5, 31]
+      size: [34, 10, 34]
+      material: keep_wall
+    - id: keep_second_tier
+      origin: [35, 15, 35]
+      size: [26, 9, 26]
+      material: keep_wall
+    - id: keep_third_tier
+      origin: [39, 24, 39]
+      size: [18, 8, 18]
+      material: keep_wall
+    - id: keep_roof_observatory
+      origin: [43, 32, 43]
+      size: [10, 8, 10]
+      material: tower_wall
+    - id: keep_roof_cap
+      origin: [41, 40, 41]
+      size: [14, 5, 14]
+      material: roof
+    - id: keep_north_arch
+      origin: [44, 5, 65]
+      size: [8, 8, 2]
+      material: arch
+    - id: keep_south_arch
+      origin: [44, 5, 29]
+      size: [8, 8, 2]
+      material: arch
+    - id: keep_west_arch
+      origin: [29, 5, 44]
+      size: [2, 8, 8]
+      material: arch
+    - id: keep_east_arch
+      origin: [65, 5, 44]
+      size: [2, 8, 8]
+      material: arch
+  readable_silhouette_rules:
+    - ground_hall_is_largest_square
+    - each_higher_tier_steps_in_by_4_blocks
+    - roof_cap_is_visibly_smaller_than_third_tier
+    - main_doors_face_four_cardinal_courtyards
+  sockets:
+    - { id: keep_south_entry_socket, type: path, position: [48, 5, 30], direction: south }
+    - { id: keep_north_entry_socket, type: path, position: [48, 5, 66], direction: north }
+    - { id: keep_west_entry_socket, type: path, position: [30, 5, 48], direction: west }
+    - { id: keep_east_entry_socket, type: path, position: [66, 5, 48], direction: east }
+    - { id: keep_roof_socket, type: vertical_route, position: [48, 40, 48], direction: up }
+    - { id: keep_wall_walk_north_socket, type: wall_walk, position: [48, 18, 67], direction: north }
+    - { id: keep_wall_walk_west_socket, type: wall_walk, position: [29, 18, 48], direction: west }
+    - { id: keep_wall_walk_east_socket, type: wall_walk, position: [67, 18, 48], direction: east }
+
+gatehouse:
+  id: south_grand_gatehouse
+  role: main_entrance_and_height_transition_landmark
+  footprint:
+    origin: [38, 2, 0]
+    size: [20, 18]
+  visual_blocks:
+    - id: gatehouse_west_mass
+      origin: [38, 2, 4]
+      size: [6, 18, 14]
+      material: exterior_wall
+    - id: gatehouse_east_mass
+      origin: [52, 2, 4]
+      size: [6, 18, 14]
+      material: exterior_wall
+    - id: gatehouse_over_arch
+      origin: [44, 12, 4]
+      size: [8, 8, 14]
+      material: arch
+    - id: gatehouse_roof_walk
+      origin: [38, 20, 4]
+      size: [20, 2, 14]
+      material: exterior_trim
+    - id: gatehouse_roof_cap_west
+      origin: [38, 22, 6]
+      size: [6, 5, 10]
+      material: roof
+    - id: gatehouse_roof_cap_east
+      origin: [52, 22, 6]
+      size: [6, 5, 10]
+      material: roof
+  passable_opening:
+    id: main_gate_tunnel
+    origin: [44, 2, 0]
+    size: [8, 10, 18]
+    clear_volume: true
+  sockets:
+    - { id: main_gate_exterior_socket, type: road, position: [48, 2, 0], direction: south }
+    - { id: main_gate_interior_socket, type: courtyard_path, position: [48, 2, 18], direction: north }
+    - { id: gatehouse_west_wall_walk_socket, type: wall_walk, position: [38, 18, 8], direction: west }
+    - { id: gatehouse_east_wall_walk_socket, type: wall_walk, position: [58, 18, 8], direction: east }
+    - { id: gatehouse_top_socket, type: wall_walk, position: [48, 20, 12], direction: north }
+
+courtyards:
+  keep_navigation_separate_from_visuals: true
+  visual_floor_blocks:
+    - id: south_courtyard_floor
+      origin: [24, 2, 18]
+      size: [48, 1, 13]
+      material: interior_floor
+    - id: north_courtyard_floor
+      origin: [24, 2, 67]
+      size: [48, 1, 11]
+      material: interior_floor
+    - id: west_courtyard_floor
+      origin: [18, 2, 24]
+      size: [13, 1, 48]
+      material: interior_floor
+    - id: east_courtyard_floor
+      origin: [65, 2, 24]
+      size: [13, 1, 48]
+      material: interior_floor
+    - id: inner_ring_path_south
+      origin: [31, 5, 27]
+      size: [34, 1, 4]
+      material: interior_floor
+    - id: inner_ring_path_north
+      origin: [31, 5, 65]
+      size: [34, 1, 4]
+      material: interior_floor
+    - id: inner_ring_path_west
+      origin: [27, 5, 31]
+      size: [4, 1, 34]
+      material: interior_floor
+    - id: inner_ring_path_east
+      origin: [65, 5, 31]
+      size: [4, 1, 34]
+      material: interior_floor
+  readability_features:
+    - id: south_courtyard_processional_axis
+      origin: [46, 3, 18]
+      size: [4, 1, 13]
+      material: exterior_trim
+    - id: north_courtyard_service_axis
+      origin: [46, 3, 67]
+      size: [4, 1, 11]
+      material: exterior_trim
+    - id: west_courtyard_arcane_garden_marker
+      origin: [20, 3, 46]
+      size: [4, 3, 4]
+      material: crystal
+    - id: east_courtyard_workshop_marker
+      origin: [72, 3, 46]
+      size: [4, 3, 4]
+      material: crystal
+
+ramps:
+  visual_blocks:
+    - id: south_courtyard_to_keep_plinth_ramp
+      origin: [44, 2, 25]
+      size: [8, 3, 8]
+      material: ramp
+      rises_from_y_to_y: [2, 5]
+      direction: north
+    - id: north_courtyard_to_keep_plinth_ramp
+      origin: [44, 2, 63]
+      size: [8, 3, 8]
+      material: ramp
+      rises_from_y_to_y: [2, 5]
+      direction: south
+    - id: west_courtyard_to_keep_plinth_ramp
+      origin: [25, 2, 44]
+      size: [8, 3, 8]
+      material: ramp
+      rises_from_y_to_y: [2, 5]
+      direction: east
+    - id: east_courtyard_to_keep_plinth_ramp
+      origin: [63, 2, 44]
+      size: [8, 3, 8]
+      material: ramp
+      rises_from_y_to_y: [2, 5]
+      direction: west
+    - id: gatehouse_to_wall_walk_west_ramp
+      origin: [34, 2, 12]
+      size: [4, 16, 24]
+      material: ramp
+      rises_from_y_to_y: [2, 18]
+      direction: north
+    - id: gatehouse_to_wall_walk_east_ramp
+      origin: [58, 2, 12]
+      size: [4, 16, 24]
+      material: ramp
+      rises_from_y_to_y: [2, 18]
+      direction: north
+
+stairs:
+  visual_blocks:
+    - id: keep_internal_spiral_stair_placeholder
+      origin: [35, 5, 35]
+      size: [6, 27, 6]
+      material: stair
+      route_type: spiral_placeholder
+    - id: keep_roof_stair_placeholder
+      origin: [51, 24, 51]
+      size: [4, 16, 4]
+      material: stair
+      route_type: compact_spiral_placeholder
+    - id: north_wall_service_stair
+      origin: [54, 2, 78]
+      size: [5, 16, 8]
+      material: stair
+      route_type: switchback
+    - id: west_wall_service_stair
+      origin: [18, 2, 54]
+      size: [8, 16, 5]
+      material: stair
+      route_type: switchback
+
+gates:
+  visual_and_state_data_only:
+    - id: main_south_gate
+      type: double_portcullis
+      closed_visual_blocks:
+        - origin: [44, 2, 3]
+          size: [8, 8, 1]
+          material: gate
+        - origin: [44, 2, 15]
+          size: [8, 8, 1]
+          material: gate
+      open_clearance:
+        origin: [44, 2, 0]
+        size: [8, 10, 18]
+      nav_link_id: main_gate_passage_link
+      sockets:
+        exterior: main_gate_exterior_socket
+        interior: main_gate_interior_socket
+
+    - id: north_service_gate
+      type: narrow_arch_gate
+      closed_visual_blocks:
+        - origin: [45, 2, 90]
+          size: [6, 7, 1]
+          material: gate
+      open_clearance:
+        origin: [45, 2, 86]
+        size: [6, 8, 10]
+      nav_link_id: north_service_gate_link
+      sockets:
+        exterior: north_service_gate_exterior_socket
+        interior: north_service_gate_interior_socket
+
+procedural_sockets:
+  socket_rules:
+    coordinates_are_world_local_to_structure_origin: true
+    snap_tolerance_blocks: 1
+    direction_required: true
+    connection_types:
+      road:
+        compatible_with: [road, courtyard_path]
+      courtyard_path:
+        compatible_with: [road, path, ramp, gate]
+      wall_walk:
+        compatible_with: [wall_walk, bridge, vertical_route]
+      vertical_route:
+        compatible_with: [wall_walk, path, roof_path]
+      service:
+        compatible_with: [path, road]
+  sockets:
+    - { id: main_gate_road, type: road, position: [48, 2, -1], direction: south }
+    - { id: north_service_gate_exterior_socket, type: road, position: [48, 2, 96], direction: north }
+    - { id: north_service_gate_interior_socket, type: courtyard_path, position: [48, 2, 86], direction: south }
+    - { id: south_courtyard_path_socket, type: courtyard_path, position: [48, 2, 18], direction: north }
+    - { id: north_courtyard_path_socket, type: courtyard_path, position: [48, 2, 78], direction: south }
+    - { id: west_courtyard_path_socket, type: courtyard_path, position: [18, 2, 48], direction: east }
+    - { id: east_courtyard_path_socket, type: courtyard_path, position: [78, 2, 48], direction: west }
+    - { id: inner_court_nw_path_socket, type: path, position: [22, 2, 74], direction: southeast }
+    - { id: inner_court_ne_path_socket, type: path, position: [74, 2, 74], direction: southwest }
+    - { id: inner_court_sw_path_socket, type: path, position: [22, 2, 22], direction: northeast }
+    - { id: inner_court_se_path_socket, type: path, position: [74, 2, 22], direction: northwest }
+    - { id: north_wall_walk_west_socket, type: wall_walk, position: [22, 18, 89], direction: west }
+    - { id: north_wall_walk_east_socket, type: wall_walk, position: [74, 18, 89], direction: east }
+    - { id: south_wall_walk_west_socket, type: wall_walk, position: [22, 18, 7], direction: west }
+    - { id: south_wall_walk_east_socket, type: wall_walk, position: [74, 18, 7], direction: east }
+    - { id: west_wall_walk_south_socket, type: wall_walk, position: [7, 18, 22], direction: south }
+    - { id: west_wall_walk_north_socket, type: wall_walk, position: [7, 18, 74], direction: north }
+    - { id: east_wall_walk_south_socket, type: wall_walk, position: [89, 18, 22], direction: south }
+    - { id: east_wall_walk_north_socket, type: wall_walk, position: [89, 18, 74], direction: north }
+    - { id: north_keep_bridge_socket, type: wall_walk, position: [48, 18, 87], direction: south }
+    - { id: west_keep_bridge_socket, type: wall_walk, position: [9, 18, 48], direction: east }
+    - { id: east_keep_bridge_socket, type: wall_walk, position: [87, 18, 48], direction: west }
+
+nav_regions:
+  authored_separately_from_visual_blocks: true
+  units:
+    walkable_clearance_height_blocks: 3
+    heavy_clearance_width_blocks: 3
+  regions:
+    - id: exterior_main_road_nav
+      agent_classes: [infantry, archer, heavy]
+      plane_y: 2
+      polygon:
+        - [42, 2, -12]
+        - [54, 2, -12]
+        - [54, 2, 0]
+        - [42, 2, 0]
+
+    - id: main_gate_tunnel_nav
+      agent_classes: [infantry, archer, heavy]
+      plane_y: 2
+      polygon:
+        - [44, 2, 0]
+        - [52, 2, 0]
+        - [52, 2, 18]
+        - [44, 2, 18]
+
+    - id: south_courtyard_nav
+      agent_classes: [infantry, archer, climber, heavy]
+      plane_y: 2
+      polygon:
+        - [24, 2, 18]
+        - [72, 2, 18]
+        - [72, 2, 31]
+        - [24, 2, 31]
+
+    - id: north_courtyard_nav
+      agent_classes: [infantry, archer, climber, heavy]
+      plane_y: 2
+      polygon:
+        - [24, 2, 67]
+        - [72, 2, 67]
+        - [72, 2, 78]
+        - [24, 2, 78]
+
+    - id: west_courtyard_nav
+      agent_classes: [infantry, archer, climber]
+      plane_y: 2
+      polygon:
+        - [18, 2, 24]
+        - [31, 2, 24]
+        - [31, 2, 72]
+        - [18, 2, 72]
+
+    - id: east_courtyard_nav
+      agent_classes: [infantry, archer, climber]
+      plane_y: 2
+      polygon:
+        - [65, 2, 24]
+        - [78, 2, 24]
+        - [78, 2, 72]
+        - [65, 2, 72]
+
+    - id: keep_plinth_ring_nav
+      agent_classes: [infantry, archer, climber, heavy]
+      plane_y: 5
+      polygon:
+        - [27, 5, 27]
+        - [69, 5, 27]
+        - [69, 5, 69]
+        - [27, 5, 69]
+      holes:
+        - - [31, 5, 31]
+          - [65, 5, 31]
+          - [65, 5, 65]
+          - [31, 5, 65]
+
+    - id: keep_ground_floor_nav
+      agent_classes: [infantry, archer, climber]
+      plane_y: 5
+      polygon:
+        - [33, 5, 33]
+        - [63, 5, 33]
+        - [63, 5, 63]
+        - [33, 5, 63]
+
+    - id: wall_walk_outer_ring_nav
+      agent_classes: [infantry, archer, climber]
+      plane_y: 18
+      segments:
+        - [north_wall_walk_deck]
+        - [west_wall_walk_deck]
+        - [east_wall_walk_deck]
+        - [south_wall_walk_deck_west]
+        - [south_wall_walk_deck_east]
+        - [gatehouse_top_walk]
+
+    - id: keep_bridge_nav
+      agent_classes: [infantry, archer, climber]
+      plane_y: 18
+      segments:
+        - [north_keep_bridge]
+        - [west_keep_bridge]
+        - [east_keep_bridge]
+
+    # Split into one region per tier, 2026-09-04. As a single region spanning
+    # levels 24, 32 and 40 it was three disconnected horizontal planes sharing a
+    # name: every link into it landed on level 24, so 424 cells of upper keep
+    # and roof were unreachable while reporting as one "reachable" region.
+    # Separate regions make each tier something a link can actually name.
+    #
+    # plane_y 15 is dropped: no block in the list has its top surface there.
+    - id: keep_upper_nav
+      agent_classes: [infantry, archer, climber]
+      plane_y_levels: [24]
+      generated_from_visual_ids:
+        - keep_second_tier
+
+    - id: keep_tier3_nav
+      agent_classes: [infantry, archer, climber]
+      plane_y_levels: [32]
+      generated_from_visual_ids:
+        - keep_third_tier
+
+    - id: keep_observatory_nav
+      agent_classes: [infantry, archer, climber]
+      plane_y_levels: [40]
+      generated_from_visual_ids:
+        - keep_roof_observatory
+
+    - id: flying_volume_nav
+      agent_classes: [flying]
+      volume:
+        origin: [0, 4, 0]
+        size: [96, 42, 96]
+      avoid_solid_visual_blocks: true
+
+traversal_links:
+  links:
+    - id: main_gate_passage_link
+      type: gate_passage
+      agent_classes: [infantry, archer, heavy]
+      from: exterior_main_road_nav
+      to: south_courtyard_nav
+      through_gate: main_south_gate
+      width_blocks: 8
+      requires_gate_open: true
+
+    - id: north_service_gate_link
+      type: gate_passage
+      agent_classes: [infantry, archer]
+      from: north_courtyard_nav
+      to: north_exterior_service_stub
+      through_gate: north_service_gate
+      width_blocks: 6
+      requires_gate_open: true
+
+    - id: south_ramp_link
+      type: ramp
+      agent_classes: [infantry, archer, climber, heavy]
+      from: south_courtyard_nav
+      to: keep_plinth_ring_nav
+      visual_id: south_courtyard_to_keep_plinth_ramp
+
+    - id: north_ramp_link
+      type: ramp
+      agent_classes: [infantry, archer, climber, heavy]
+      from: north_courtyard_nav
+      to: keep_plinth_ring_nav
+      visual_id: north_courtyard_to_keep_plinth_ramp
+
+    - id: west_ramp_link
+      type: ramp
+      agent_classes: [infantry, archer, climber]
+      from: west_courtyard_nav
+      to: keep_plinth_ring_nav
+      visual_id: west_courtyard_to_keep_plinth_ramp
+
+    - id: east_ramp_link
+      type: ramp
+      agent_classes: [infantry, archer, climber]
+      from: east_courtyard_nav
+      to: keep_plinth_ring_nav
+      visual_id: east_courtyard_to_keep_plinth_ramp
+
+    - id: west_wall_walk_ramp_link
+      type: ramp
+      agent_classes: [infantry, archer, climber]
+      from: south_courtyard_nav
+      to: wall_walk_outer_ring_nav
+      visual_id: gatehouse_to_wall_walk_west_ramp
+
+    - id: east_wall_walk_ramp_link
+      type: ramp
+      agent_classes: [infantry, archer, climber]
+      from: south_courtyard_nav
+      to: wall_walk_outer_ring_nav
+      visual_id: gatehouse_to_wall_walk_east_ramp
+
+    # Added 2026-09-04. The keep declares four arches and four entry sockets but
+    # no traversal link through any of them, so its ground floor, its upper
+    # floors and all three wall-walk bridges were sealed: reachable geometry
+    # around a completely unreachable interior. Each link is anchored to the
+    # arch it passes through.
+    - id: keep_south_entry_link
+      type: ramp
+      agent_classes: [infantry, archer, climber]
+      from: keep_plinth_ring_nav
+      to: keep_ground_floor_nav
+      visual_id: keep_south_arch
+
+    - id: keep_north_entry_link
+      type: ramp
+      agent_classes: [infantry, archer, climber]
+      from: keep_plinth_ring_nav
+      to: keep_ground_floor_nav
+      visual_id: keep_north_arch
+
+    - id: keep_west_entry_link
+      type: ramp
+      agent_classes: [infantry, archer, climber]
+      from: keep_plinth_ring_nav
+      to: keep_ground_floor_nav
+      visual_id: keep_west_arch
+
+    - id: keep_east_entry_link
+      type: ramp
+      agent_classes: [infantry, archer, climber]
+      from: keep_plinth_ring_nav
+      to: keep_ground_floor_nav
+      visual_id: keep_east_arch
+
+    - id: keep_internal_stair_link
+      type: stair
+      agent_classes: [infantry, archer, climber]
+      from: keep_ground_floor_nav
+      to: keep_upper_nav
+      visual_id: keep_internal_spiral_stair_placeholder
+
+    # Was keep_upper_nav -> keep_roof_socket, naming a SOCKET as its destination
+    # where every other link names a region, so it resolved to nothing and the
+    # roof was sealed. Now two links, one per tier the stairs actually serve.
+    - id: keep_tier2_to_tier3_link
+      type: stair
+      agent_classes: [infantry, archer, climber]
+      from: keep_upper_nav
+      to: keep_tier3_nav
+      visual_id: keep_internal_spiral_stair_placeholder
+
+    - id: keep_roof_stair_link
+      type: stair
+      agent_classes: [infantry, archer, climber]
+      from: keep_tier3_nav
+      to: keep_observatory_nav
+      visual_id: keep_roof_stair_placeholder
+
+    - id: north_keep_bridge_link
+      type: bridge
+      agent_classes: [infantry, archer, climber]
+      from: wall_walk_outer_ring_nav
+      to: keep_upper_nav
+      socket_pair: [north_keep_bridge_socket, keep_wall_walk_north_socket]
+
+    - id: west_keep_bridge_link
+      type: bridge
+      agent_classes: [infantry, archer, climber]
+      from: wall_walk_outer_ring_nav
+      to: keep_upper_nav
+      socket_pair: [west_keep_bridge_socket, keep_wall_walk_west_socket]
+
+    - id: east_keep_bridge_link
+      type: bridge
+      agent_classes: [infantry, archer, climber]
+      from: wall_walk_outer_ring_nav
+      to: keep_upper_nav
+      socket_pair: [east_keep_bridge_socket, keep_wall_walk_east_socket]
+
+    - id: flying_volume_link
+      type: free_volume
+      agent_classes: [flying]
+      from: flying_volume_nav
+      to: all_exposed_roof_and_courtyard_regions
+      ignores_gates: true
+
+nav_region_stubs:
+  - id: north_exterior_service_stub
+    agent_classes: [infantry, archer]
+    plane_y: 2
+    polygon:
+      - [45, 2, 96]
+      - [51, 2, 96]
+      - [51, 2, 104]
+      - [45, 2, 104]
+
+agent_validation_profiles:
+  infantry:
+    radius_blocks: 0.5
+    height_blocks: 2
+    can_use:
+      - gates
+      - courtyard_paths
+      - ramps
+      - stairs
+      - wall_walks
+      - bridges
+    cannot_use: []
+
+  archer:
+    radius_blocks: 0.5
+    height_blocks: 2
+    can_use:
+      - gates
+      - courtyard_paths
+      - ramps
+      - stairs
+      - wall_walks
+      - bridges
+      - keep_roof_routes
+    cannot_use: []
+
+  climber:
+    radius_blocks: 0.45
+    height_blocks: 2
+    can_use:
+      - courtyard_paths
+      - ramps
+      - stairs
+      - wall_walks
+      - bridges
+      - marked_vertical_routes
+    cannot_use:
+      - heavy_only_gate_clearances
+
+  heavy:
+    radius_blocks: 1.2
+    height_blocks: 3
+    can_use:
+      - main_gate
+      - wide_courtyards
+      - main_keep_plinth_ramps
+    cannot_use:
+      - narrow_service_gate
+      - wall_walks
+      - stairs
+      - keep_interior
+      - narrow_courtyards
+
+  flying:
+    radius_blocks: 0.8
+    height_blocks: 2
+    can_use:
+      - flying_volume_nav
+      - exposed_courtyards
+      - exposed_roofs
+    cannot_use:
+      - enclosed_gate_tunnels
+      - enclosed_keep_interior
+
+debug_expectations:
+  visual_readability:
+    - Castle reads as a 96x96 square fortress from top-down view.
+    - Four corners have distinct tower silhouettes and roles.
+    - The existing observation tower instance remains recognizable at full scale.
+    - The south gatehouse is the obvious primary entrance.
+    - Central keep is visually dominant and centered without filling the whole courtyard.
+    - Wall-walks form a readable elevated route around most of the perimeter.
+    - Bridges from wall-walks to the keep are visually clear and not confused with ground paths.
+  navigation_overlay:
+    - Visual block volumes can be toggled off while nav regions remain inspectable.
+    - Ground nav, wall-walk nav, keep nav, and flying volume nav use separate debug colors.
+    - Gate traversal links visibly change between blocked and passable when gate state changes.
+    - Heavy unit nav overlay excludes stairs and wall-walks.
+    - Flying unit nav overlay is a volume, not a flat floor polygon.
+  socket_debugging:
+    - Every socket renders an id label in editor debug mode.
+    - Compatible sockets share color by connection type.
+    - Unmatched required sockets report validation warnings.
+    - Socket positions outside build bounds are allowed only for exterior road stubs.
+
+validation_tests:
+  static_structure_tests:
+    - id: dimensions_match_expected_mega_structure
+      assert:
+        dimensions.size: [96, 46, 96]
+
+    - id: existing_observation_tower_is_instanced_once
+      assert:
+        instances_contains_prefab: kons_observation_wizard_tower_01
+        min_count: 1
+
+    - id: four_corner_tower_roles_exist
+      assert:
+        required_instance_ids:
+          - north_west_existing_observation_tower
+          - north_east_astrolabe_tower
+          - south_west_archive_tower
+          - south_east_gatewatch_tower
+
+    - id: nav_is_not_derived_implicitly_from_visuals
+      assert:
+        nav_regions.authored_separately_from_visual_blocks: true
+
+    - id: all_gates_have_nav_links
+      assert:
+        every_gate_has_nav_link_id: true
+
+    - id: all_wall_walk_bridges_have_socket_pairs
+      assert:
+        traversal_link_types_require_socket_pair:
+          - bridge
+
+  pathing_tests:
+    - id: infantry_can_enter_keep_from_exterior
+      agent: infantry
+      start_socket: main_gate_road
+      goal_socket: keep_south_entry_socket
+      expected_result: reachable_when_main_south_gate_open
+
+    - id: archer_can_reach_wall_walk_and_keep_roof
+      agent: archer
+      start_socket: main_gate_road
+      goal_socket: keep_roof_socket
+      expected_result: reachable_via_gatehouse_ramp_wall_walk_bridge_and_keep_stairs
+
+    - id: climber_can_use_marked_vertical_routes
+      agent: climber
+      start_socket: inner_court_sw_path_socket
+      goal_socket: keep_roof_socket
+      expected_result: reachable_without_heavy_clearance
+
+    - id: heavy_can_reach_keep_plinth_but_not_wall_walk
+      agent: heavy
+      start_socket: main_gate_road
+      goal_region: keep_plinth_ring_nav
+      expected_result: reachable_when_main_south_gate_open
+      negative_goal_region: wall_walk_outer_ring_nav
+      expected_negative_result: unreachable
+
+    - id: flying_can_reach_roofs_without_using_gates
+      agent: flying
+      start_region: flying_volume_nav
+      goal_socket: keep_roof_socket
+      expected_result: reachable_independent_of_gate_state
+
+    - id: closed_main_gate_blocks_ground_entry
+      agent: infantry
+      start_socket: main_gate_road
+      goal_region: south_courtyard_nav
+      gate_states:
+        main_south_gate: closed
+      expected_result: unreachable
+
+    - id: open_main_gate_allows_ground_entry
+      agent: infantry
+      start_socket: main_gate_road
+      goal_region: south_courtyard_nav
+      gate_states:
+        main_south_gate: open
+      expected_result: reachable
+
+implementation_notes_for_claude:
+  - Treat this file as a composition spec, not a single mesh recipe.
+  - Build visual block volumes first, then build nav regions from nav_regions and traversal_links.
+  - Do not infer navigation from the visual blocks except where a nav region explicitly says generated_from_visual_ids.
+  - Prefab sockets should be transformed by instance origin and rotation before validation.
+  - Wall segment generation should create body, deck, and crenellation blocks from repeated_wall_segments defaults.
+  - Gate state should affect traversal links only, not delete authored nav regions.
+  - Keep heavy-unit routing intentionally restricted to the main gate, broad courtyards, and keep plinth ramps.

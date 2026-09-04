@@ -24,7 +24,11 @@ import json
 import os
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import yaml
+
+from citadel_adapter import load_composition
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SRC_DIR = os.path.join(ROOT, "data", "block_structures")
@@ -101,6 +105,20 @@ def load_all():
             merged["materials"].update(single.get("materials", {}))
             merged["unit_classes"].update(normalise_classes(single.get("unit_classes", {})))
             merged["structures"][str(single["id"])] = normalise_structure(single)
+
+    # Composition specs are adapted last, because they INSTANCE the structures
+    # above -- the citadel places the observation tower inside itself, and needs
+    # that tower's authored blocks, nav and links to already be loaded.
+    composition_dir = os.path.join(SRC_DIR, "composition")
+    if os.path.isdir(composition_dir):
+        for name in sorted(os.listdir(composition_dir)):
+            if not name.endswith((".yaml", ".yml")):
+                continue
+            adapter = load_composition(os.path.join(composition_dir, name), merged["structures"])
+            structure = adapter.to_structure()
+            merged["structures"][structure["id"]] = structure
+            merged["materials"].update(adapter.materials())
+            merged.setdefault("_composition_problems", []).extend(adapter.problems)
     return merged
 
 
@@ -194,6 +212,7 @@ def main():
     # in the data so both schema versions resolve against one table.
     data.setdefault("nav_types", {}).setdefault("FLOOR_LINK", {"walkable": False, "link_only": True})
 
+    problems.extend(data.pop("_composition_problems", []))
     data["_generated_by"] = "tools/blocks/convert_structures.py"
     data["_schema_problems"] = problems
 

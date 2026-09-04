@@ -44,6 +44,11 @@ var open_cells: Dictionary = {}
 # hide the leaf when the gate opens, so collision and navigation switch together
 # rather than leaving a visible door units walk through.
 var gate_cells: Dictionary = {}
+# The authored block volumes, kept as boxes. Collision is built from these
+# rather than from expanded cells: a cell-per-shape body is 2432 nodes for the
+# observation tower and 104220 for the citadel, which never finishes loading.
+# Roughly one box per authored block instead.
+var block_boxes: Array[Dictionary] = []
 
 static func from_data(structure_id: StringName, data: Dictionary, materials: Dictionary) -> BlockStructureDefinition:
 	var definition := BlockStructureDefinition.new()
@@ -60,6 +65,9 @@ static func from_data(structure_id: StringName, data: Dictionary, materials: Dic
 		var material := StringName(block.get("material", &"STONE_BRICK"))
 		var collision := str(materials.get(str(material), {}).get("collision", "solid"))
 		var nav_type := StringName(block.get("nav", &"SOLID"))
+		var bounds := _region_bounds(block.get("region", {}))
+		if collision != "none" and bounds.size.x > 0.0:
+			definition.block_boxes.append({"min": bounds.position, "size": bounds.size})
 		for cell in expand_region(block.get("region", {})):
 			if collision == "none":
 				definition.solid_cells.erase(cell)
@@ -156,6 +164,16 @@ static func expand_region(region: Dictionary) -> Array[Vector3i]:
 			for z in range(rz.x, rz.y + 1):
 				cells.append(Vector3i(x, y, z))
 	return cells
+
+# Inclusive region -> an AABB in cells.
+static func _region_bounds(region: Dictionary) -> AABB:
+	if region.is_empty():
+		return AABB()
+	var rx := _to_range(region.get("x", 0))
+	var ry := _to_range(region.get("y", 0))
+	var rz := _to_range(region.get("z", 0))
+	return AABB(Vector3(rx.x, ry.x, rz.x),
+		Vector3(rx.y - rx.x + 1, ry.y - ry.x + 1, rz.y - rz.x + 1))
 
 static func _to_range(value: Variant) -> Vector2i:
 	if value is Array:

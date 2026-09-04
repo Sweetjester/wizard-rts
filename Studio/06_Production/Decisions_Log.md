@@ -929,3 +929,32 @@ Three authored defects were found that way and corrected in the YAML, each comme
 The architecture reads as the `design_intent` asks — heavy base, setbacks, asymmetric timber balconies breaking the silhouette, glazed crown as the strongest shape — which is worth noting because that was authored blind, in YAML, with no visual iteration.
 
 **Suite:** 56/57. `seeded_grid_frontier` still pre-existing.
+
+### 2026-09-04 — Kon's Arcane Citadel: a third schema, and a castle that contains the tower
+
+A 96×46×96 castle spec arrived in a *third* authoring shape — genuinely a different model rather than a rename. Blocks are `origin + size` instead of inclusive ranges; nav regions are polygons on a plane, with holes, deck-id segments, generated-from-visual-ids, and volumes; traversal links connect **regions** rather than cells; and it **instances prefabs**, including the observation tower authored in schema 1.1, with a Y rotation.
+
+Handled by an adapter (`tools/blocks/citadel_adapter.py`) that flattens all of it into the one internal shape the runtime already understands, so the runtime stayed unchanged and every schema meets it in the build step. Everything the adapter infers rather than reads is reported.
+
+Result: 104,544 solid blocks, 7,213 nav cells, 43 links, 11,427 lattice nodes, built in ~760ms. Every nav region reachable from the exterior road — through the gate, across the courtyards, up the ramps, into the keep, to its roof at level 40, across the wall-walk bridges, and all the way up the instanced observation tower to its observatory at level 28.
+
+**`connect_to` was implemented, not just parsed.** The spec declares which citadel sockets each instanced tower joins, but nothing consumed it, so every instanced tower was geometry the player could walk around and never enter. Sockets are now matched by type, per the spec's own connection_types table.
+
+**Four authored defects found and corrected in the YAML, each commented in place:**
+
+- The observation tower was instanced at `origin y=0` while the citadel's foundation occupies y0–y1 and every courtyard sits at y2 — its entrance was buried under the castle's own floor and unreachable from anywhere.
+- The keep declares four arches and four entry sockets but **no traversal link through any of them**, so its ground floor, its upper floors and all three wall-walk bridges were sealed: reachable geometry around a completely unreachable interior.
+- `keep_upper_nav` spanned levels 24, 32 and 40 as a single region — three disconnected horizontal planes sharing one name. Every link into it landed on level 24, so 424 cells of upper keep and roof were unreachable *while reporting as one reachable region*. Split into a region per tier.
+- `keep_roof_stair_link` named a **socket** as its destination where every other link names a region, so it resolved to nothing.
+
+**Three engine fixes the citadel's scale forced**, none of which the tower had exposed:
+
+- Collision was one `CollisionShape3D` **per solid cell** — 2,432 for the tower, 104,220 for the citadel, which never finished loading. Now one box per authored block. Collision serves the x-ray occlusion query, never movement, so a carved tunnel keeping its parent block's collision is correct rather than merely tolerable.
+- `levels_at()` scanned the whole 128-level range per column: 110 × 110 × 128 probes per click. Now a per-column index.
+- A `Dictionary` erases an array's element type on storage, so the indexed columns came back untyped and `levels_at()` failed its own return type. Copied through `assign()`.
+
+Also corrected: the demo's "elevated cell" overlay tested `level > 0`, which is right for a tower on ground at 0 and wrong for a castle whose courtyards sit at level 2 — everything qualified and a 96×96 castle vanished under a green grid. The rule is now "not the lowest level in its own column", which means the same thing wherever the ground happens to be.
+
+**Known limit:** A* runs ~170–290ms per query over 11,427 nodes. Fine for a demo click, not fine for wave movement — flow fields over the lattice remain the open item.
+
+**Suite:** 56/57. `seeded_grid_frontier` still pre-existing.

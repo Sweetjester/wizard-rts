@@ -52,6 +52,8 @@ var _nodes: Dictionary = {}
 var _links_from: Dictionary = {}
 var _terrain: Node
 var _placements: Array[Dictionary] = []
+# Vector2i -> sorted Array[int] of standable levels. See levels_at().
+var _columns: Dictionary = {}
 
 func _init(unit_classes: Dictionary) -> void:
 	rules = BlockUnitRules.new(unit_classes)
@@ -84,12 +86,41 @@ func node_count() -> int:
 # Every standable level in a column, low to high. This is the function that makes
 # the whole thing worth doing: on flat ground it returns one level, under a
 # wall-walk it returns two.
+#
+# Served from a per-column index rather than scanning the level range. Scanning
+# was fine for a 12-cell gatehouse and quadratic nonsense for a 96x96 citadel:
+# every click ran 110 x 110 x 128 level probes to find what a unit could stand
+# on. The index is built as nodes are added and costs one dictionary lookup.
 func levels_at(cell: Vector2i) -> Array[int]:
-	var levels: Array[int] = []
-	for level in range(LEVEL_MIN, LEVEL_MAX + 1):
-		if _nodes.has(encode(cell, level)):
-			levels.append(level)
-	return levels
+	var out: Array[int] = []
+	var stored: Variant = _columns.get(cell)
+	if stored != null:
+		# Copied through assign() rather than returned directly: a Dictionary
+		# erases an array's element type on storage, so the stored value comes
+		# back as an untyped Array and fails this function's own return type.
+		out.assign(stored)
+	return out
+
+func _register_column(cell: Vector2i, level: int) -> void:
+	if not _columns.has(cell):
+		# Declared as a typed local before storing. `[] as Array[int]` yields an
+		# UNTYPED array once it lands in a Dictionary, and levels_at() then fails
+		# its own return type -- which is how this presented: a wall of
+		# "expected Array[int]" errors and a demo that never drew.
+		_columns[cell] = []
+	var levels: Array = _columns[cell]
+	if levels.has(level):
+		return
+	levels.append(level)
+	levels.sort()
+
+func _unregister_column(cell: Vector2i, level: int) -> void:
+	if not _columns.has(cell):
+		return
+	var levels: Array = _columns[cell]
+	levels.erase(level)
+	if levels.is_empty():
+		_columns.erase(cell)
 
 # --- construction -----------------------------------------------------------
 
@@ -100,17 +131,20 @@ func build_from_terrain(terrain: Node) -> void:
 	map_height = int(terrain.get("MAP_H"))
 	_nodes.clear()
 	_links_from.clear()
+	_columns.clear()
 	for x in map_width:
 		for y in map_height:
 			var cell := Vector2i(x, y)
 			if not bool(terrain.call("is_walkable_cell", cell)):
 				continue
-			_nodes[encode(cell, int(terrain.call("get_height", cell)))] = {
+			var height: int = int(terrain.call("get_height", cell))
+			_nodes[encode(cell, height)] = {
 				"allowed": [],          # empty means every class
 				"type": &"TERRAIN",
 				"state_key": &"",
 				"owner": &"terrain",
 			}
+			_register_column(cell, height)
 
 # Stamps an authored structure into the lattice at a map cell.
 #
@@ -135,13 +169,16 @@ func place_structure(definition: BlockStructureDefinition, origin: Vector2i, bas
 		var buried: int = encode(cell, level)
 		if _nodes.has(buried) and _nodes[buried]["owner"] == &"terrain":
 			_nodes.erase(buried)
+			_unregister_column(cell, level)
 
 	for local in definition.nav_cells:
 		var nav: Dictionary = definition.nav_cells[local]
 		var cell := origin + Vector2i(local.x, local.z)
 		if cell.x < 0 or cell.y < 0 or cell.x >= map_width or cell.y >= map_height:
 			continue
-		var node_id: int = encode(cell, base_level + local.y)
+		var node_level: int = base_level + local.y
+		var node_id: int = encode(cell, node_level)
+		_register_column(cell, node_level)
 		_nodes[node_id] = {
 			"allowed": nav.get("allowed", []),
 			"type": nav.get("type", &"FLOOR"),

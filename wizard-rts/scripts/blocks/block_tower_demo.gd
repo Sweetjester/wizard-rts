@@ -19,7 +19,14 @@ extends Node3D
 # even that goes. Nothing here is scripted per-structure; it all falls out of the
 # spec file.
 
-const TOWER := &"kons_observation_wizard_tower_01"
+# Parameterised so one demo serves any authored structure. The citadel scene
+# sets these to a 96x96 castle; the defaults are the observation tower.
+@export var structure_id: StringName = &"kons_observation_wizard_tower_01"
+@export var ground_size: int = 40
+@export var structure_origin: Vector2i = Vector2i(11, 11)
+@export var start_offset: Vector3i = Vector3i(8, 0, 0)
+@export var camera_distance: float = 58.0
+@export var open_gates_at_start: bool = true
 const CLASSES: Array[StringName] = [&"infantry", &"archer", &"climber", &"heavy", &"flying"]
 const CLASS_COLORS := {
 	&"infantry": Color("#4ADE80"),
@@ -28,8 +35,6 @@ const CLASS_COLORS := {
 	&"heavy": Color("#FB923C"),
 	&"flying": Color("#F472B6"),
 }
-const GROUND := 40
-const TOWER_ORIGIN := Vector2i(11, 11)
 const MOVE_SPEED := 4.5
 
 var library: BlockStructureLibrary
@@ -65,8 +70,8 @@ var _last_message := ""
 # Flat ground for the tower to stand on. Implements only the three calls
 # BlockNavWorld asks of a map, which is the whole terrain contract.
 class FlatGround extends Node:
-	const MAP_W := GROUND
-	const MAP_H := GROUND
+	var MAP_W := 40
+	var MAP_H := 40
 	func is_walkable_cell(cell: Vector2i) -> bool:
 		return cell.x >= 0 and cell.y >= 0 and cell.x < MAP_W and cell.y < MAP_H
 	func get_height(_cell: Vector2i) -> int:
@@ -76,7 +81,7 @@ class FlatGround extends Node:
 
 func _ready() -> void:
 	library = BlockStructureLibrary.load_default()
-	definition = library.get_definition(TOWER)
+	definition = library.get_definition(structure_id)
 	if definition == null:
 		push_error("Tower missing -- run: python tools/blocks/convert_structures.py")
 		return
@@ -117,31 +122,40 @@ func _build_view() -> void:
 func _build_world() -> void:
 	terrain = FlatGround.new()
 	terrain.name = "FlatGround"
+	terrain.MAP_W = ground_size
+	terrain.MAP_H = ground_size
 	add_child(terrain)
 	world = BlockNavWorld.new(library.unit_classes)
 	world.build_from_terrain(terrain)
 	# The structure's own declared default, not an assumption by this scene.
-	world.gate_states = library.gate_defaults_for(TOWER).duplicate()
+	world.gate_states = library.gate_defaults_for(structure_id).duplicate()
 	# The spec declares this gate `default_state: closed`, which is correct for
 	# the game and useless as an opening state for a traversal demo -- a shut
 	# gate makes the entire tower unreachable, and the only clue is one word in
 	# the legend. Opened here, and G puts it back.
-	world.gate_states["main_gate_open"] = true
-	_gate_open = true
-	world.place_structure(definition, TOWER_ORIGIN, 0, TOWER)
+	if open_gates_at_start:
+		for key in world.gate_states:
+			world.gate_states[key] = true
+		_gate_open = true
+	world.place_structure(definition, structure_origin, 0, structure_id)
 
 	_draw_ground()
 	_builder = BlockStructureBuilder.new()
 	_builder.name = "Tower"
 	add_child(_builder)
 	_builder.build(definition)
-	_builder.position = Vector3(float(TOWER_ORIGIN.x), 0.0, float(TOWER_ORIGIN.y))
-	_builder.set_gate_open(&"main_gate_open", _gate_open)
+	_builder.position = Vector3(float(structure_origin.x), 0.0, float(structure_origin.y))
+	for key in world.gate_states:
+		_builder.set_gate_open(StringName(key), _gate_open)
 
 	_build_unit()
 	_build_xray()
 	_build_overlays()
-	_pivot.position = Vector3(float(TOWER_ORIGIN.x) + 9.0, 12.0, float(TOWER_ORIGIN.y) + 9.0)
+	_pivot.position = Vector3(
+		float(structure_origin.x) + float(definition.dimensions.x) * 0.5,
+		float(definition.dimensions.y) * 0.35,
+		float(structure_origin.y) + float(definition.dimensions.z) * 0.5)
+	_distance = camera_distance
 	_apply_camera()
 	_reset_unit()
 
@@ -149,9 +163,9 @@ func _draw_ground() -> void:
 	var plane := MeshInstance3D.new()
 	plane.name = "Ground"
 	var mesh := PlaneMesh.new()
-	mesh.size = Vector2(GROUND, GROUND)
+	mesh.size = Vector2(ground_size, ground_size)
 	plane.mesh = mesh
-	plane.position = Vector3(GROUND * 0.5, 0.0, GROUND * 0.5)
+	plane.position = Vector3(ground_size * 0.5, 0.0, ground_size * 0.5)
 	var material := StandardMaterial3D.new()
 	material.albedo_color = Color("#39433A")
 	material.roughness = 1.0
@@ -221,9 +235,20 @@ func _unit_class() -> StringName:
 
 func _reset_unit() -> void:
 	# The south road socket: where the spec expects an approach to arrive.
-	var start := Vector3i(TOWER_ORIGIN.x + 8, 0, TOWER_ORIGIN.y + 0)
-	if not world.can_occupy(world.encode(Vector2i(start.x, start.z), 0), _unit_class()):
-		start = Vector3i(TOWER_ORIGIN.x + 8, 0, TOWER_ORIGIN.y - 3)
+	var start := Vector3i(structure_origin.x + start_offset.x, start_offset.y, structure_origin.y + start_offset.z)
+	# Fall back outward until something is standable: a big structure's authored
+	# approach may sit a level up on its own foundation.
+	if not world.can_occupy(world.encode(Vector2i(start.x, start.z), start.y), _unit_class()):
+		for probe in 24:
+			var candidate := Vector2i(start.x, structure_origin.y + start_offset.z - probe)
+			var found := false
+			for level in world.levels_at(candidate):
+				if world.can_occupy(world.encode(candidate, level), _unit_class()):
+					start = Vector3i(candidate.x, level, candidate.y)
+					found = true
+					break
+			if found:
+				break
 	_node = start
 	_path.clear()
 	_leg = 0
@@ -263,8 +288,8 @@ func _process(delta: float) -> void:
 func _pick_node(screen_position: Vector2) -> Vector3i:
 	var best := Vector3i.MAX
 	var best_score := 40.0
-	for x in GROUND:
-		for z in GROUND:
+	for x in ground_size:
+		for z in ground_size:
 			var cell := Vector2i(x, z)
 			for level in world.levels_at(cell):
 				var node_id: int = world.encode(cell, level)
@@ -298,17 +323,23 @@ func _order_to(node: Vector3i) -> void:
 
 # --- overlays ---------------------------------------------------------------
 
-# Only ELEVATED cells are marked. Open ground is obviously walkable, and drawing
-# it too -- through-walls, over the whole map -- buried the architecture under a
-# green grid and made the tower harder to read, not easier. What the player
-# actually needs to see is the floors they cannot see: the ones inside.
+# Marks only cells that are NOT the lowest level in their column -- the floors
+# stacked above something else, which are exactly the ones hidden from view.
+#
+# The first version tested `level > 0`, which worked for a tower standing on
+# ground at level 0 and failed completely for the citadel: its foundation puts
+# every courtyard at level 2, so every cell counted as elevated and the overlay
+# buried a 96x96 castle under a green grid. "Not the bottom of its own column"
+# is the rule that means the same thing wherever the ground happens to be.
 func _draw_nav_cells() -> void:
 	var cells: Array[Vector3i] = []
-	for x in GROUND:
-		for z in GROUND:
-			for level in world.levels_at(Vector2i(x, z)):
-				if level <= 0:
-					continue
+	for x in ground_size:
+		for z in ground_size:
+			var levels := world.levels_at(Vector2i(x, z))
+			if levels.size() < 2:
+				continue
+			for i in range(1, levels.size()):
+				var level: int = levels[i]
 				if world.can_occupy(world.encode(Vector2i(x, z), level), _unit_class()):
 					cells.append(Vector3i(x, level, z))
 	var multimesh := _nav_marks.multimesh
@@ -322,7 +353,7 @@ func _draw_nav_cells() -> void:
 func _draw_links() -> void:
 	var mesh := ImmediateMesh.new()
 	mesh.surface_begin(Mesh.PRIMITIVE_LINES)
-	var offset := Vector3(TOWER_ORIGIN.x, 0.0, TOWER_ORIGIN.y)
+	var offset := Vector3(structure_origin.x, 0.0, structure_origin.y)
 	for link in definition.links:
 		var usable := world.rules.link_admits(link, _unit_class())
 		var color := Color("#FB923C") if usable else Color("#4B5563")
@@ -357,10 +388,11 @@ func _refresh() -> void:
 		_draw_nav_cells()
 	_draw_links()
 	var standable := 0
-	for x in GROUND:
-		for z in GROUND:
-			for level in world.levels_at(Vector2i(x, z)):
-				if level > 0 and world.can_occupy(world.encode(Vector2i(x, z), level), _unit_class()):
+	for x in ground_size:
+		for z in ground_size:
+			var levels := world.levels_at(Vector2i(x, z))
+			for i in range(1, levels.size()):
+				if world.can_occupy(world.encode(Vector2i(x, z), levels[i]), _unit_class()):
 					standable += 1
 	_legend.text = "\n".join([
 		"%s  --  %d solid blocks, %d nav cells, %d links, built from YAML" % [
@@ -369,7 +401,7 @@ func _refresh() -> void:
 		"",
 		"class: %s      gate: %s      your level: %d" % [
 			_unit_class(), "OPEN" if _gate_open else "SHUT", _node.y],
-		"cells above ground this class can stand on: %d" % standable,
+		"stacked floors this class can stand on: %d" % standable,
 		_last_message,
 		"",
 		"click a green cell to send your unit there -- they show through walls",
@@ -423,8 +455,9 @@ func _unhandled_input(event: InputEvent) -> void:
 					_refresh()
 			KEY_G:
 				_gate_open = not _gate_open
-				world.gate_states["main_gate_open"] = _gate_open
-				_builder.set_gate_open(&"main_gate_open", _gate_open)
+				for key in world.gate_states:
+					world.gate_states[key] = _gate_open
+					_builder.set_gate_open(StringName(key), _gate_open)
 				_path.clear()
 				_draw_path()
 				_last_message = "gate %s" % ("opened" if _gate_open else "shut")

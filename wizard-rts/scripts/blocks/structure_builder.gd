@@ -214,12 +214,21 @@ func _build_collision() -> void:
 	_collision = StaticBody3D.new()
 	_collision.name = "Collision"
 	add_child(_collision)
-	for cell in definition.solid_cells:
+	# One shape per AUTHORED BLOCK, not per cell. A cell-per-shape body is 2432
+	# nodes for the observation tower and 104220 for the citadel, which simply
+	# never finishes loading -- the citadel demo hung on exactly this.
+	#
+	# Collision here serves occlusion queries (the x-ray silhouette), not
+	# movement: movement is the authored lattice and never touches physics. So a
+	# carved gate tunnel keeping its parent block's collision is correct rather
+	# than merely tolerable -- a unit inside a tunnel IS occluded.
+	for box_data in definition.block_boxes:
 		var shape := CollisionShape3D.new()
 		var box := BoxShape3D.new()
-		box.size = Vector3.ONE
+		var size: Vector3 = box_data["size"]
+		box.size = size
 		shape.shape = box
-		shape.position = cell_centre(cell)
+		shape.position = (box_data["min"] as Vector3) + size * 0.5
 		_collision.add_child(shape)
 
 func set_blocks_visible(value: bool) -> void:
