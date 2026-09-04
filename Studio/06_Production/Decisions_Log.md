@@ -1011,6 +1011,14 @@ Emission was tuned down after the first render (glass 1.5 → 0.65, crystal 2.2 
 
 Per-instance tint varies each block slightly, derived from cell position rather than randomly, so a wall reads as masonry rather than a solid and a rebuilt structure looks identical to the one before it.
 
-**Worth noting for art direction:** the citadel's YAML authors almost no glass — its palette is nearly all `exterior_wall`/`keep_wall`, so it reads as blue stone with a few crystal markers. The reference's lit windows are a *data* gap, not a renderer one. Adding a `glass` role to the window bands would close it.
+**Closed 2026-09-04 — the data gap above.** The citadel's palette gained a `glass` role and the reference's lit windows now exist as authored blocks: 83 of them, placed after the stone they cut into so later-blocks-override replaces masonry rather than sitting proud of it.
+
+The first attempt authored each window band as one continuous face-wide slab, and it was wrong in a way the render made obvious — the keep read as a stack of glowing boxes, not a building. What sells masonry is the *rhythm*: narrow openings with stone between them, and corners left solid, because that is where a real building puts its structure. So windows became a generated feature rather than hand-placed blocks, following the composition schema's own vocabulary (`repeated_wall_segments` already generates crenellation on an `every_blocks` spacing). A `windows:` entry names a box and a spacing; the adapter walks its four faces and places the openings.
+
+That generator is available both at the top level and inside a `prefab_contract`, which matters more than it sounds: the corner towers are instanced with a rotation, so their windows have to be generated in tower-local space and carried through the same rotation as the stone they pierce. Window rows authored in citadel coordinates simply missed the towers entirely — which is exactly how the first pass presented.
+
+Deliberately unchanged: `keep_roof_observatory`'s extents. `keep_observatory_nav` generates its floor from that block, so glazing it by shrinking it would have quietly deleted the roof a captured citadel is walked onto. It is glazed by overlay instead.
+
+Tower tops are fully glazed lanterns rather than window rows. A corner tower's job at this scale is to be findable, and the gatewatch tower is the one the player looks at on approach.
 
 **Suite:** 59/60. `seeded_grid_frontier` still pre-existing.

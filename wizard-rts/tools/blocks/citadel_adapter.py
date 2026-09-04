@@ -129,9 +129,61 @@ class CitadelAdapter:
         self._collect_visual_blocks(self.data.get("stairs"))
         for deck in (self.data.get("wall_walks") or {}).get("authored_visual_decks", []) or []:
             self._add_block(deck["id"], deck["origin"], deck["size"], deck.get("material", "exterior_trim"))
+        self._build_windows()
         self._build_wall_segments()
         self._build_instances()
         self._carve_openings()
+
+    def _build_windows(self):
+        """Punctuated window rows around the faces of a box.
+
+        Authored as one entry per mass rather than as individual blocks. A
+        continuous glass band reads as a glowing slab, not as a building -- the
+        reference art is narrow lit openings with dark stone between them, and
+        the rhythm of that spacing is most of what makes it read as masonry.
+
+        This follows the schema's own vocabulary: `repeated_wall_segments`
+        already generates crenellation with an `every_blocks` spacing, so a
+        window row with a spacing is the same idea applied to a facade.
+        """
+        for spec in self.data.get("windows", []) or []:
+            origin = spec["origin"]
+            size = spec["size"]
+            material = spec.get("material", "glass")
+            every = max(2, int(spec.get("every", 5)))
+            width = max(1, int(spec.get("width", 2)))
+            for block in self._window_blocks(spec):
+                self._add_block(block["id"], block["origin"], block["size"], block["material"])
+
+    @staticmethod
+    def _window_blocks(spec):
+        """The openings for one windowed box, in that box's own coordinates.
+
+        Kept separate from placement so a prefab can use it too: the corner
+        towers are authored as prefab contracts and instanced with a rotation,
+        so their windows have to be generated in tower-local space and carried
+        through the same rotation as the stone they cut into.
+        """
+        origin, size = spec["origin"], spec["size"]
+        material = spec.get("material", "glass")
+        every = max(2, int(spec.get("every", 5)))
+        width = max(1, int(spec.get("width", 2)))
+        x0, y0, z0 = int(origin[0]), int(origin[1]), int(origin[2])
+        sx, sy, sz = int(size[0]), int(size[1]), int(size[2])
+        out = []
+        # Two faces run along x, two along z. Corners are left as stone, which
+        # is where a real building puts its structure.
+        for offset in range(1, sx - width, every):
+            for z in (z0, z0 + sz - 1):
+                out.append({"id": "%s_win_%d" % (spec.get("id", "window"), len(out) + 1),
+                            "origin": [x0 + offset, y0, z], "size": [width, sy, 1],
+                            "material": material})
+        for offset in range(1, sz - width, every):
+            for x in (x0, x0 + sx - 1):
+                out.append({"id": "%s_win_%d" % (spec.get("id", "window"), len(out) + 1),
+                            "origin": [x, y0, z0 + offset], "size": [1, sy, width],
+                            "material": material})
+        return out
 
     def _build_wall_segments(self):
         """Wall bodies, decks and crenellation from the repeated-segment defaults.
@@ -164,6 +216,9 @@ class CitadelAdapter:
             inline = contract.get("visual_blocks")
             if inline:
                 size = contract.get("size", [18, 18, 18])
+                inline = list(inline)
+                for spec in contract.get("windows", []) or []:
+                    inline.extend(self._window_blocks(spec))
                 for block in inline:
                     self._add_rotated_block(instance["id"], block, origin, rotation, size)
                 continue

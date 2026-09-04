@@ -78,6 +78,9 @@
 		"gate": {
 			"collision": "conditional"
 		},
+		"glass": {
+			"collision": "solid"
+		},
 		"interior_floor": {
 			"collision": "solid"
 		},
@@ -1658,7 +1661,7 @@
 			]
 		},
 		"kons_arcane_citadel_01": {
-			"block_cell_count": 114850,
+			"block_cell_count": 116758,
 			"blocks": [
 				{
 					"id": "full_citadel_slab",
@@ -1828,6 +1831,25 @@
 						"z": [
 							41,
 							54
+						]
+					}
+				},
+				{
+					"id": "keep_observatory_glass",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							43,
+							52
+						],
+						"y": [
+							34,
+							38
+						],
+						"z": [
+							43,
+							52
 						]
 					}
 				},
@@ -2607,6 +2629,918 @@
 						"z": [
 							44,
 							51
+						]
+					}
+				},
+				{
+					"id": "keep_tier2_win_1",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							36,
+							37
+						],
+						"y": [
+							19,
+							21
+						],
+						"z": [
+							35,
+							35
+						]
+					}
+				},
+				{
+					"id": "keep_tier2_win_2",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							36,
+							37
+						],
+						"y": [
+							19,
+							21
+						],
+						"z": [
+							60,
+							60
+						]
+					}
+				},
+				{
+					"id": "keep_tier2_win_3",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							41,
+							42
+						],
+						"y": [
+							19,
+							21
+						],
+						"z": [
+							35,
+							35
+						]
+					}
+				},
+				{
+					"id": "keep_tier2_win_4",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							41,
+							42
+						],
+						"y": [
+							19,
+							21
+						],
+						"z": [
+							60,
+							60
+						]
+					}
+				},
+				{
+					"id": "keep_tier2_win_5",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							46,
+							47
+						],
+						"y": [
+							19,
+							21
+						],
+						"z": [
+							35,
+							35
+						]
+					}
+				},
+				{
+					"id": "keep_tier2_win_6",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							46,
+							47
+						],
+						"y": [
+							19,
+							21
+						],
+						"z": [
+							60,
+							60
+						]
+					}
+				},
+				{
+					"id": "keep_tier2_win_7",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							51,
+							52
+						],
+						"y": [
+							19,
+							21
+						],
+						"z": [
+							35,
+							35
+						]
+					}
+				},
+				{
+					"id": "keep_tier2_win_8",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							51,
+							52
+						],
+						"y": [
+							19,
+							21
+						],
+						"z": [
+							60,
+							60
+						]
+					}
+				},
+				{
+					"id": "keep_tier2_win_9",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							56,
+							57
+						],
+						"y": [
+							19,
+							21
+						],
+						"z": [
+							35,
+							35
+						]
+					}
+				},
+				{
+					"id": "keep_tier2_win_10",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							56,
+							57
+						],
+						"y": [
+							19,
+							21
+						],
+						"z": [
+							60,
+							60
+						]
+					}
+				},
+				{
+					"id": "keep_tier2_win_11",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							35,
+							35
+						],
+						"y": [
+							19,
+							21
+						],
+						"z": [
+							36,
+							37
+						]
+					}
+				},
+				{
+					"id": "keep_tier2_win_12",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							60,
+							60
+						],
+						"y": [
+							19,
+							21
+						],
+						"z": [
+							36,
+							37
+						]
+					}
+				},
+				{
+					"id": "keep_tier2_win_13",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							35,
+							35
+						],
+						"y": [
+							19,
+							21
+						],
+						"z": [
+							41,
+							42
+						]
+					}
+				},
+				{
+					"id": "keep_tier2_win_14",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							60,
+							60
+						],
+						"y": [
+							19,
+							21
+						],
+						"z": [
+							41,
+							42
+						]
+					}
+				},
+				{
+					"id": "keep_tier2_win_15",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							35,
+							35
+						],
+						"y": [
+							19,
+							21
+						],
+						"z": [
+							46,
+							47
+						]
+					}
+				},
+				{
+					"id": "keep_tier2_win_16",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							60,
+							60
+						],
+						"y": [
+							19,
+							21
+						],
+						"z": [
+							46,
+							47
+						]
+					}
+				},
+				{
+					"id": "keep_tier2_win_17",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							35,
+							35
+						],
+						"y": [
+							19,
+							21
+						],
+						"z": [
+							51,
+							52
+						]
+					}
+				},
+				{
+					"id": "keep_tier2_win_18",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							60,
+							60
+						],
+						"y": [
+							19,
+							21
+						],
+						"z": [
+							51,
+							52
+						]
+					}
+				},
+				{
+					"id": "keep_tier2_win_19",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							35,
+							35
+						],
+						"y": [
+							19,
+							21
+						],
+						"z": [
+							56,
+							57
+						]
+					}
+				},
+				{
+					"id": "keep_tier2_win_20",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							60,
+							60
+						],
+						"y": [
+							19,
+							21
+						],
+						"z": [
+							56,
+							57
+						]
+					}
+				},
+				{
+					"id": "keep_tier3_win_1",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							40,
+							41
+						],
+						"y": [
+							27,
+							29
+						],
+						"z": [
+							39,
+							39
+						]
+					}
+				},
+				{
+					"id": "keep_tier3_win_2",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							40,
+							41
+						],
+						"y": [
+							27,
+							29
+						],
+						"z": [
+							56,
+							56
+						]
+					}
+				},
+				{
+					"id": "keep_tier3_win_3",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							45,
+							46
+						],
+						"y": [
+							27,
+							29
+						],
+						"z": [
+							39,
+							39
+						]
+					}
+				},
+				{
+					"id": "keep_tier3_win_4",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							45,
+							46
+						],
+						"y": [
+							27,
+							29
+						],
+						"z": [
+							56,
+							56
+						]
+					}
+				},
+				{
+					"id": "keep_tier3_win_5",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							50,
+							51
+						],
+						"y": [
+							27,
+							29
+						],
+						"z": [
+							39,
+							39
+						]
+					}
+				},
+				{
+					"id": "keep_tier3_win_6",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							50,
+							51
+						],
+						"y": [
+							27,
+							29
+						],
+						"z": [
+							56,
+							56
+						]
+					}
+				},
+				{
+					"id": "keep_tier3_win_7",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							39,
+							39
+						],
+						"y": [
+							27,
+							29
+						],
+						"z": [
+							40,
+							41
+						]
+					}
+				},
+				{
+					"id": "keep_tier3_win_8",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							56,
+							56
+						],
+						"y": [
+							27,
+							29
+						],
+						"z": [
+							40,
+							41
+						]
+					}
+				},
+				{
+					"id": "keep_tier3_win_9",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							39,
+							39
+						],
+						"y": [
+							27,
+							29
+						],
+						"z": [
+							45,
+							46
+						]
+					}
+				},
+				{
+					"id": "keep_tier3_win_10",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							56,
+							56
+						],
+						"y": [
+							27,
+							29
+						],
+						"z": [
+							45,
+							46
+						]
+					}
+				},
+				{
+					"id": "keep_tier3_win_11",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							39,
+							39
+						],
+						"y": [
+							27,
+							29
+						],
+						"z": [
+							50,
+							51
+						]
+					}
+				},
+				{
+					"id": "keep_tier3_win_12",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							56,
+							56
+						],
+						"y": [
+							27,
+							29
+						],
+						"z": [
+							50,
+							51
+						]
+					}
+				},
+				{
+					"id": "gatehouse_west_win_1",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							39,
+							40
+						],
+						"y": [
+							10,
+							13
+						],
+						"z": [
+							4,
+							4
+						]
+					}
+				},
+				{
+					"id": "gatehouse_west_win_2",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							39,
+							40
+						],
+						"y": [
+							10,
+							13
+						],
+						"z": [
+							17,
+							17
+						]
+					}
+				},
+				{
+					"id": "gatehouse_west_win_3",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							38,
+							38
+						],
+						"y": [
+							10,
+							13
+						],
+						"z": [
+							5,
+							6
+						]
+					}
+				},
+				{
+					"id": "gatehouse_west_win_4",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							43,
+							43
+						],
+						"y": [
+							10,
+							13
+						],
+						"z": [
+							5,
+							6
+						]
+					}
+				},
+				{
+					"id": "gatehouse_west_win_5",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							38,
+							38
+						],
+						"y": [
+							10,
+							13
+						],
+						"z": [
+							10,
+							11
+						]
+					}
+				},
+				{
+					"id": "gatehouse_west_win_6",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							43,
+							43
+						],
+						"y": [
+							10,
+							13
+						],
+						"z": [
+							10,
+							11
+						]
+					}
+				},
+				{
+					"id": "gatehouse_west_win_7",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							38,
+							38
+						],
+						"y": [
+							10,
+							13
+						],
+						"z": [
+							15,
+							16
+						]
+					}
+				},
+				{
+					"id": "gatehouse_west_win_8",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							43,
+							43
+						],
+						"y": [
+							10,
+							13
+						],
+						"z": [
+							15,
+							16
+						]
+					}
+				},
+				{
+					"id": "gatehouse_east_win_1",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							53,
+							54
+						],
+						"y": [
+							10,
+							13
+						],
+						"z": [
+							4,
+							4
+						]
+					}
+				},
+				{
+					"id": "gatehouse_east_win_2",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							53,
+							54
+						],
+						"y": [
+							10,
+							13
+						],
+						"z": [
+							17,
+							17
+						]
+					}
+				},
+				{
+					"id": "gatehouse_east_win_3",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							52,
+							52
+						],
+						"y": [
+							10,
+							13
+						],
+						"z": [
+							5,
+							6
+						]
+					}
+				},
+				{
+					"id": "gatehouse_east_win_4",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							57,
+							57
+						],
+						"y": [
+							10,
+							13
+						],
+						"z": [
+							5,
+							6
+						]
+					}
+				},
+				{
+					"id": "gatehouse_east_win_5",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							52,
+							52
+						],
+						"y": [
+							10,
+							13
+						],
+						"z": [
+							10,
+							11
+						]
+					}
+				},
+				{
+					"id": "gatehouse_east_win_6",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							57,
+							57
+						],
+						"y": [
+							10,
+							13
+						],
+						"z": [
+							10,
+							11
+						]
+					}
+				},
+				{
+					"id": "gatehouse_east_win_7",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							52,
+							52
+						],
+						"y": [
+							10,
+							13
+						],
+						"z": [
+							15,
+							16
+						]
+					}
+				},
+				{
+					"id": "gatehouse_east_win_8",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							57,
+							57
+						],
+						"y": [
+							10,
+							13
+						],
+						"z": [
+							15,
+							16
 						]
 					}
 				},
@@ -3751,6 +4685,253 @@
 					}
 				},
 				{
+					"id": "north_east_astrolabe_tower_astrolabe_lantern",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							78,
+							87
+						],
+						"y": [
+							37,
+							40
+						],
+						"z": [
+							78,
+							87
+						]
+					}
+				},
+				{
+					"id": "north_east_astrolabe_tower_astrolabe_win_1",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							88,
+							88
+						],
+						"y": [
+							26,
+							29
+						],
+						"z": [
+							78,
+							79
+						]
+					}
+				},
+				{
+					"id": "north_east_astrolabe_tower_astrolabe_win_2",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							77,
+							77
+						],
+						"y": [
+							26,
+							29
+						],
+						"z": [
+							78,
+							79
+						]
+					}
+				},
+				{
+					"id": "north_east_astrolabe_tower_astrolabe_win_3",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							88,
+							88
+						],
+						"y": [
+							26,
+							29
+						],
+						"z": [
+							82,
+							83
+						]
+					}
+				},
+				{
+					"id": "north_east_astrolabe_tower_astrolabe_win_4",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							77,
+							77
+						],
+						"y": [
+							26,
+							29
+						],
+						"z": [
+							82,
+							83
+						]
+					}
+				},
+				{
+					"id": "north_east_astrolabe_tower_astrolabe_win_5",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							88,
+							88
+						],
+						"y": [
+							26,
+							29
+						],
+						"z": [
+							86,
+							87
+						]
+					}
+				},
+				{
+					"id": "north_east_astrolabe_tower_astrolabe_win_6",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							77,
+							77
+						],
+						"y": [
+							26,
+							29
+						],
+						"z": [
+							86,
+							87
+						]
+					}
+				},
+				{
+					"id": "north_east_astrolabe_tower_astrolabe_win_7",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							86,
+							87
+						],
+						"y": [
+							26,
+							29
+						],
+						"z": [
+							77,
+							77
+						]
+					}
+				},
+				{
+					"id": "north_east_astrolabe_tower_astrolabe_win_8",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							86,
+							87
+						],
+						"y": [
+							26,
+							29
+						],
+						"z": [
+							88,
+							88
+						]
+					}
+				},
+				{
+					"id": "north_east_astrolabe_tower_astrolabe_win_9",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							82,
+							83
+						],
+						"y": [
+							26,
+							29
+						],
+						"z": [
+							77,
+							77
+						]
+					}
+				},
+				{
+					"id": "north_east_astrolabe_tower_astrolabe_win_10",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							82,
+							83
+						],
+						"y": [
+							26,
+							29
+						],
+						"z": [
+							88,
+							88
+						]
+					}
+				},
+				{
+					"id": "north_east_astrolabe_tower_astrolabe_win_11",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							78,
+							79
+						],
+						"y": [
+							26,
+							29
+						],
+						"z": [
+							77,
+							77
+						]
+					}
+				},
+				{
+					"id": "north_east_astrolabe_tower_astrolabe_win_12",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							78,
+							79
+						],
+						"y": [
+							26,
+							29
+						],
+						"z": [
+							88,
+							88
+						]
+					}
+				},
+				{
 					"id": "south_west_archive_tower_archive_tower_base",
 					"material": "tower_wall",
 					"nav": "SOLID",
@@ -3827,6 +5008,234 @@
 					}
 				},
 				{
+					"id": "south_west_archive_tower_archive_win_1",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							6,
+							6
+						],
+						"y": [
+							22,
+							25
+						],
+						"z": [
+							17,
+							18
+						]
+					}
+				},
+				{
+					"id": "south_west_archive_tower_archive_win_2",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							19,
+							19
+						],
+						"y": [
+							22,
+							25
+						],
+						"z": [
+							17,
+							18
+						]
+					}
+				},
+				{
+					"id": "south_west_archive_tower_archive_win_3",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							6,
+							6
+						],
+						"y": [
+							22,
+							25
+						],
+						"z": [
+							13,
+							14
+						]
+					}
+				},
+				{
+					"id": "south_west_archive_tower_archive_win_4",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							19,
+							19
+						],
+						"y": [
+							22,
+							25
+						],
+						"z": [
+							13,
+							14
+						]
+					}
+				},
+				{
+					"id": "south_west_archive_tower_archive_win_5",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							6,
+							6
+						],
+						"y": [
+							22,
+							25
+						],
+						"z": [
+							9,
+							10
+						]
+					}
+				},
+				{
+					"id": "south_west_archive_tower_archive_win_6",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							19,
+							19
+						],
+						"y": [
+							22,
+							25
+						],
+						"z": [
+							9,
+							10
+						]
+					}
+				},
+				{
+					"id": "south_west_archive_tower_archive_win_7",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							7,
+							8
+						],
+						"y": [
+							22,
+							25
+						],
+						"z": [
+							19,
+							19
+						]
+					}
+				},
+				{
+					"id": "south_west_archive_tower_archive_win_8",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							7,
+							8
+						],
+						"y": [
+							22,
+							25
+						],
+						"z": [
+							6,
+							6
+						]
+					}
+				},
+				{
+					"id": "south_west_archive_tower_archive_win_9",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							11,
+							12
+						],
+						"y": [
+							22,
+							25
+						],
+						"z": [
+							19,
+							19
+						]
+					}
+				},
+				{
+					"id": "south_west_archive_tower_archive_win_10",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							11,
+							12
+						],
+						"y": [
+							22,
+							25
+						],
+						"z": [
+							6,
+							6
+						]
+					}
+				},
+				{
+					"id": "south_west_archive_tower_archive_win_11",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							15,
+							16
+						],
+						"y": [
+							22,
+							25
+						],
+						"z": [
+							19,
+							19
+						]
+					}
+				},
+				{
+					"id": "south_west_archive_tower_archive_win_12",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							15,
+							16
+						],
+						"y": [
+							22,
+							25
+						],
+						"z": [
+							6,
+							6
+						]
+					}
+				},
+				{
 					"id": "south_east_gatewatch_tower_gatewatch_tower_base",
 					"material": "tower_wall",
 					"nav": "SOLID",
@@ -3880,6 +5289,177 @@
 						"z": [
 							7,
 							18
+						]
+					}
+				},
+				{
+					"id": "south_east_gatewatch_tower_gatewatch_lantern",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							77,
+							88
+						],
+						"y": [
+							33,
+							35
+						],
+						"z": [
+							7,
+							18
+						]
+					}
+				},
+				{
+					"id": "south_east_gatewatch_tower_gatewatch_win_1",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							85,
+							86
+						],
+						"y": [
+							24,
+							27
+						],
+						"z": [
+							17,
+							17
+						]
+					}
+				},
+				{
+					"id": "south_east_gatewatch_tower_gatewatch_win_2",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							85,
+							86
+						],
+						"y": [
+							24,
+							27
+						],
+						"z": [
+							8,
+							8
+						]
+					}
+				},
+				{
+					"id": "south_east_gatewatch_tower_gatewatch_win_3",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							81,
+							82
+						],
+						"y": [
+							24,
+							27
+						],
+						"z": [
+							17,
+							17
+						]
+					}
+				},
+				{
+					"id": "south_east_gatewatch_tower_gatewatch_win_4",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							81,
+							82
+						],
+						"y": [
+							24,
+							27
+						],
+						"z": [
+							8,
+							8
+						]
+					}
+				},
+				{
+					"id": "south_east_gatewatch_tower_gatewatch_win_5",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							87,
+							87
+						],
+						"y": [
+							24,
+							27
+						],
+						"z": [
+							15,
+							16
+						]
+					}
+				},
+				{
+					"id": "south_east_gatewatch_tower_gatewatch_win_6",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							78,
+							78
+						],
+						"y": [
+							24,
+							27
+						],
+						"z": [
+							15,
+							16
+						]
+					}
+				},
+				{
+					"id": "south_east_gatewatch_tower_gatewatch_win_7",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							87,
+							87
+						],
+						"y": [
+							24,
+							27
+						],
+						"z": [
+							11,
+							12
+						]
+					}
+				},
+				{
+					"id": "south_east_gatewatch_tower_gatewatch_win_8",
+					"material": "glass",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							78,
+							78
+						],
+						"y": [
+							24,
+							27
+						],
+						"z": [
+							11,
+							12
 						]
 					}
 				},

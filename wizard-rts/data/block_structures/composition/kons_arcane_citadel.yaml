@@ -75,6 +75,7 @@ materials:
     gate: reinforced_oak_gate
     arch: carved_arcane_arch_block
     crystal: blue_mana_crystal_block
+    glass: lit_arcane_glass_block
     marker: debug_marker_block
   material_roles_are_visual_only: true
 
@@ -175,6 +176,8 @@ substructures:
 
     - prefab: citadel_astrolabe_corner_tower_01
       size: [18, 42, 18]
+      windows:
+        - {id: astrolabe, origin: [3, 26, 3], size: [12, 4, 12], every: 4, width: 2, material: glass}
       visual_blocks:
         - id: astrolabe_tower_base
           origin: [0, 0, 0]
@@ -192,6 +195,9 @@ substructures:
           origin: [4, 36, 4]
           size: [10, 6, 10]
           material: roof
+        # The lantern itself. Glazed through, like the observation tower's crown,
+        # because a corner tower's job at this scale is to be findable at night.
+        - {id: astrolabe_lantern, origin: [4, 37, 4], size: [10, 4, 10], material: glass}
       sockets:
         - { id: ground_entry, type: path, local_position: [9, 0, 0], direction: south }
         - { id: wall_walk_left, type: wall_walk, local_position: [0, 18, 9], direction: west }
@@ -200,6 +206,8 @@ substructures:
 
     - prefab: citadel_archive_corner_tower_01
       size: [18, 36, 18]
+      windows:
+        - {id: archive, origin: [2, 22, 2], size: [14, 4, 14], every: 4, width: 2, material: glass}
       visual_blocks:
         - id: archive_tower_base
           origin: [0, 0, 0]
@@ -225,6 +233,8 @@ substructures:
 
     - prefab: citadel_gatewatch_corner_tower_01
       size: [18, 38, 18]
+      windows:
+        - {id: gatewatch, origin: [4, 24, 4], size: [10, 4, 10], every: 4, width: 2, material: glass}
       visual_blocks:
         - id: gatewatch_tower_base
           origin: [0, 0, 0]
@@ -238,11 +248,25 @@ substructures:
           origin: [3, 32, 3]
           size: [12, 6, 12]
           material: roof
+        # Glazed watch room. This tower faces the gate, so it is the one the
+        # player looks at on approach.
+        - {id: gatewatch_lantern, origin: [3, 33, 3], size: [12, 3, 12], material: glass}
       sockets:
         - { id: ground_entry, type: path, local_position: [0, 0, 9], direction: west }
         - { id: wall_walk_left, type: wall_walk, local_position: [0, 18, 9], direction: west }
         - { id: wall_walk_right, type: wall_walk, local_position: [17, 18, 9], direction: east }
         - { id: gatehouse_bridge, type: wall_walk, local_position: [9, 18, 0], direction: south }
+
+# Punctuated window rows, one entry per lit mass. The adapter walks the four
+# faces of each box and places `width`-wide openings every `every` blocks,
+# leaving the corners as stone. Authored this way rather than block by block
+# because a continuous glass band reads as a glowing slab; the rhythm of narrow
+# openings with masonry between them is what makes a facade read as a building.
+windows:
+  - {id: keep_tier2, origin: [35, 19, 35], size: [26, 3, 26], every: 5, width: 2, material: glass}
+  - {id: keep_tier3, origin: [39, 27, 39], size: [18, 3, 18], every: 5, width: 2, material: glass}
+  - {id: gatehouse_west, origin: [38, 10, 4], size: [6, 4, 14], every: 5, width: 2, material: glass}
+  - {id: gatehouse_east, origin: [52, 10, 4], size: [6, 4, 14], every: 5, width: 2, material: glass}
 
 foundations:
   visual_blocks:
@@ -435,6 +459,15 @@ central_keep:
       origin: [41, 40, 41]
       size: [14, 5, 14]
       material: roof
+    # The roof observatory is called an observatory, so it is glazed through
+    # rather than given a window band. It is the highest lit mass on the map and
+    # the thing a player navigates by.
+    #
+    # Deliberately does NOT change keep_roof_observatory's own extents: that
+    # block is what keep_observatory_nav generates its floor from, and shrinking
+    # it would quietly delete the roof a captured citadel is walked onto.
+    - {id: keep_observatory_glass, origin: [43, 34, 43], size: [10, 5, 10], material: glass}
+
     - id: keep_north_arch
       origin: [44, 5, 65]
       size: [8, 8, 2]
@@ -485,6 +518,7 @@ gatehouse:
       origin: [44, 12, 4]
       size: [8, 8, 14]
       material: arch
+
     - id: gatehouse_roof_walk
       origin: [38, 20, 4]
       size: [20, 2, 14]
