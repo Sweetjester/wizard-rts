@@ -1,0 +1,376 @@
+schema_version: "1.0"
+
+world:
+  block_size_m: 1.0
+  axes:
+    x: east_west
+    y: vertical
+    z: north_south
+  origin_rule: "Structure local origin is minimum x,y,z corner."
+  coordinate_rule: "All ranges are inclusive."
+  navigation_rule: "Never derive traversability from rendered geometry. Use authored nav regions and links."
+  visual_rule: "Geometry, collision and navigation are separate systems."
+  default_clearance:
+    infantry: {width: 1, depth: 1, height: 2}
+    archer: {width: 1, depth: 1, height: 2}
+    climber: {width: 1, depth: 1, height: 2}
+    heavy: {width: 2, depth: 2, height: 3}
+    siege: {width: 3, depth: 3, height: 4}
+    flying: {width: 1, depth: 1, height: 1}
+
+unit_classes:
+  infantry:
+    footprint: [1, 1]
+    can_use_floor: true
+    can_use_stairs: true
+    can_use_ramps: true
+    can_use_ladders: false
+    can_use_climb_points: false
+    can_use_portals: true
+    can_pass_open_gates: true
+    max_drop_blocks: 1
+
+  archer:
+    inherits: infantry
+
+  climber:
+    footprint: [1, 1]
+    can_use_floor: true
+    can_use_stairs: true
+    can_use_ramps: true
+    can_use_ladders: true
+    can_use_climb_points: true
+    can_use_portals: true
+    can_pass_open_gates: true
+    max_drop_blocks: 2
+
+  heavy:
+    footprint: [2, 2]
+    can_use_floor: true
+    can_use_stairs: false
+    can_use_ramps: true
+    can_use_ladders: false
+    can_use_climb_points: false
+    can_use_portals: false
+    can_pass_open_gates: true
+    max_drop_blocks: 0
+
+  siege:
+    footprint: [3, 3]
+    can_use_floor: true
+    can_use_stairs: false
+    can_use_ramps: true
+    can_use_ladders: false
+    can_use_climb_points: false
+    can_use_portals: false
+    can_pass_open_gates: true
+    max_drop_blocks: 0
+
+  flying:
+    ignores_ground_navigation: true
+
+nav_types:
+  SOLID:
+    walkable: false
+  FLOOR:
+    walkable: true
+  WALL_WALK:
+    walkable: true
+  STAIR:
+    walkable: true
+    elevation_link: true
+  RAMP:
+    walkable: true
+    elevation_link: true
+  GATE:
+    conditional_walkable: true
+  LADDER:
+    walkable: false
+    link_only: true
+  CLIMB_POINT:
+    walkable: false
+    link_only: true
+  PORTAL:
+    walkable: false
+    link_only: true
+  DROP_EDGE:
+    walkable: true
+    one_way_down: true
+  BRIDGE_SOCKET:
+    walkable: false
+    generation_socket: true
+
+materials:
+  STONE_BRICK: {collision: solid}
+  MOSSY_STONE: {collision: solid}
+  BLACK_STONE: {collision: solid}
+  TIMBER: {collision: solid}
+  BONE: {collision: solid}
+  METAL_GATE: {collision: conditional}
+  RUIN_STONE: {collision: solid}
+  MAGIC_STONE: {collision: solid}
+  VOID_DECOR: {collision: none}
+
+structures:
+
+  fortress_gatehouse_01:
+    display_name: "Fortress Gatehouse"
+    dimensions: [12, 8, 10]
+    purpose: [map_choke, defensive_landmark, capturable_structure]
+    blocks:
+      - {region: {x: [0,2], y: [0,7], z: [3,9]}, material: STONE_BRICK, nav: SOLID}
+      - {region: {x: [9,11], y: [0,7], z: [3,9]}, material: STONE_BRICK, nav: SOLID}
+      - {region: {x: [3,8], y: [4,5], z: [6,9]}, material: STONE_BRICK, nav: SOLID}
+      - {region: {x: [3,8], y: [0,3], z: [5,9]}, material: STONE_BRICK, nav: SOLID}
+      - {region: {x: [4,7], y: [0,3], z: [0,5]}, material: VOID_DECOR, nav: FLOOR}
+    nav_regions:
+      - id: gate_passage
+        type: GATE
+        region: {x: [4,7], y: 0, z: [0,5]}
+        clearance: {width: 4, height: 4}
+        allowed: [infantry, archer, climber, heavy]
+        state_key: gate_open
+      - id: wall_walk
+        type: WALL_WALK
+        region: {x: [2,9], y: 6, z: [6,8]}
+        allowed: [infantry, archer, climber]
+      - id: left_tower_roof
+        type: FLOOR
+        region: {x: [0,2], y: 8, z: [5,8]}
+        allowed: [infantry, archer, climber]
+      - id: right_tower_roof
+        type: FLOOR
+        region: {x: [9,11], y: 8, z: [5,8]}
+        allowed: [infantry, archer, climber]
+    links:
+      - {id: left_stair, type: STAIR, from: [3,0,8], to: [3,6,8], width: 1, allowed: [infantry, archer, climber]}
+      - {id: right_stair, type: STAIR, from: [8,0,8], to: [8,6,8], width: 1, allowed: [infantry, archer, climber]}
+    sockets:
+      - {id: road_south, type: BRIDGE_SOCKET, position: [5,0,0], facing: south, width: 4}
+      - {id: road_north, type: BRIDGE_SOCKET, position: [5,0,9], facing: north, width: 4}
+
+  witchfire_ziggurat_01:
+    display_name: "Witchfire Ziggurat"
+    dimensions: [14, 7, 14]
+    purpose: [ritual_landmark, multi_level_combat, objective]
+    blocks:
+      - {region: {x: [0,13], y: [0,1], z: [0,13]}, material: BLACK_STONE, nav: SOLID}
+      - {region: {x: [2,11], y: [2,3], z: [2,11]}, material: BLACK_STONE, nav: SOLID}
+      - {region: {x: [4,9], y: [4,5], z: [4,9]}, material: MAGIC_STONE, nav: SOLID}
+      - {region: {x: [5,8], y: 6, z: [5,8]}, material: MAGIC_STONE, nav: FLOOR}
+    nav_regions:
+      - {id: lower_terrace, type: FLOOR, region: {x: [0,13], y: 2, z: [0,13]}, allowed: [infantry, archer, climber, heavy]}
+      - {id: middle_terrace, type: FLOOR, region: {x: [2,11], y: 4, z: [2,11]}, allowed: [infantry, archer, climber]}
+      - {id: upper_terrace, type: FLOOR, region: {x: [4,9], y: 6, z: [4,9]}, allowed: [infantry, archer, climber]}
+      - {id: summit, type: FLOOR, region: {x: [5,8], y: 7, z: [5,8]}, allowed: [infantry, archer, climber]}
+    links:
+      - {id: south_stairs_1, type: STAIR, from: [6,0,0], to: [7,2,3], width: 2, allowed: [infantry, archer, climber]}
+      - {id: south_stairs_2, type: STAIR, from: [6,2,3], to: [7,4,5], width: 2, allowed: [infantry, archer, climber]}
+      - {id: south_stairs_3, type: STAIR, from: [6,4,5], to: [7,6,7], width: 2, allowed: [infantry, archer, climber]}
+      - {id: west_ramp, type: RAMP, from: [0,0,6], to: [4,4,6], width: 2, allowed: [infantry, archer, climber, heavy]}
+      - {id: east_ramp, type: RAMP, from: [13,0,7], to: [9,4,7], width: 2, allowed: [infantry, archer, climber, heavy]}
+
+  hollowspire_tower_01:
+    display_name: "Hollowspire Tower"
+    dimensions: [8, 13, 8]
+    purpose: [vertical_landmark, observation_tower, bridge_hub]
+    blocks:
+      - {region: {x: [1,6], y: [0,12], z: [1,6]}, material: STONE_BRICK, nav: SOLID}
+      - {region: {x: [3,4], y: [0,2], z: [0,1]}, material: VOID_DECOR, nav: FLOOR}
+      - {region: {x: [2,5], y: 4, z: [0,7]}, material: TIMBER, nav: FLOOR}
+      - {region: {x: [0,7], y: 8, z: [2,5]}, material: TIMBER, nav: FLOOR}
+      - {region: {x: [1,6], y: 13, z: [1,6]}, material: STONE_BRICK, nav: FLOOR}
+    nav_regions:
+      - {id: ground_entry, type: FLOOR, region: {x: [3,4], y: 0, z: [0,3]}, allowed: [infantry, archer, climber]}
+      - {id: level_1_platform, type: FLOOR, region: {x: [2,5], y: 4, z: [0,7]}, allowed: [infantry, archer, climber]}
+      - {id: level_2_platform, type: FLOOR, region: {x: [0,7], y: 8, z: [2,5]}, allowed: [infantry, archer, climber]}
+      - {id: roof, type: FLOOR, region: {x: [1,6], y: 13, z: [1,6]}, allowed: [infantry, archer, climber]}
+    links:
+      - {id: internal_1, type: PORTAL, from: [3,0,3], to: [3,4,3], allowed: [infantry, archer, climber]}
+      - {id: internal_2, type: PORTAL, from: [4,4,4], to: [4,8,4], allowed: [infantry, archer, climber]}
+      - {id: roof_ladder, type: LADDER, from: [4,8,4], to: [4,13,4], allowed: [climber]}
+    sockets:
+      - {id: north_bridge, type: BRIDGE_SOCKET, position: [3,8,0], facing: north, width: 2}
+      - {id: east_bridge, type: BRIDGE_SOCKET, position: [7,8,3], facing: east, width: 2}
+      - {id: west_bridge, type: BRIDGE_SOCKET, position: [0,4,3], facing: west, width: 2}
+
+  titan_skull_keep_01:
+    display_name: "Titan Skull Keep"
+    dimensions: [16, 9, 12]
+    purpose: [boss_landmark, arena, fortress]
+    blocks:
+      - {region: {x: [0,2], y: [0,8], z: [0,11]}, material: RUIN_STONE, nav: SOLID}
+      - {region: {x: [13,15], y: [0,8], z: [0,11]}, material: RUIN_STONE, nav: SOLID}
+      - {region: {x: [3,12], y: [0,6], z: [9,11]}, material: RUIN_STONE, nav: SOLID}
+      - {region: {x: [3,12], y: [0,4], z: [0,2]}, material: RUIN_STONE, nav: SOLID}
+      - {region: {x: [6,9], y: [0,4], z: [0,2]}, material: VOID_DECOR, nav: FLOOR}
+      - {region: {x: [3,12], y: 1, z: [3,8]}, material: BLACK_STONE, nav: FLOOR}
+    nav_regions:
+      - {id: skull_entrance, type: GATE, region: {x: [6,9], y: 0, z: [0,3]}, clearance: {width: 4, height: 5}, allowed: [infantry, archer, climber, heavy], state_key: gate_open}
+      - {id: courtyard, type: FLOOR, region: {x: [3,12], y: 1, z: [3,8]}, allowed: [infantry, archer, climber, heavy]}
+      - {id: west_battlement, type: WALL_WALK, region: {x: [0,2], y: 6, z: [2,10]}, allowed: [infantry, archer, climber]}
+      - {id: east_battlement, type: WALL_WALK, region: {x: [13,15], y: 6, z: [2,10]}, allowed: [infantry, archer, climber]}
+      - {id: rear_battlement, type: WALL_WALK, region: {x: [3,12], y: 7, z: [9,11]}, allowed: [infantry, archer, climber]}
+    links:
+      - {id: west_stairs, type: STAIR, from: [3,1,6], to: [2,6,6], width: 1, allowed: [infantry, archer, climber]}
+      - {id: east_stairs, type: STAIR, from: [12,1,6], to: [13,6,6], width: 1, allowed: [infantry, archer, climber]}
+      - {id: west_climb, type: CLIMB_POINT, from: [0,0,5], to: [0,6,5], allowed: [climber]}
+      - {id: east_climb, type: CLIMB_POINT, from: [15,0,6], to: [15,6,6], allowed: [climber]}
+
+  ruined_aqueduct_01:
+    display_name: "Ruined Aqueduct"
+    dimensions: [18, 7, 5]
+    purpose: [bridge, choke, elevation_route]
+    blocks:
+      - {region: {x: [0,17], y: [4,6], z: [1,3]}, material: RUIN_STONE, nav: SOLID}
+      - {region: {x: [0,2], y: [0,3], z: [0,4]}, material: RUIN_STONE, nav: SOLID}
+      - {region: {x: [15,17], y: [0,3], z: [0,4]}, material: RUIN_STONE, nav: SOLID}
+    nav_regions:
+      - {id: upper_crossing, type: WALL_WALK, region: {x: [0,17], y: 7, z: [1,3]}, allowed: [infantry, archer, climber]}
+      - {id: underpass, type: FLOOR, region: {x: [3,14], y: 0, z: [0,4]}, allowed: [infantry, archer, climber, heavy, siege]}
+    links:
+      - {id: west_stair, type: STAIR, from: [0,0,2], to: [3,7,2], width: 1, allowed: [infantry, archer, climber]}
+      - {id: east_stair, type: STAIR, from: [17,0,2], to: [14,7,2], width: 1, allowed: [infantry, archer, climber]}
+    sockets:
+      - {id: west_road, type: BRIDGE_SOCKET, position: [0,0,2], facing: west, width: 3}
+      - {id: east_road, type: BRIDGE_SOCKET, position: [17,0,2], facing: east, width: 3}
+
+  broken_watchfort_01:
+    display_name: "Broken Watchfort"
+    dimensions: [10, 6, 10]
+    purpose: [minor_fort, ranged_position, ruin]
+    blocks:
+      - {region: {x: [0,9], y: [0,2], z: [8,9]}, material: RUIN_STONE, nav: SOLID}
+      - {region: {x: [0,1], y: [0,4], z: [2,9]}, material: RUIN_STONE, nav: SOLID}
+      - {region: {x: [8,9], y: [0,5], z: [4,9]}, material: RUIN_STONE, nav: SOLID}
+      - {region: {x: [2,7], y: 1, z: [3,7]}, material: MOSSY_STONE, nav: FLOOR}
+    nav_regions:
+      - {id: inner_yard, type: FLOOR, region: {x: [2,7], y: 1, z: [3,7]}, allowed: [infantry, archer, climber]}
+      - {id: east_tower_top, type: FLOOR, region: {x: [8,9], y: 6, z: [5,8]}, allowed: [infantry, archer, climber]}
+      - {id: rear_wall_walk, type: WALL_WALK, region: {x: [1,7], y: 3, z: [8,9]}, allowed: [infantry, archer, climber]}
+    links:
+      - {id: yard_stair, type: STAIR, from: [7,1,7], to: [8,6,7], width: 1, allowed: [infantry, archer, climber]}
+      - {id: rubble_climb, type: CLIMB_POINT, from: [0,0,4], to: [1,3,8], allowed: [climber]}
+
+  giant_stone_bridge_01:
+    display_name: "Giant Stone Bridge"
+    dimensions: [20, 5, 6]
+    purpose: [major_crossing, procedural_connector]
+    blocks:
+      - {region: {x: [0,19], y: [2,4], z: [1,4]}, material: STONE_BRICK, nav: SOLID}
+      - {region: {x: [0,19], y: 5, z: [1,4]}, material: MOSSY_STONE, nav: FLOOR}
+    nav_regions:
+      - {id: bridge_deck, type: FLOOR, region: {x: [0,19], y: 5, z: [1,4]}, allowed: [infantry, archer, climber, heavy]}
+    sockets:
+      - {id: west_attach, type: BRIDGE_SOCKET, position: [0,5,2], facing: west, width: 4}
+      - {id: east_attach, type: BRIDGE_SOCKET, position: [19,5,2], facing: east, width: 4}
+
+  sunken_temple_01:
+    display_name: "Sunken Temple"
+    dimensions: [14, 6, 14]
+    purpose: [arena, dungeon_entry, layered_combat]
+    blocks:
+      - {region: {x: [0,13], y: [0,1], z: [0,13]}, material: MOSSY_STONE, nav: SOLID}
+      - {region: {x: [2,11], y: 0, z: [2,11]}, material: BLACK_STONE, nav: FLOOR}
+      - {region: {x: [4,9], y: -2, z: [4,9]}, material: BLACK_STONE, nav: FLOOR}
+    nav_regions:
+      - {id: upper_ring, type: FLOOR, region: {x: [2,11], y: 0, z: [2,11]}, allowed: [infantry, archer, climber, heavy]}
+      - {id: lower_sanctum, type: FLOOR, region: {x: [4,9], y: -2, z: [4,9]}, allowed: [infantry, archer, climber]}
+    links:
+      - {id: north_descent, type: STAIR, from: [6,0,2], to: [6,-2,4], width: 2, allowed: [infantry, archer, climber]}
+      - {id: south_descent, type: STAIR, from: [7,0,11], to: [7,-2,9], width: 2, allowed: [infantry, archer, climber]}
+      - {id: west_drop, type: DROP_EDGE, from: [4,0,6], to: [4,-2,6], allowed: [climber]}
+
+  colossal_tree_shrine_01:
+    display_name: "Colossal Tree Shrine"
+    dimensions: [12, 11, 12]
+    purpose: [natural_landmark, shrine, elevated_platform]
+    blocks:
+      - {region: {x: [4,7], y: [0,8], z: [4,7]}, material: TIMBER, nav: SOLID}
+      - {region: {x: [2,9], y: [8,10], z: [2,9]}, material: TIMBER, nav: SOLID}
+      - {region: {x: [1,10], y: 0, z: [1,10]}, material: MOSSY_STONE, nav: FLOOR}
+      - {region: {x: [3,8], y: 7, z: [3,8]}, material: TIMBER, nav: FLOOR}
+    nav_regions:
+      - {id: root_floor, type: FLOOR, region: {x: [1,10], y: 0, z: [1,10]}, allowed: [infantry, archer, climber, heavy]}
+      - {id: branch_platform, type: FLOOR, region: {x: [3,8], y: 7, z: [3,8]}, allowed: [infantry, archer, climber]}
+    links:
+      - {id: spiral_root_path, type: RAMP, from: [1,0,5], to: [3,7,5], width: 1, allowed: [infantry, archer, climber]}
+      - {id: bark_climb, type: CLIMB_POINT, from: [7,0,4], to: [7,7,4], allowed: [climber]}
+
+  cliffside_monastery_01:
+    display_name: "Cliffside Monastery"
+    dimensions: [16, 10, 8]
+    purpose: [cliff_structure, multi_route_objective]
+    blocks:
+      - {region: {x: [0,15], y: [0,7], z: [5,7]}, material: STONE_BRICK, nav: SOLID}
+      - {region: {x: [1,6], y: [2,5], z: [2,5]}, material: STONE_BRICK, nav: SOLID}
+      - {region: {x: [9,14], y: [4,8], z: [2,5]}, material: STONE_BRICK, nav: SOLID}
+      - {region: {x: [1,6], y: 6, z: [1,4]}, material: MOSSY_STONE, nav: FLOOR}
+      - {region: {x: [9,14], y: 9, z: [1,4]}, material: MOSSY_STONE, nav: FLOOR}
+    nav_regions:
+      - {id: lower_court, type: FLOOR, region: {x: [1,6], y: 6, z: [1,4]}, allowed: [infantry, archer, climber]}
+      - {id: upper_court, type: FLOOR, region: {x: [9,14], y: 9, z: [1,4]}, allowed: [infantry, archer, climber]}
+      - {id: cliff_road, type: FLOOR, region: {x: [0,15], y: 0, z: [0,1]}, allowed: [infantry, archer, climber, heavy, siege]}
+    links:
+      - {id: lower_stair, type: STAIR, from: [3,0,1], to: [3,6,2], width: 1, allowed: [infantry, archer, climber]}
+      - {id: upper_stair, type: STAIR, from: [6,6,3], to: [10,9,3], width: 1, allowed: [infantry, archer, climber]}
+      - {id: cliff_chain, type: LADDER, from: [14,0,1], to: [14,9,3], allowed: [climber]}
+
+  # ---------------------------------------------------------------------------
+  # AUTHORED CORRECTION, added 2026-09-04. The original fortress_gatehouse_01 is
+  # left byte-for-byte intact above; this is a separate id, not a repair of it.
+  #
+  # Why it exists: the pack's own test cases B (infantry climbs to the wall-walk
+  # using stairs) and E (climber uses a climb point) cannot pass against the
+  # original data, because every vertical link's BOTTOM endpoint sits in a cell
+  # no nav region declares. left_stair starts at (3,0,8), which is inside the
+  # solid block x[3,8] y[0,3] z[5,9]. The gatehouse also has no ground-level nav
+  # region at all, and its gate passage dead-ends into that same solid block
+  # rather than running through the structure.
+  #
+  # Rather than invent a rule like "link endpoints are implicitly walkable" --
+  # which would be exactly the inferred navigation the spec forbids -- the fix is
+  # authored where authoring belongs: the passage is carved the full depth, and a
+  # ground floor is declared for the stair bottoms to stand on.
+  fortress_gatehouse_02_walkable:
+    display_name: "Fortress Gatehouse (walkable test copy)"
+    dimensions: [12, 9, 10]
+    purpose: [map_choke, defensive_landmark, test_case]
+    blocks:
+      - {region: {x: [0,2], y: [0,7], z: [3,9]}, material: STONE_BRICK, nav: SOLID}
+      - {region: {x: [9,11], y: [0,7], z: [3,9]}, material: STONE_BRICK, nav: SOLID}
+      - {region: {x: [3,8], y: [4,5], z: [6,9]}, material: STONE_BRICK, nav: SOLID}
+      - {region: {x: [3,8], y: [0,3], z: [5,9]}, material: STONE_BRICK, nav: SOLID}
+      # Carved the full depth so the gate actually leads somewhere, and wide
+      # enough (x 3..8) that a 2x2 heavy fits through it.
+      - {region: {x: [3,8], y: [0,3], z: [0,9]}, material: VOID_DECOR, nav: FLOOR}
+    nav_regions:
+      - id: gate_passage
+        type: GATE
+        region: {x: [3,8], y: 0, z: [0,2]}
+        clearance: {width: 6, height: 4}
+        allowed: [infantry, archer, climber, heavy]
+        state_key: gate_open
+      - id: inner_floor
+        type: FLOOR
+        region: {x: [3,8], y: 0, z: [3,9]}
+        allowed: [infantry, archer, climber, heavy]
+      - id: wall_walk
+        type: WALL_WALK
+        region: {x: [2,9], y: 6, z: [6,8]}
+        allowed: [infantry, archer, climber]
+      - id: left_tower_roof
+        type: FLOOR
+        region: {x: [0,2], y: 8, z: [5,8]}
+        allowed: [infantry, archer, climber]
+      - id: right_tower_roof
+        type: FLOOR
+        region: {x: [9,11], y: 8, z: [5,8]}
+        allowed: [infantry, archer, climber]
+    links:
+      - {id: left_stair, type: STAIR, from: [3,0,8], to: [3,6,8], width: 1, allowed: [infantry, archer, climber]}
+      - {id: right_stair, type: STAIR, from: [8,0,8], to: [8,6,8], width: 1, allowed: [infantry, archer, climber]}
+      - {id: left_tower_climb, type: CLIMB_POINT, from: [3,0,6], to: [2,8,6], allowed: [climber]}
+    sockets:
+      - {id: road_south, type: BRIDGE_SOCKET, position: [5,0,0], facing: south, width: 4}
+      - {id: road_north, type: BRIDGE_SOCKET, position: [5,0,9], facing: north, width: 4}

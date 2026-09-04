@@ -1,0 +1,183 @@
+# Block structures (experimental)
+
+Branch: `experimental/block-structures`. Nothing here is wired into the shipping
+game yet — it is a self-contained system with its own tests.
+
+The goal is Minecraft-style authored blocks used to generate large explorable
+structures (caves, ruins, gatehouses, ziggurats) that units can enter and move
+through vertically.
+
+## Layout
+
+| File | Role |
+|---|---|
+| `data/block_structures/structures.yaml` | **Source of truth.** Authored spec. Edit this. |
+| `tools/blocks/convert_structures.py` | YAML → JSON build step, plus validation. Re-run after editing the YAML. |
+| `resources/block_structures/structures.json` | Build artefact. Do not hand-edit. |
+| `structure_library.gd` | Loads the JSON, caches definitions. |
+| `structure_definition.gd` | Expands authored regions into solid cells, nav cells and links. |
+| `structure_navigation.gd` | Per-unit-class traversal. The part that has to be right. |
+| `scripts/core/block_structure_smoke_test.gd` | Proves the pack's cases A–G. |
+| `scripts/tools/block_structure_probe.gd` | Diagnostic dump of every structure. |
+| `structure_builder.gd` | Block meshes (one MultiMesh) and per-cell collision. |
+| `structure_debug_draw.gd` | Nav / link / socket / gate debug layers. |
+| `scenes/blocks/block_structure_test.tscn` | The runnable viewer. |
+
+Godot has no YAML parser, and every other YAML in this repo (`props/specs`,
+`units/specs`) is consumed by Python tooling and never by the game — so the
+build step is the established pattern, not a new dependency.
+
+```bash
+python tools/blocks/convert_structures.py
+```
+
+## The rule this system exists to enforce
+
+**Navigation is never inferred from rendered geometry.** Three independent
+layers, authored separately:
+
+- **solid cells** — collision, what a block physically occupies
+- **nav cells** — where a unit may stand, with the classes each region permits
+- **links** — the *only* way to change elevation: stairs, ramps, ladders, climb
+  points, portals, one-way drops
+
+There is deliberately no implicit step-up. An implicit rule would be exactly the
+geometry-derived navigation the spec forbids.
+
+Later blocks override earlier ones, which is how a `VOID_DECOR` volume carves a
+gate passage through a solid wall. See "One rule worth knowing" below for how
+block `nav:` fields relate to walkable ground — they do not create it.
+
+## Schema problems found in the pack (reported, not repaired)
+
+The converter validates and reports; it never silently fixes. Four problems come
+straight from the data:
+
+- `hollowspire_tower_01` — block at `y=13`, declared height 13 (valid 0–12)
+- `giant_stone_bridge_01` — block at `y=5`, declared height 5 (valid 0–4)
+- `sunken_temple_01` — negative `y` (−2) contradicts the spec's own origin rule
+  ("local origin is the minimum corner"), twice
+
+And one larger one, found by probing rather than validation:
+
+**Every vertical link's bottom endpoint sits in a cell no nav region declares.**
+In `fortress_gatehouse_01`, `left_stair` starts at `(3,0,8)` — inside the solid
+block `x[3,8] y[0,3] z[5,9]`. Both climb points on `titan_skull_keep_01` have the
+same problem. The gatehouse also has no ground-level nav region at all, and its
+gate passage dead-ends into solid stone rather than running through.
+
+Consequence: the pack's own test cases **B** (infantry climbs to the wall-walk)
+and **E** (climber uses a climb point) cannot pass against the original data.
+
+Rather than invent a rule like "link endpoints are implicitly walkable" — which
+is the inferred navigation the spec forbids — the fix is authored where
+authoring belongs. `fortress_gatehouse_02_walkable` is a separate structure id
+with the passage carved through and a ground floor declared. **The original is
+left byte-for-byte intact**, and the smoke test asserts its gaps still exist, so
+if the source data is ever repaired the test says so instead of diverging
+quietly.
+
+## Viewer
+
+```bash
+Godot --path . scenes/blocks/block_structure_test.tscn
+```
+
+| Key | Does |
+|---|---|
+| `Tab` / `Shift+Tab` | cycle structure (all 11) |
+| `C` | cycle unit class -- infantry, archer, climber, heavy, siege, flying |
+| `G` | toggle every gate |
+| `1` `2` `3` `4` | toggle nav cells / links / sockets / solid blocks |
+| drag, wheel | orbit and zoom |
+
+Nav cells are coloured by **reachability for the selected class**, measured from
+a real entry point rather than from "anywhere it could stand":
+
+- **green** reachable
+- **yellow** standable but cut off -- the interesting state, and the one a
+  two-colour view would hide
+- **grey** not standable at all
+- gates are **blue** open, **red** shut
+
+Switching infantry to heavy on the gatehouse shows the whole mechanic in one
+keypress: the wall-walk goes from green to grey and the stair link greys out,
+because heavy is `can_use_stairs: false`. Key `4` hides the stone so the links
+buried inside it become visible.
+
+`scripts/tools/block_structure_screenshot.gd` captures a set of these without
+driving the scene by hand.
+
+## One rule worth knowing
+
+**Blocks carve collision; `nav_regions` declare where units may stand.** A
+block's own `nav:` field is kept (as `open_cells`, for headroom and clearance)
+but never creates walkable ground.
+
+This was not the first implementation, and the debug view is what caught it. A
+gatehouse's carved passage is four blocks tall, so treating a `nav: FLOOR` block
+volume as floor produced four stacked levels of walkable ground -- three of them
+hanging in mid-air. Inferring support instead ("floor where the cell below is
+solid") would be deriving navigation from block layout, which is the one thing
+the spec forbids. The pack's own rule 4 settles it: nav_regions define
+occupiable cells.
+
+## The elevation system
+
+`block_nav_world.gd` is the point of all of this. One navigation lattice for a
+whole map, where a node is `(cell.x, level, cell.z)`.
+
+The insight it rests on: **the terrain is already a block grid.** Every cell
+stores an integer height, which is a column of blocks with one standable surface
+on top. This adds nothing to terrain — it just stops assuming a column can only
+have *one* surface. A wall-walk over a gate passage is the same column with two
+standable levels, and once that is expressible, interiors, bridges over roads
+and sunken temples all fall out of the same representation.
+
+| Piece | Role |
+|---|---|
+| `block_unit_rules.gd` | Class capabilities, shared by the lattice and per-structure nav so they cannot drift apart. |
+| `block_nav_world.gd` | The lattice: terrain nodes, placed structures, A* with elevation. |
+| `demo_block_terrain.gd` | A small block landscape — plateaus, ramps, cliffs, a pond. |
+| `block_world_demo.gd` | The walkable demo: structures on terrain, agents pathing through them. |
+
+```bash
+Godot --path . res://scenes/blocks/block_world_demo.tscn
+```
+
+`Space` re-rolls destinations, `P` toggles paths, `N` toggles nav cells, `C`
+cycles which class the overlay is for, `R` rebuilds.
+
+Two rules hold everywhere:
+
+- **Elevation only changes through an authored link.** No implicit step-up
+  anywhere in the file. On terrain that "link" is the existing ramp rule, which
+  is *delegated to MapGenerator* rather than reimplemented — `is_cliff_edge_cell()`
+  already is that rule, and a second opinion about whether a unit can walk up a
+  cliff is how movement and vision end up disagreeing.
+- **A structure's base level comes from the terrain under it**, so the two
+  elevation sources compose. An earlier demo pinned every structure to level 0
+  and left them half-buried where the ground rose.
+
+Nodes are encoded as a single int rather than a `Vector3i` key, and the A* heap
+uses `PackedFloat64Array`. Both are deliberate from the start: a 96×96 map is
+~9000 terrain nodes before any structure, and float32 heap costs are what made
+the flow field silently reach 3384 cells instead of 7017.
+
+## Not built yet
+
+- Test agents that actually walk a path, rather than reachability colouring
+  (the traversal graph is there; nothing animates along it yet)
+- Procedural placement into map generation
+- Destruction, and any tie-in to the `StructureComponents` work on the other
+  branch — the two systems overlap and have not been reconciled
+- **Hooking the real game to it.** The lattice, pathing and per-class rules are
+  done and demonstrated, but `RTSUnit` still has no `level` — it derives height
+  from the terrain cell it stands on. Giving units a level and moving them along
+  `BlockNavWorld.find_path()` is the next real step. Note the terrain contract is
+  only three calls (`is_walkable_cell`, `get_height`, `is_cliff_edge_cell`), all
+  of which `MapGenerator` already implements — so pointing this at the real map
+  is a substitution, not a port.
+- Flow fields over the lattice, for wave movement at hundreds of units. A* per
+  unit is fine for the demo's 18 and is not fine for 300.
+- Destruction: reconciling this with `StructureComponents` on the other branch.

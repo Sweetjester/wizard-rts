@@ -1,0 +1,2633 @@
+{
+	"_generated_by": "tools/blocks/convert_structures.py",
+	"_schema_problems": [
+		"hollowspire_tower_01/block ?: y (13, 13) exceeds declared height 13",
+		"giant_stone_bridge_01/block ?: y (5, 5) exceeds declared height 5",
+		"sunken_temple_01/block ?: y (-2, -2) is negative, but the origin rule says the local origin is the minimum corner",
+		"sunken_temple_01/nav_region lower_sanctum: y (-2, -2) is negative, but the origin rule says the local origin is the minimum corner"
+	],
+	"materials": {
+		"BLACK_STONE": {
+			"collision": "solid"
+		},
+		"BONE": {
+			"collision": "solid"
+		},
+		"MAGIC_STONE": {
+			"collision": "solid"
+		},
+		"METAL_GATE": {
+			"collision": "conditional"
+		},
+		"MOSSY_STONE": {
+			"collision": "solid"
+		},
+		"RUIN_STONE": {
+			"collision": "solid"
+		},
+		"STONE_BRICK": {
+			"collision": "solid"
+		},
+		"TIMBER": {
+			"collision": "solid"
+		},
+		"VOID_DECOR": {
+			"collision": "none"
+		}
+	},
+	"nav_types": {
+		"BRIDGE_SOCKET": {
+			"generation_socket": true,
+			"walkable": false
+		},
+		"CLIMB_POINT": {
+			"link_only": true,
+			"walkable": false
+		},
+		"DROP_EDGE": {
+			"one_way_down": true,
+			"walkable": true
+		},
+		"FLOOR": {
+			"walkable": true
+		},
+		"GATE": {
+			"conditional_walkable": true
+		},
+		"LADDER": {
+			"link_only": true,
+			"walkable": false
+		},
+		"PORTAL": {
+			"link_only": true,
+			"walkable": false
+		},
+		"RAMP": {
+			"elevation_link": true,
+			"walkable": true
+		},
+		"SOLID": {
+			"walkable": false
+		},
+		"STAIR": {
+			"elevation_link": true,
+			"walkable": true
+		},
+		"WALL_WALK": {
+			"walkable": true
+		}
+	},
+	"schema_version": "1.0",
+	"structures": {
+		"broken_watchfort_01": {
+			"block_cell_count": 242,
+			"blocks": [
+				{
+					"material": "RUIN_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							0,
+							9
+						],
+						"y": [
+							0,
+							2
+						],
+						"z": [
+							8,
+							9
+						]
+					}
+				},
+				{
+					"material": "RUIN_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							0,
+							1
+						],
+						"y": [
+							0,
+							4
+						],
+						"z": [
+							2,
+							9
+						]
+					}
+				},
+				{
+					"material": "RUIN_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							8,
+							9
+						],
+						"y": [
+							0,
+							5
+						],
+						"z": [
+							4,
+							9
+						]
+					}
+				},
+				{
+					"material": "MOSSY_STONE",
+					"nav": "FLOOR",
+					"region": {
+						"x": [
+							2,
+							7
+						],
+						"y": 1,
+						"z": [
+							3,
+							7
+						]
+					}
+				}
+			],
+			"dimensions": [
+				10,
+				6,
+				10
+			],
+			"display_name": "Broken Watchfort",
+			"id": "broken_watchfort_01",
+			"links": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						7,
+						1,
+						7
+					],
+					"id": "yard_stair",
+					"to": [
+						8,
+						6,
+						7
+					],
+					"type": "STAIR",
+					"width": 1
+				},
+				{
+					"allowed": [
+						"climber"
+					],
+					"from": [
+						0,
+						0,
+						4
+					],
+					"id": "rubble_climb",
+					"to": [
+						1,
+						3,
+						8
+					],
+					"type": "CLIMB_POINT"
+				}
+			],
+			"nav_cell_count": 52,
+			"nav_regions": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "inner_yard",
+					"region": {
+						"x": [
+							2,
+							7
+						],
+						"y": 1,
+						"z": [
+							3,
+							7
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "east_tower_top",
+					"region": {
+						"x": [
+							8,
+							9
+						],
+						"y": 6,
+						"z": [
+							5,
+							8
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "rear_wall_walk",
+					"region": {
+						"x": [
+							1,
+							7
+						],
+						"y": 3,
+						"z": [
+							8,
+							9
+						]
+					},
+					"type": "WALL_WALK"
+				}
+			],
+			"purpose": [
+				"minor_fort",
+				"ranged_position",
+				"ruin"
+			]
+		},
+		"cliffside_monastery_01": {
+			"block_cell_count": 648,
+			"blocks": [
+				{
+					"material": "STONE_BRICK",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							0,
+							15
+						],
+						"y": [
+							0,
+							7
+						],
+						"z": [
+							5,
+							7
+						]
+					}
+				},
+				{
+					"material": "STONE_BRICK",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							1,
+							6
+						],
+						"y": [
+							2,
+							5
+						],
+						"z": [
+							2,
+							5
+						]
+					}
+				},
+				{
+					"material": "STONE_BRICK",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							9,
+							14
+						],
+						"y": [
+							4,
+							8
+						],
+						"z": [
+							2,
+							5
+						]
+					}
+				},
+				{
+					"material": "MOSSY_STONE",
+					"nav": "FLOOR",
+					"region": {
+						"x": [
+							1,
+							6
+						],
+						"y": 6,
+						"z": [
+							1,
+							4
+						]
+					}
+				},
+				{
+					"material": "MOSSY_STONE",
+					"nav": "FLOOR",
+					"region": {
+						"x": [
+							9,
+							14
+						],
+						"y": 9,
+						"z": [
+							1,
+							4
+						]
+					}
+				}
+			],
+			"dimensions": [
+				16,
+				10,
+				8
+			],
+			"display_name": "Cliffside Monastery",
+			"id": "cliffside_monastery_01",
+			"links": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						3,
+						0,
+						1
+					],
+					"id": "lower_stair",
+					"to": [
+						3,
+						6,
+						2
+					],
+					"type": "STAIR",
+					"width": 1
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						6,
+						6,
+						3
+					],
+					"id": "upper_stair",
+					"to": [
+						10,
+						9,
+						3
+					],
+					"type": "STAIR",
+					"width": 1
+				},
+				{
+					"allowed": [
+						"climber"
+					],
+					"from": [
+						14,
+						0,
+						1
+					],
+					"id": "cliff_chain",
+					"to": [
+						14,
+						9,
+						3
+					],
+					"type": "LADDER"
+				}
+			],
+			"nav_cell_count": 80,
+			"nav_regions": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "lower_court",
+					"region": {
+						"x": [
+							1,
+							6
+						],
+						"y": 6,
+						"z": [
+							1,
+							4
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "upper_court",
+					"region": {
+						"x": [
+							9,
+							14
+						],
+						"y": 9,
+						"z": [
+							1,
+							4
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy",
+						"siege"
+					],
+					"id": "cliff_road",
+					"region": {
+						"x": [
+							0,
+							15
+						],
+						"y": 0,
+						"z": [
+							0,
+							1
+						]
+					},
+					"type": "FLOOR"
+				}
+			],
+			"purpose": [
+				"cliff_structure",
+				"multi_route_objective"
+			]
+		},
+		"colossal_tree_shrine_01": {
+			"block_cell_count": 472,
+			"blocks": [
+				{
+					"material": "TIMBER",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							4,
+							7
+						],
+						"y": [
+							0,
+							8
+						],
+						"z": [
+							4,
+							7
+						]
+					}
+				},
+				{
+					"material": "TIMBER",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							2,
+							9
+						],
+						"y": [
+							8,
+							10
+						],
+						"z": [
+							2,
+							9
+						]
+					}
+				},
+				{
+					"material": "MOSSY_STONE",
+					"nav": "FLOOR",
+					"region": {
+						"x": [
+							1,
+							10
+						],
+						"y": 0,
+						"z": [
+							1,
+							10
+						]
+					}
+				},
+				{
+					"material": "TIMBER",
+					"nav": "FLOOR",
+					"region": {
+						"x": [
+							3,
+							8
+						],
+						"y": 7,
+						"z": [
+							3,
+							8
+						]
+					}
+				}
+			],
+			"dimensions": [
+				12,
+				11,
+				12
+			],
+			"display_name": "Colossal Tree Shrine",
+			"id": "colossal_tree_shrine_01",
+			"links": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						1,
+						0,
+						5
+					],
+					"id": "spiral_root_path",
+					"to": [
+						3,
+						7,
+						5
+					],
+					"type": "RAMP",
+					"width": 1
+				},
+				{
+					"allowed": [
+						"climber"
+					],
+					"from": [
+						7,
+						0,
+						4
+					],
+					"id": "bark_climb",
+					"to": [
+						7,
+						7,
+						4
+					],
+					"type": "CLIMB_POINT"
+				}
+			],
+			"nav_cell_count": 136,
+			"nav_regions": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "root_floor",
+					"region": {
+						"x": [
+							1,
+							10
+						],
+						"y": 0,
+						"z": [
+							1,
+							10
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "branch_platform",
+					"region": {
+						"x": [
+							3,
+							8
+						],
+						"y": 7,
+						"z": [
+							3,
+							8
+						]
+					},
+					"type": "FLOOR"
+				}
+			],
+			"purpose": [
+				"natural_landmark",
+				"shrine",
+				"elevated_platform"
+			]
+		},
+		"fortress_gatehouse_01": {
+			"block_cell_count": 600,
+			"blocks": [
+				{
+					"material": "STONE_BRICK",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							0,
+							2
+						],
+						"y": [
+							0,
+							7
+						],
+						"z": [
+							3,
+							9
+						]
+					}
+				},
+				{
+					"material": "STONE_BRICK",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							9,
+							11
+						],
+						"y": [
+							0,
+							7
+						],
+						"z": [
+							3,
+							9
+						]
+					}
+				},
+				{
+					"material": "STONE_BRICK",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							3,
+							8
+						],
+						"y": [
+							4,
+							5
+						],
+						"z": [
+							6,
+							9
+						]
+					}
+				},
+				{
+					"material": "STONE_BRICK",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							3,
+							8
+						],
+						"y": [
+							0,
+							3
+						],
+						"z": [
+							5,
+							9
+						]
+					}
+				},
+				{
+					"material": "VOID_DECOR",
+					"nav": "FLOOR",
+					"region": {
+						"x": [
+							4,
+							7
+						],
+						"y": [
+							0,
+							3
+						],
+						"z": [
+							0,
+							5
+						]
+					}
+				}
+			],
+			"dimensions": [
+				12,
+				8,
+				10
+			],
+			"display_name": "Fortress Gatehouse",
+			"id": "fortress_gatehouse_01",
+			"links": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						3,
+						0,
+						8
+					],
+					"id": "left_stair",
+					"to": [
+						3,
+						6,
+						8
+					],
+					"type": "STAIR",
+					"width": 1
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						8,
+						0,
+						8
+					],
+					"id": "right_stair",
+					"to": [
+						8,
+						6,
+						8
+					],
+					"type": "STAIR",
+					"width": 1
+				}
+			],
+			"nav_cell_count": 72,
+			"nav_regions": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"clearance": {
+						"height": 4,
+						"width": 4
+					},
+					"id": "gate_passage",
+					"region": {
+						"x": [
+							4,
+							7
+						],
+						"y": 0,
+						"z": [
+							0,
+							5
+						]
+					},
+					"state_key": "gate_open",
+					"type": "GATE"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "wall_walk",
+					"region": {
+						"x": [
+							2,
+							9
+						],
+						"y": 6,
+						"z": [
+							6,
+							8
+						]
+					},
+					"type": "WALL_WALK"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "left_tower_roof",
+					"region": {
+						"x": [
+							0,
+							2
+						],
+						"y": 8,
+						"z": [
+							5,
+							8
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "right_tower_roof",
+					"region": {
+						"x": [
+							9,
+							11
+						],
+						"y": 8,
+						"z": [
+							5,
+							8
+						]
+					},
+					"type": "FLOOR"
+				}
+			],
+			"purpose": [
+				"map_choke",
+				"defensive_landmark",
+				"capturable_structure"
+			],
+			"sockets": [
+				{
+					"facing": "south",
+					"id": "road_south",
+					"position": [
+						5,
+						0,
+						0
+					],
+					"type": "BRIDGE_SOCKET",
+					"width": 4
+				},
+				{
+					"facing": "north",
+					"id": "road_north",
+					"position": [
+						5,
+						0,
+						9
+					],
+					"type": "BRIDGE_SOCKET",
+					"width": 4
+				}
+			]
+		},
+		"fortress_gatehouse_02_walkable": {
+			"block_cell_count": 744,
+			"blocks": [
+				{
+					"material": "STONE_BRICK",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							0,
+							2
+						],
+						"y": [
+							0,
+							7
+						],
+						"z": [
+							3,
+							9
+						]
+					}
+				},
+				{
+					"material": "STONE_BRICK",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							9,
+							11
+						],
+						"y": [
+							0,
+							7
+						],
+						"z": [
+							3,
+							9
+						]
+					}
+				},
+				{
+					"material": "STONE_BRICK",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							3,
+							8
+						],
+						"y": [
+							4,
+							5
+						],
+						"z": [
+							6,
+							9
+						]
+					}
+				},
+				{
+					"material": "STONE_BRICK",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							3,
+							8
+						],
+						"y": [
+							0,
+							3
+						],
+						"z": [
+							5,
+							9
+						]
+					}
+				},
+				{
+					"material": "VOID_DECOR",
+					"nav": "FLOOR",
+					"region": {
+						"x": [
+							3,
+							8
+						],
+						"y": [
+							0,
+							3
+						],
+						"z": [
+							0,
+							9
+						]
+					}
+				}
+			],
+			"dimensions": [
+				12,
+				9,
+				10
+			],
+			"display_name": "Fortress Gatehouse (walkable test copy)",
+			"id": "fortress_gatehouse_02_walkable",
+			"links": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						3,
+						0,
+						8
+					],
+					"id": "left_stair",
+					"to": [
+						3,
+						6,
+						8
+					],
+					"type": "STAIR",
+					"width": 1
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						8,
+						0,
+						8
+					],
+					"id": "right_stair",
+					"to": [
+						8,
+						6,
+						8
+					],
+					"type": "STAIR",
+					"width": 1
+				},
+				{
+					"allowed": [
+						"climber"
+					],
+					"from": [
+						3,
+						0,
+						6
+					],
+					"id": "left_tower_climb",
+					"to": [
+						2,
+						8,
+						6
+					],
+					"type": "CLIMB_POINT"
+				}
+			],
+			"nav_cell_count": 108,
+			"nav_regions": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"clearance": {
+						"height": 4,
+						"width": 6
+					},
+					"id": "gate_passage",
+					"region": {
+						"x": [
+							3,
+							8
+						],
+						"y": 0,
+						"z": [
+							0,
+							2
+						]
+					},
+					"state_key": "gate_open",
+					"type": "GATE"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "inner_floor",
+					"region": {
+						"x": [
+							3,
+							8
+						],
+						"y": 0,
+						"z": [
+							3,
+							9
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "wall_walk",
+					"region": {
+						"x": [
+							2,
+							9
+						],
+						"y": 6,
+						"z": [
+							6,
+							8
+						]
+					},
+					"type": "WALL_WALK"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "left_tower_roof",
+					"region": {
+						"x": [
+							0,
+							2
+						],
+						"y": 8,
+						"z": [
+							5,
+							8
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "right_tower_roof",
+					"region": {
+						"x": [
+							9,
+							11
+						],
+						"y": 8,
+						"z": [
+							5,
+							8
+						]
+					},
+					"type": "FLOOR"
+				}
+			],
+			"purpose": [
+				"map_choke",
+				"defensive_landmark",
+				"test_case"
+			],
+			"sockets": [
+				{
+					"facing": "south",
+					"id": "road_south",
+					"position": [
+						5,
+						0,
+						0
+					],
+					"type": "BRIDGE_SOCKET",
+					"width": 4
+				},
+				{
+					"facing": "north",
+					"id": "road_north",
+					"position": [
+						5,
+						0,
+						9
+					],
+					"type": "BRIDGE_SOCKET",
+					"width": 4
+				}
+			]
+		},
+		"giant_stone_bridge_01": {
+			"block_cell_count": 320,
+			"blocks": [
+				{
+					"material": "STONE_BRICK",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							0,
+							19
+						],
+						"y": [
+							2,
+							4
+						],
+						"z": [
+							1,
+							4
+						]
+					}
+				},
+				{
+					"material": "MOSSY_STONE",
+					"nav": "FLOOR",
+					"region": {
+						"x": [
+							0,
+							19
+						],
+						"y": 5,
+						"z": [
+							1,
+							4
+						]
+					}
+				}
+			],
+			"dimensions": [
+				20,
+				5,
+				6
+			],
+			"display_name": "Giant Stone Bridge",
+			"id": "giant_stone_bridge_01",
+			"nav_cell_count": 80,
+			"nav_regions": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "bridge_deck",
+					"region": {
+						"x": [
+							0,
+							19
+						],
+						"y": 5,
+						"z": [
+							1,
+							4
+						]
+					},
+					"type": "FLOOR"
+				}
+			],
+			"purpose": [
+				"major_crossing",
+				"procedural_connector"
+			],
+			"sockets": [
+				{
+					"facing": "west",
+					"id": "west_attach",
+					"position": [
+						0,
+						5,
+						2
+					],
+					"type": "BRIDGE_SOCKET",
+					"width": 4
+				},
+				{
+					"facing": "east",
+					"id": "east_attach",
+					"position": [
+						19,
+						5,
+						2
+					],
+					"type": "BRIDGE_SOCKET",
+					"width": 4
+				}
+			]
+		},
+		"hollowspire_tower_01": {
+			"block_cell_count": 580,
+			"blocks": [
+				{
+					"material": "STONE_BRICK",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							1,
+							6
+						],
+						"y": [
+							0,
+							12
+						],
+						"z": [
+							1,
+							6
+						]
+					}
+				},
+				{
+					"material": "VOID_DECOR",
+					"nav": "FLOOR",
+					"region": {
+						"x": [
+							3,
+							4
+						],
+						"y": [
+							0,
+							2
+						],
+						"z": [
+							0,
+							1
+						]
+					}
+				},
+				{
+					"material": "TIMBER",
+					"nav": "FLOOR",
+					"region": {
+						"x": [
+							2,
+							5
+						],
+						"y": 4,
+						"z": [
+							0,
+							7
+						]
+					}
+				},
+				{
+					"material": "TIMBER",
+					"nav": "FLOOR",
+					"region": {
+						"x": [
+							0,
+							7
+						],
+						"y": 8,
+						"z": [
+							2,
+							5
+						]
+					}
+				},
+				{
+					"material": "STONE_BRICK",
+					"nav": "FLOOR",
+					"region": {
+						"x": [
+							1,
+							6
+						],
+						"y": 13,
+						"z": [
+							1,
+							6
+						]
+					}
+				}
+			],
+			"dimensions": [
+				8,
+				13,
+				8
+			],
+			"display_name": "Hollowspire Tower",
+			"id": "hollowspire_tower_01",
+			"links": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						3,
+						0,
+						3
+					],
+					"id": "internal_1",
+					"to": [
+						3,
+						4,
+						3
+					],
+					"type": "PORTAL"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						4,
+						4,
+						4
+					],
+					"id": "internal_2",
+					"to": [
+						4,
+						8,
+						4
+					],
+					"type": "PORTAL"
+				},
+				{
+					"allowed": [
+						"climber"
+					],
+					"from": [
+						4,
+						8,
+						4
+					],
+					"id": "roof_ladder",
+					"to": [
+						4,
+						13,
+						4
+					],
+					"type": "LADDER"
+				}
+			],
+			"nav_cell_count": 108,
+			"nav_regions": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "ground_entry",
+					"region": {
+						"x": [
+							3,
+							4
+						],
+						"y": 0,
+						"z": [
+							0,
+							3
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "level_1_platform",
+					"region": {
+						"x": [
+							2,
+							5
+						],
+						"y": 4,
+						"z": [
+							0,
+							7
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "level_2_platform",
+					"region": {
+						"x": [
+							0,
+							7
+						],
+						"y": 8,
+						"z": [
+							2,
+							5
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "roof",
+					"region": {
+						"x": [
+							1,
+							6
+						],
+						"y": 13,
+						"z": [
+							1,
+							6
+						]
+					},
+					"type": "FLOOR"
+				}
+			],
+			"purpose": [
+				"vertical_landmark",
+				"observation_tower",
+				"bridge_hub"
+			],
+			"sockets": [
+				{
+					"facing": "north",
+					"id": "north_bridge",
+					"position": [
+						3,
+						8,
+						0
+					],
+					"type": "BRIDGE_SOCKET",
+					"width": 2
+				},
+				{
+					"facing": "east",
+					"id": "east_bridge",
+					"position": [
+						7,
+						8,
+						3
+					],
+					"type": "BRIDGE_SOCKET",
+					"width": 2
+				},
+				{
+					"facing": "west",
+					"id": "west_bridge",
+					"position": [
+						0,
+						4,
+						3
+					],
+					"type": "BRIDGE_SOCKET",
+					"width": 2
+				}
+			]
+		},
+		"ruined_aqueduct_01": {
+			"block_cell_count": 282,
+			"blocks": [
+				{
+					"material": "RUIN_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							0,
+							17
+						],
+						"y": [
+							4,
+							6
+						],
+						"z": [
+							1,
+							3
+						]
+					}
+				},
+				{
+					"material": "RUIN_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							0,
+							2
+						],
+						"y": [
+							0,
+							3
+						],
+						"z": [
+							0,
+							4
+						]
+					}
+				},
+				{
+					"material": "RUIN_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							15,
+							17
+						],
+						"y": [
+							0,
+							3
+						],
+						"z": [
+							0,
+							4
+						]
+					}
+				}
+			],
+			"dimensions": [
+				18,
+				7,
+				5
+			],
+			"display_name": "Ruined Aqueduct",
+			"id": "ruined_aqueduct_01",
+			"links": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						0,
+						0,
+						2
+					],
+					"id": "west_stair",
+					"to": [
+						3,
+						7,
+						2
+					],
+					"type": "STAIR",
+					"width": 1
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						17,
+						0,
+						2
+					],
+					"id": "east_stair",
+					"to": [
+						14,
+						7,
+						2
+					],
+					"type": "STAIR",
+					"width": 1
+				}
+			],
+			"nav_cell_count": 114,
+			"nav_regions": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "upper_crossing",
+					"region": {
+						"x": [
+							0,
+							17
+						],
+						"y": 7,
+						"z": [
+							1,
+							3
+						]
+					},
+					"type": "WALL_WALK"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy",
+						"siege"
+					],
+					"id": "underpass",
+					"region": {
+						"x": [
+							3,
+							14
+						],
+						"y": 0,
+						"z": [
+							0,
+							4
+						]
+					},
+					"type": "FLOOR"
+				}
+			],
+			"purpose": [
+				"bridge",
+				"choke",
+				"elevation_route"
+			],
+			"sockets": [
+				{
+					"facing": "west",
+					"id": "west_road",
+					"position": [
+						0,
+						0,
+						2
+					],
+					"type": "BRIDGE_SOCKET",
+					"width": 3
+				},
+				{
+					"facing": "east",
+					"id": "east_road",
+					"position": [
+						17,
+						0,
+						2
+					],
+					"type": "BRIDGE_SOCKET",
+					"width": 3
+				}
+			]
+		},
+		"sunken_temple_01": {
+			"block_cell_count": 528,
+			"blocks": [
+				{
+					"material": "MOSSY_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							0,
+							13
+						],
+						"y": [
+							0,
+							1
+						],
+						"z": [
+							0,
+							13
+						]
+					}
+				},
+				{
+					"material": "BLACK_STONE",
+					"nav": "FLOOR",
+					"region": {
+						"x": [
+							2,
+							11
+						],
+						"y": 0,
+						"z": [
+							2,
+							11
+						]
+					}
+				},
+				{
+					"material": "BLACK_STONE",
+					"nav": "FLOOR",
+					"region": {
+						"x": [
+							4,
+							9
+						],
+						"y": -2,
+						"z": [
+							4,
+							9
+						]
+					}
+				}
+			],
+			"dimensions": [
+				14,
+				6,
+				14
+			],
+			"display_name": "Sunken Temple",
+			"id": "sunken_temple_01",
+			"links": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						6,
+						0,
+						2
+					],
+					"id": "north_descent",
+					"to": [
+						6,
+						-2,
+						4
+					],
+					"type": "STAIR",
+					"width": 2
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						7,
+						0,
+						11
+					],
+					"id": "south_descent",
+					"to": [
+						7,
+						-2,
+						9
+					],
+					"type": "STAIR",
+					"width": 2
+				},
+				{
+					"allowed": [
+						"climber"
+					],
+					"from": [
+						4,
+						0,
+						6
+					],
+					"id": "west_drop",
+					"to": [
+						4,
+						-2,
+						6
+					],
+					"type": "DROP_EDGE"
+				}
+			],
+			"nav_cell_count": 136,
+			"nav_regions": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "upper_ring",
+					"region": {
+						"x": [
+							2,
+							11
+						],
+						"y": 0,
+						"z": [
+							2,
+							11
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "lower_sanctum",
+					"region": {
+						"x": [
+							4,
+							9
+						],
+						"y": -2,
+						"z": [
+							4,
+							9
+						]
+					},
+					"type": "FLOOR"
+				}
+			],
+			"purpose": [
+				"arena",
+				"dungeon_entry",
+				"layered_combat"
+			]
+		},
+		"titan_skull_keep_01": {
+			"block_cell_count": 1128,
+			"blocks": [
+				{
+					"material": "RUIN_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							0,
+							2
+						],
+						"y": [
+							0,
+							8
+						],
+						"z": [
+							0,
+							11
+						]
+					}
+				},
+				{
+					"material": "RUIN_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							13,
+							15
+						],
+						"y": [
+							0,
+							8
+						],
+						"z": [
+							0,
+							11
+						]
+					}
+				},
+				{
+					"material": "RUIN_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							3,
+							12
+						],
+						"y": [
+							0,
+							6
+						],
+						"z": [
+							9,
+							11
+						]
+					}
+				},
+				{
+					"material": "RUIN_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							3,
+							12
+						],
+						"y": [
+							0,
+							4
+						],
+						"z": [
+							0,
+							2
+						]
+					}
+				},
+				{
+					"material": "VOID_DECOR",
+					"nav": "FLOOR",
+					"region": {
+						"x": [
+							6,
+							9
+						],
+						"y": [
+							0,
+							4
+						],
+						"z": [
+							0,
+							2
+						]
+					}
+				},
+				{
+					"material": "BLACK_STONE",
+					"nav": "FLOOR",
+					"region": {
+						"x": [
+							3,
+							12
+						],
+						"y": 1,
+						"z": [
+							3,
+							8
+						]
+					}
+				}
+			],
+			"dimensions": [
+				16,
+				9,
+				12
+			],
+			"display_name": "Titan Skull Keep",
+			"id": "titan_skull_keep_01",
+			"links": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						3,
+						1,
+						6
+					],
+					"id": "west_stairs",
+					"to": [
+						2,
+						6,
+						6
+					],
+					"type": "STAIR",
+					"width": 1
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						12,
+						1,
+						6
+					],
+					"id": "east_stairs",
+					"to": [
+						13,
+						6,
+						6
+					],
+					"type": "STAIR",
+					"width": 1
+				},
+				{
+					"allowed": [
+						"climber"
+					],
+					"from": [
+						0,
+						0,
+						5
+					],
+					"id": "west_climb",
+					"to": [
+						0,
+						6,
+						5
+					],
+					"type": "CLIMB_POINT"
+				},
+				{
+					"allowed": [
+						"climber"
+					],
+					"from": [
+						15,
+						0,
+						6
+					],
+					"id": "east_climb",
+					"to": [
+						15,
+						6,
+						6
+					],
+					"type": "CLIMB_POINT"
+				}
+			],
+			"nav_cell_count": 160,
+			"nav_regions": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"clearance": {
+						"height": 5,
+						"width": 4
+					},
+					"id": "skull_entrance",
+					"region": {
+						"x": [
+							6,
+							9
+						],
+						"y": 0,
+						"z": [
+							0,
+							3
+						]
+					},
+					"state_key": "gate_open",
+					"type": "GATE"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "courtyard",
+					"region": {
+						"x": [
+							3,
+							12
+						],
+						"y": 1,
+						"z": [
+							3,
+							8
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "west_battlement",
+					"region": {
+						"x": [
+							0,
+							2
+						],
+						"y": 6,
+						"z": [
+							2,
+							10
+						]
+					},
+					"type": "WALL_WALK"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "east_battlement",
+					"region": {
+						"x": [
+							13,
+							15
+						],
+						"y": 6,
+						"z": [
+							2,
+							10
+						]
+					},
+					"type": "WALL_WALK"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "rear_battlement",
+					"region": {
+						"x": [
+							3,
+							12
+						],
+						"y": 7,
+						"z": [
+							9,
+							11
+						]
+					},
+					"type": "WALL_WALK"
+				}
+			],
+			"purpose": [
+				"boss_landmark",
+				"arena",
+				"fortress"
+			]
+		},
+		"witchfire_ziggurat_01": {
+			"block_cell_count": 680,
+			"blocks": [
+				{
+					"material": "BLACK_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							0,
+							13
+						],
+						"y": [
+							0,
+							1
+						],
+						"z": [
+							0,
+							13
+						]
+					}
+				},
+				{
+					"material": "BLACK_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							2,
+							11
+						],
+						"y": [
+							2,
+							3
+						],
+						"z": [
+							2,
+							11
+						]
+					}
+				},
+				{
+					"material": "MAGIC_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							4,
+							9
+						],
+						"y": [
+							4,
+							5
+						],
+						"z": [
+							4,
+							9
+						]
+					}
+				},
+				{
+					"material": "MAGIC_STONE",
+					"nav": "FLOOR",
+					"region": {
+						"x": [
+							5,
+							8
+						],
+						"y": 6,
+						"z": [
+							5,
+							8
+						]
+					}
+				}
+			],
+			"dimensions": [
+				14,
+				7,
+				14
+			],
+			"display_name": "Witchfire Ziggurat",
+			"id": "witchfire_ziggurat_01",
+			"links": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						6,
+						0,
+						0
+					],
+					"id": "south_stairs_1",
+					"to": [
+						7,
+						2,
+						3
+					],
+					"type": "STAIR",
+					"width": 2
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						6,
+						2,
+						3
+					],
+					"id": "south_stairs_2",
+					"to": [
+						7,
+						4,
+						5
+					],
+					"type": "STAIR",
+					"width": 2
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						6,
+						4,
+						5
+					],
+					"id": "south_stairs_3",
+					"to": [
+						7,
+						6,
+						7
+					],
+					"type": "STAIR",
+					"width": 2
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"from": [
+						0,
+						0,
+						6
+					],
+					"id": "west_ramp",
+					"to": [
+						4,
+						4,
+						6
+					],
+					"type": "RAMP",
+					"width": 2
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"from": [
+						13,
+						0,
+						7
+					],
+					"id": "east_ramp",
+					"to": [
+						9,
+						4,
+						7
+					],
+					"type": "RAMP",
+					"width": 2
+				}
+			],
+			"nav_cell_count": 348,
+			"nav_regions": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "lower_terrace",
+					"region": {
+						"x": [
+							0,
+							13
+						],
+						"y": 2,
+						"z": [
+							0,
+							13
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "middle_terrace",
+					"region": {
+						"x": [
+							2,
+							11
+						],
+						"y": 4,
+						"z": [
+							2,
+							11
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "upper_terrace",
+					"region": {
+						"x": [
+							4,
+							9
+						],
+						"y": 6,
+						"z": [
+							4,
+							9
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "summit",
+					"region": {
+						"x": [
+							5,
+							8
+						],
+						"y": 7,
+						"z": [
+							5,
+							8
+						]
+					},
+					"type": "FLOOR"
+				}
+			],
+			"purpose": [
+				"ritual_landmark",
+				"multi_level_combat",
+				"objective"
+			]
+		}
+	},
+	"unit_classes": {
+		"archer": {
+			"inherits": "infantry"
+		},
+		"climber": {
+			"can_pass_open_gates": true,
+			"can_use_climb_points": true,
+			"can_use_floor": true,
+			"can_use_ladders": true,
+			"can_use_portals": true,
+			"can_use_ramps": true,
+			"can_use_stairs": true,
+			"footprint": [
+				1,
+				1
+			],
+			"max_drop_blocks": 2
+		},
+		"flying": {
+			"ignores_ground_navigation": true
+		},
+		"heavy": {
+			"can_pass_open_gates": true,
+			"can_use_climb_points": false,
+			"can_use_floor": true,
+			"can_use_ladders": false,
+			"can_use_portals": false,
+			"can_use_ramps": true,
+			"can_use_stairs": false,
+			"footprint": [
+				2,
+				2
+			],
+			"max_drop_blocks": 0
+		},
+		"infantry": {
+			"can_pass_open_gates": true,
+			"can_use_climb_points": false,
+			"can_use_floor": true,
+			"can_use_ladders": false,
+			"can_use_portals": true,
+			"can_use_ramps": true,
+			"can_use_stairs": true,
+			"footprint": [
+				1,
+				1
+			],
+			"max_drop_blocks": 1
+		},
+		"siege": {
+			"can_pass_open_gates": true,
+			"can_use_climb_points": false,
+			"can_use_floor": true,
+			"can_use_ladders": false,
+			"can_use_portals": false,
+			"can_use_ramps": true,
+			"can_use_stairs": false,
+			"footprint": [
+				3,
+				3
+			],
+			"max_drop_blocks": 0
+		}
+	},
+	"world": {
+		"axes": {
+			"x": "east_west",
+			"y": "vertical",
+			"z": "north_south"
+		},
+		"block_size_m": 1.0,
+		"coordinate_rule": "All ranges are inclusive.",
+		"default_clearance": {
+			"archer": {
+				"depth": 1,
+				"height": 2,
+				"width": 1
+			},
+			"climber": {
+				"depth": 1,
+				"height": 2,
+				"width": 1
+			},
+			"flying": {
+				"depth": 1,
+				"height": 1,
+				"width": 1
+			},
+			"heavy": {
+				"depth": 2,
+				"height": 3,
+				"width": 2
+			},
+			"infantry": {
+				"depth": 1,
+				"height": 2,
+				"width": 1
+			},
+			"siege": {
+				"depth": 3,
+				"height": 4,
+				"width": 3
+			}
+		},
+		"navigation_rule": "Never derive traversability from rendered geometry. Use authored nav regions and links.",
+		"origin_rule": "Structure local origin is minimum x,y,z corner.",
+		"visual_rule": "Geometry, collision and navigation are separate systems."
+	}
+}

@@ -809,3 +809,67 @@ Recommendation, which narrows rather than reverses the 2026-08-08 "staying 2D" d
 - **Scale is unchanged.** §5 wants hundreds of units. That is what killed 3D units originally and nothing here changes it.
 
 Not decided — routed to Andrew.
+
+### 2026-09-04 — Structures: one component schema, and the tower becomes a megastructure
+
+Andrew brought a design brief (written with another AI) to rebuild the structure system around a shared authored block/chunk schema, with layers for visual, collision, navigation, ranged occlusion and destruction. Assessment first, then what was built.
+
+**The brief answered a different question than the one it opened with.** It led with wizard towers as megastructures hosting barracks and research as internal modules — a base-management and economy idea — and then specified ~90% combat: occlusion, cover grades, trajectory types. The economy half was unspecified. That half is now master doc section 39.
+
+**Roughly 60% of the "new" system already existed.** Combat LOS: `MapGenerator.has_line_of_sight(from, to, viewer_height)` via `RTSUnit.can_engage_target()`, cell-keyed, elevation-aware, with an ally-spotter rule. Structures affecting navigation: `BuildSystem._register_blockers()` with footprint to `blocked_cells`. Elevation mattering: unit height is `terrain.get_height(cell)`. Multi-floor structures: the monolith prototype already carries floors, stairs and per-floor walkable counts. The brief's central rule — do not derive gameplay from the rendered mesh — is already this project's spine, so there was no architectural conflict, only redundancy.
+
+**Combat deferred, 2026-09-04.** Dropped for scope, and because a second LOS system that can disagree with the first is how you get "why did my archer shoot through a wall" bugs nobody can reproduce. When occlusion lands it extends `has_line_of_sight`. Also flagged: CLEAR/LIGHT/HEAVY/BLOCKED cover with three sample points per unit is a Company of Heroes feature set, and CoH runs 20–40 units against section 5's hundreds — the player cannot act on per-unit cover at that scale, and it is paid for on every attack.
+
+**Slots over floors or spatial packing.** Fixed slots was chosen because it adds a decision without adding a second building game, which section 14 explicitly warns against. Floors remain the natural upgrade and the prototype already has the groundwork.
+
+**What was built.** `scripts/core/structure_components.gd` — a plain `RefCounted`, no scene dependency, so the whole destruction model is testable headlessly. Components carry HP, `critical`, `depends_on` and an authored cell region. Structural components own cells, so destroying one releases them back to navigation; functional components (modules) own a slot instead. Damage absorbs in a defined order — non-critical structural, then modules, then the critical core — so walls protect modules and modules are the last thing standing. That ordering is deliberately position-independent: which side an attack comes from cannot matter until the occlusion layer exists, and inventing a directional rule before then would be a guess dressed as a system.
+
+**The seam that made it cheap.** Research and production ask "does this player have an Observer Vault". Making `_has_completed_structure()` answer yes for an installed module meant modules arrived without rewriting either system. Likewise `start_placement()` routes a module archetype straight to `build_module()`, so every existing HUD build button works unchanged.
+
+A structure with no authored components gets one implicit critical component holding all its HP, so this is adoptable building by building. Only the tower has authored components today.
+
+**Two tests changed rather than worked around.** `grid_test_map` and `map_3d_interaction` asserted ground placement using `barracks`, which no longer has a location at all — they now use `bio_launcher`, a building that genuinely goes on the ground. Using a module there would have asserted nothing.
+
+**Known gap:** the HUD does not yet show slot counts, which violates section 39's own first design rule — a commitment the player cannot see coming is a trap, not a decision. The constraint is enforced but not communicated. Top follow-up.
+
+**Suite:** 51/52. `seeded_grid_frontier` fails on road connectivity, still pre-existing.
+
+### 2026-09-04 — Block structures: experimental fork, and what the spec pack actually says
+
+Andrew supplied a block-structure test pack (YAML spec, 10 structures, 6 unit classes, 11 nav types) with the goal of Minecraft-style authored blocks generating large explorable structures — caves, ruins, gatehouses — that units enter and move through vertically. Isolated on `experimental/block-structures` at his request, because it is exploratory and because it does not fit the shipping simulation yet.
+
+Built: a YAML→JSON build step with validation (`tools/blocks/convert_structures.py` — Godot has no YAML parser, and every other YAML here is Python-tooling-only, so this is the established pattern), plus `BlockStructureLibrary`, `BlockStructureDefinition` (region expansion into solid cells, nav cells and links) and `BlockStructureNavigation` (per-class traversal). All headlessly testable: navigation is authored data, so proving it needs no scene and no renderer.
+
+**The pack's test cases A–G pass** — infantry through an open gate, infantry to the wall-walk by stairs, heavy through the gate, heavy barred from stairs, climber on a climb point, closed gate blocking ground movement, flying ignoring all of it. Plus two the pack did not ask for: an unconfigured gate defaults to *closed* rather than silently open, and a 3×3 siege unit is excluded from 1-wide stairs by footprint alone.
+
+**Five schema problems, reported and not repaired**, per the pack's own instruction to preserve data and surface ambiguity rather than invent gameplay rules. Three are off-by-one or origin-rule violations (`hollowspire_tower_01` and `giant_stone_bridge_01` place blocks one level above their declared height; `sunken_temple_01` uses negative Y against its own "origin is the minimum corner" rule).
+
+The fifth is structural and was found by probing rather than validating: **every vertical link's bottom endpoint sits in a cell no nav region declares.** `fortress_gatehouse_01`'s `left_stair` begins at (3,0,8), inside a solid block; both climb points on `titan_skull_keep_01` are the same. The gatehouse has no ground-level nav region at all, and its gate passage dead-ends into solid stone instead of running through. So the pack's own cases B and E cannot pass against the original data.
+
+Resolved by authoring, not by inference: `fortress_gatehouse_02_walkable` is a separate id with the passage carved through and a floor declared, the original left byte-for-byte intact. Declaring link endpoints implicitly walkable was rejected — that is precisely the inferred navigation the spec forbids. The smoke test asserts the original's gaps *still exist*, so repairing the source data fails the test loudly rather than letting the correction diverge in silence.
+
+**Not built:** the visual/collision builder, the debug overlay, procedural placement, and integration with the live game. That last one is the real cost and the reason for the fork: the simulation is 2D (`CharacterBody2D`, `AStarGrid2D`, one height per cell) and this system is 3D with authored levels. "Units go inside and move up and down" requires the 2D simulation to gain a concept of level — the same item flagged on 2026-09-04 as the most expensive piece of the earlier structure brief. Nothing here commits to that yet.
+
+**Suite:** 52/53 on the branch. `seeded_grid_frontier` still fails pre-existing.
+
+### 2026-09-04 — Block elevation system: one lattice for terrain and structures
+
+Built on `experimental/block-structures`, on Andrew's call to go for the full system rather than place structures as scenery.
+
+**The idea it rests on:** the terrain is *already* a block grid. Every cell stores an integer height, which is a column of blocks with one standable surface. The elevation system adds nothing to terrain — it stops assuming a column can only have one surface. A wall-walk over a gate passage is one column with two standable levels, and once that is expressible, interiors, bridges over roads and sunken temples are all the same representation. That is why blocks complement the existing grid rather than replacing it.
+
+`BlockNavWorld` is one navigation lattice for a whole map, where a node is `(cell.x, level, cell.z)`. Terrain contributes one node per walkable cell at its own height; a placed structure contributes nodes at its authored levels plus the links between them. A* runs over the whole thing with per-class rules.
+
+**Elevation only ever changes through an authored link.** There is no implicit step-up anywhere. On terrain that link is the existing ramp rule, and it is *delegated to `MapGenerator.is_cliff_edge_cell()`* rather than reimplemented — that function already is the unramped-height-edge test, and a second opinion about whether a unit can walk up a cliff is exactly how movement and vision end up disagreeing.
+
+`BlockUnitRules` was extracted so the lattice and the per-structure navigation resolve class capabilities from one place. A unit that could climb a structure's stairs in isolation but not once it was placed on a map would be a genuinely horrible bug to find.
+
+**Two performance choices made up front rather than as a later rescue**, given this project's history with the 1221ms flow field and the 63ms fog: nodes are encoded as a single int rather than a `Vector3i` dictionary key, and the A* heap uses `PackedFloat64Array` — float32 heap costs are precisely what made the flow field silently reach 3384 cells instead of 7017.
+
+Demonstrated in `block_world_demo.tscn`: 2514 nav nodes over a 48×48 landscape, four authored structures, 18 agents pathing continuously. Measured across passes: 5–8 agents changing elevation at any time, and **zero illegal placements** — an invariant check asserting no agent stands on, or is routed through, a node its class may not occupy. That check catches a whole family of bugs (a heavy on a wall-walk, anything on a closed gate) that are easy to miss by eye in a moving scene.
+
+Also fixed while building the demo: structures were pinned to level 0 regardless of the ground beneath them, leaving them half-buried where terrain rose. A structure's base level now comes from the terrain under its origin, so the two elevation sources compose.
+
+**Not done:** `RTSUnit` still has no level of its own, so the real game is not on this yet. Worth recording that the terrain contract turned out to be only three calls — `is_walkable_cell`, `get_height`, `is_cliff_edge_cell` — all of which `MapGenerator` already implements, so pointing this at the real map is a substitution rather than a port. Flow fields over the lattice are still needed before wave movement at hundreds of units; A* per unit suits the demo's 18 and will not suit 300.
+
+**Suite:** 53/54. `seeded_grid_frontier` still fails pre-existing.
