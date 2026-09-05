@@ -121,6 +121,17 @@ func get_rally_point() -> Vector2:
 func has_rally_point() -> bool:
 	return rally_enabled
 
+# Buildings answer "are you still standing" the same way units answer it.
+#
+# Added here rather than guarding each caller: combat code reasonably treats
+# anything it can shoot as having is_alive(), and three separate call sites
+# already assumed it -- the wizard's delayed attack branch, Kon's area abilities
+# and the spell FX. Two of those guarded on has_method("is_banished") and then
+# called is_alive(), which is a guard that cannot fail and a call that always
+# would. A structure is the odd one out for not having the method, so it gets it.
+func is_alive() -> bool:
+	return health > 0
+
 func take_damage(amount: int, source: Node = null) -> void:
 	var actual_damage: int = mini(amount, health)
 	if rts_world != null and is_instance_valid(rts_world):
@@ -157,8 +168,18 @@ func _build_collision() -> void:
 	collision.shape = shape
 	add_child(collision)
 
+# A building whose real form is authored block geometry has no 2D painting.
+#
+# The sprite is scaled from the footprint -- roughly (width + depth) * cell * 0.24
+# -- which was fine for a 3x3 barracks and is absurd for a 34x28 laboratory: it
+# produced a 952px-wide painting of a small hut draped over the whole district.
+# In 3D the block structure is the building; in 2D the footprint outline is,
+# which _draw_footprint_base() already draws.
+func _uses_block_structure() -> bool:
+	return UnitCatalog.get_definition(archetype).has("block_structure")
+
 func _build_art_sprite() -> void:
-	if USE_PLACEHOLDER_FOOTPRINT_ART:
+	if USE_PLACEHOLDER_FOOTPRINT_ART or _uses_block_structure():
 		return
 	if art_sprite != null and is_instance_valid(art_sprite):
 		art_sprite.queue_free()
@@ -175,6 +196,9 @@ func _draw() -> void:
 	var color := _main_color()
 	var draw_color := color if complete else color.darkened(0.38)
 	_draw_footprint_base()
+	if _uses_block_structure():
+		# Footprint only. Its walls and floors are real geometry elsewhere.
+		return
 	if art_sprite == null:
 		if USE_PLACEHOLDER_FOOTPRINT_ART:
 			_draw_placeholder_structure(draw_color)

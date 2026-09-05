@@ -46,6 +46,14 @@ const FOG_UNSEEN := 0
 const FOG_EXPLORED := 128
 const FOG_VISIBLE := 255
 
+# Testing override: reveal the whole map without disabling the fog system.
+#
+# Deliberately not "turn fog off". The vision texture is what the 2D overlay,
+# the 3D veil and entity concealment all read, so filling it with FOG_VISIBLE
+# reveals every presentation at once and stays consistent; tearing the system
+# out would leave the three of them disagreeing.
+var reveal_all := false
+
 var fog_texture: ImageTexture
 var _fog_image: Image
 var _fog_bytes: PackedByteArray
@@ -84,7 +92,16 @@ func _process(delta: float) -> void:
 	# node is itself hidden (only its child sprite draws), and in the 3D view
 	# every CanvasItem is hidden -- but vision still has to be computed, because
 	# it drives entity visibility and the 3D veil as well as the 2D overlay.
+	# Nothing to compute until the map exists. The old guard was
+	# `_fog_image == null and not visible`, which passes when the image is null
+	# but the node is visible -- fine when generation finished inside one frame,
+	# but now it means the first vision pass runs against a map with no height
+	# data and reads off the end of the array on every single cell.
+	if map == null or not bool(map.get("generation_complete")):
+		return
 	if _fog_image == null and not visible:
+		return
+	if reveal_all:
 		return
 	_elapsed += delta
 	if _elapsed < update_interval:
@@ -95,14 +112,18 @@ func _process(delta: float) -> void:
 
 func _rebuild() -> void:
 	map = get_node_or_null(map_path)
-	if map == null or map.grid.is_empty():
-		call_deferred("_rebuild")
+	if map == null or not bool(map.get("generation_complete")):
+		# NEXT frame, not this one. call_deferred() from inside a deferred call lands
+		# in the same frame's queue, so this retry never yielded -- once map
+		# generation stopped finishing within a single frame it spun inside one
+		# flush until the process segfaulted.
+		get_tree().process_frame.connect(_rebuild, CONNECT_ONE_SHOT)
 		return
 	# Fog stays off in the AI/benchmark map types -- they exist to measure
 	# throughput, and hiding half the units would invalidate that. It is now ON
 	# for seeded_grid_frontier, the real game map, which the texture-based
 	# renderer above makes affordable.
-	if str(map.get("map_type_id")) in ["ai_testing_ground", "fortress_ai_arena", "plot_generator_test"]:
+	if str(map.get("map_type_id")) in ["ai_testing_ground", "fortress_ai_arena", "plot_generator_test", "build_sandbox"]:
 		visible = false
 		set_process(false)
 		_show_all_entities()
@@ -174,6 +195,7 @@ func _collect_reveal_origins() -> Array:
 		return origins
 	var merge: int = maxi(1, revealer_merge_cells)
 	for unit in revealers:
+		if is_instance_valid(unit) and bool(unit.get_meta("kon_banished",false)): continue
 		if origins.size() >= max_revealers_per_update:
 			break
 		if not is_instance_valid(unit) or not (unit is Node2D):
@@ -183,7 +205,7 @@ func _collect_reveal_origins() -> Array:
 			continue
 		var cell: Vector2i = map.world_to_cell(unit.global_position)
 		var key := Vector2i(cell.x / merge, cell.y / merge)
-		if seen.has(key):
+		if seen.has(key) and not unit.has_method("sight_radius_cells"):
 			continue
 		seen[key] = true
 		origins.append({"cell": cell, "radius": _sight_radius_for(unit) + merge / 2})
@@ -220,6 +242,9 @@ func _structure_revealers() -> Array[Node2D]:
 		if not is_instance_valid(node) or not (node is Node2D):
 			continue
 		var owner_value: Variant = node.get("owner_player_id")
+		if bool(node.get_meta("kon_banished",false)):
+			node.visible=false
+			continue
 		if owner_value == null:
 			continue
 		if not reveal_enemy_vision and int(owner_value) != 1:
@@ -294,6 +319,8 @@ func _write_fog_texel(index: int, value: int) -> void:
 
 # Public, so the 3D view can veil the same cells without recomputing anything.
 func is_world_position_visible(world_position: Vector2) -> bool:
+	if reveal_all:
+		return true
 	if map == null or visible_cells.is_empty():
 		return true
 	var cell: Vector2i = map.world_to_cell(world_position)
@@ -303,6 +330,37 @@ func is_world_position_visible(world_position: Vector2) -> bool:
 
 func get_fog_texture() -> Texture2D:
 	return fog_texture
+
+# Reveals or restores the whole map. Restoring recomputes immediately rather
+# than waiting for update_interval, so the fog does not visibly snap back a
+# third of a second after the button is pressed.
+func set_reveal_all(enabled: bool) -> void:
+	if reveal_all == enabled:
+		return
+	reveal_all = enabled
+	if _fog_image == null:
+		return
+	var width := int(map.MAP_W)
+	var height := int(map.MAP_H)
+	if enabled:
+		for index in range(width * height):
+			_write_fog_texel(index, FOG_VISIBLE)
+		_refresh_fog_texture()
+		_show_all_entities()
+		return
+	# Everything the player had genuinely seen stays explored; the rest goes
+	# back to unseen, which is what it was before the reveal. `explored` is
+	# indexed by column, so this walks x/y rather than the flat texel index.
+	for x in width:
+		for y in height:
+			_write_fog_texel(x * height + y, FOG_EXPLORED if bool(explored[x][y]) else FOG_UNSEEN)
+	_elapsed = update_interval
+	_update_visibility()
+	_refresh_fog_texture()
+	_apply_entity_visibility()
+
+func is_reveal_all() -> bool:
+	return reveal_all
 
 const FOG_SHADER_2D := """
 shader_type canvas_item;
@@ -368,7 +426,7 @@ func _show_all_entities() -> void:
 	var entities := rts_world.all_units() if rts_world != null else _vision_revealers()
 	for node in entities:
 		if is_instance_valid(node):
-			node.visible = true
+			node.visible = not bool(node.get_meta("kon_banished",false))
 	for structure in get_tree().get_nodes_in_group("structures"):
 		if is_instance_valid(structure):
 			structure.visible = true
@@ -387,6 +445,8 @@ func _line_cells(from_cell: Vector2i, to_cell: Vector2i) -> Array[Vector2i]:
 	return cells
 
 func _sight_radius_for(unit: Node) -> int:
+	if unit.has_method("sight_radius_cells"):
+		return int(unit.call("sight_radius_cells"))
 	# Plain property read. This runs once per revealer per update and used to do
 	# a full get_property_list() scan to fetch a single StringName.
 	# Units expose `unit_archetype`; structures expose `archetype`.

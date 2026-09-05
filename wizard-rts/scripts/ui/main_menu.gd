@@ -8,6 +8,9 @@ const MAP_EDITOR_SCENE := "res://scenes/map/map_editor.tscn"
 @onready var display_panel: VBoxContainer = %DisplayPanel
 @onready var character_panel: VBoxContainer = %CharacterPanel
 @onready var map_panel: VBoxContainer = %MapPanel
+# The map entries live in here once _ensure_map_scroll() has run. The title and
+# the Back/Begin row stay outside it so they are always on screen.
+var map_list: VBoxContainer = null
 @onready var bad_kon_card: Button = %BadKonCard
 @onready var hellfire_baby_card: Button = %HellfireBabyCard
 @onready var evangalion_card: Button = %EvangalionCard
@@ -33,6 +36,9 @@ func _ready() -> void:
 	_add_map_editor_button()
 	_add_plot_generator_test_button()
 	_add_seeded_grid_map_button()
+	_add_citadel_march_button()
+	_add_build_sandbox_button()
+	_add_lantern_tree_button()
 	_add_fortress_map_button()
 	_prepare_map_card_click_targets()
 	_show_main()
@@ -71,6 +77,15 @@ func _on_character_continue_pressed() -> void:
 
 func _on_vampire_map_pressed() -> void:
 	_select_map_and_begin(GameSession.DEFAULT_MAP_TYPE)
+
+func _on_lantern_tree_pressed() -> void:
+	_select_map_and_begin("lantern_tree")
+
+func _on_build_sandbox_pressed() -> void:
+	_select_map_and_begin("build_sandbox")
+
+func _on_citadel_march_pressed() -> void:
+	_select_map_and_begin("citadel_march")
 
 func _on_seeded_grid_frontier_pressed() -> void:
 	_select_map_and_begin("seeded_grid_frontier")
@@ -218,7 +233,10 @@ func _sync_display_controls() -> void:
 	resolution_option.disabled = DisplayManager.fullscreen
 
 func _add_fortress_map_button() -> void:
-	if map_panel == null or map_panel.has_node("FortressAiArenaButton"):
+	if map_panel == null:
+		return
+	_ensure_map_scroll()
+	if _map_container().has_node("FortressAiArenaButton"):
 		return
 	var button := Button.new()
 	button.name = "FortressAiArenaButton"
@@ -256,9 +274,9 @@ func _add_fortress_map_button() -> void:
 	description.text = "Loads two mirrored forts with real wall blockers, keep buildings, and no fog of war. Spawn waves to test whether armies fight units first, then break the enemy base."
 	layout.add_child(description)
 
-	var insert_index := maxi(0, map_panel.get_child_count() - 1)
-	map_panel.add_child(button)
-	map_panel.move_child(button, insert_index)
+	var insert_index := maxi(0, _map_container().get_child_count())
+	_map_container().add_child(button)
+	_map_container().move_child(button, insert_index)
 
 func _add_map_editor_button() -> void:
 	if main_panel == null or main_panel.has_node("MapEditorButton"):
@@ -271,6 +289,49 @@ func _add_map_editor_button() -> void:
 	var insert_index := maxi(0, main_panel.get_child_count() - 2)
 	main_panel.add_child(button)
 	main_panel.move_child(button, insert_index)
+
+# The map list did not scroll, and grew past the screen.
+#
+# MapPanel is a plain VBoxContainer, unlike CharacterPanel which was given a
+# CharacterScroll for exactly this reason. With seven map entries the panel is
+# 1361px of content in a 1080px viewport, so the bottom of the list -- and the
+# Back/Begin row under it -- simply had nowhere to be drawn. Adding the Citadel
+# March made it 150px worse, which is what made it noticeable.
+#
+# The title and the button row stay outside the scroll so they never move; only
+# the entries scroll. The 3D view toggle is pinned directly under the title for
+# the same reason -- it is a setting, not a map, and it should not be something
+# you have to scroll to find.
+func _ensure_map_scroll() -> void:
+	if map_panel == null or map_list != null:
+		return
+	var scroll := ScrollContainer.new()
+	scroll.name = "MapScroll"
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var list := VBoxContainer.new()
+	list.name = "MapList"
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(list)
+	var entries: Array[Node] = []
+	for child in map_panel.get_children():
+		if str(child.name) == "MapTitle" or str(child.name) == "MapButtons":
+			continue
+		entries.append(child)
+	# The panel used to size itself to its children, which is how it grew past
+	# the screen. Now it fills the column and the scroll takes what is left.
+	map_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	map_panel.add_child(scroll)
+	map_panel.move_child(scroll, 1)
+	for child in entries:
+		map_panel.remove_child(child)
+		list.add_child(child)
+	map_list = list
+
+# Where a map entry goes. Falls back to the panel itself if the scroll has not
+# been built yet, so nothing depends on call order.
+func _map_container() -> Node:
+	return map_list if map_list != null else map_panel
 
 func _add_view_mode_toggle() -> void:
 	if map_panel == null or map_panel.has_node("ViewModeToggle"):
@@ -285,13 +346,18 @@ func _add_view_mode_toggle() -> void:
 		use_3d_view = pressed
 	)
 	map_panel.add_child(toggle)
-	map_panel.move_child(toggle, 0)
+	# Directly under the title and outside the scrolling list, so it is always
+	# visible rather than being the first thing pushed off the top.
+	map_panel.move_child(toggle, 1)
 
 func _add_seeded_grid_map_button() -> void:
-	if map_panel == null or map_panel.has_node("SeededGridFrontierButton"):
+	if map_panel == null:
+		return
+	_ensure_map_scroll()
+	if _map_container().has_node("SeededGridFrontierButton"):
 		return
 	_add_view_mode_toggle()
-	var insert_index := maxi(0, map_panel.get_child_count() - 1)
+	var insert_index := maxi(0, _map_container().get_child_count())
 	var button := Button.new()
 	button.name = "SeededGridFrontierButton"
 	button.custom_minimum_size = Vector2(680, 150)
@@ -328,13 +394,158 @@ func _add_seeded_grid_map_button() -> void:
 	description.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layout.add_child(description)
 
-	map_panel.add_child(button)
-	map_panel.move_child(button, insert_index)
+	_map_container().add_child(button)
+	_map_container().move_child(button, insert_index)
+
+# The citadel march. Built as a map type and wired into generation, but never
+# given a menu entry -- so it was unreachable from the game itself and only
+# startable from a test harness.
+func _add_lantern_tree_button() -> void:
+	if map_panel == null:
+		return
+	_ensure_map_scroll()
+	if _map_container().has_node("LanternTreeButton"):
+		return
+	var insert_index := maxi(0, _map_container().get_child_count())
+	var button := Button.new()
+	button.name = "LanternTreeButton"
+	button.custom_minimum_size = Vector2(680, 150)
+	button.focus_mode = Control.FOCUS_NONE
+	button.text = ""
+	button.pressed.connect(_on_lantern_tree_pressed)
+
+	var layout := VBoxContainer.new()
+	layout.name = "LanternTreeLayout"
+	layout.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layout.offset_left = 18.0
+	layout.offset_top = 12.0
+	layout.offset_right = -18.0
+	layout.offset_bottom = -12.0
+	layout.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(layout)
+
+	var name_label := Label.new()
+	name_label.text = "The Lantern Tree"
+	name_label.add_theme_font_size_override("font_size", 26)
+	layout.add_child(name_label)
+
+	var subtitle := Label.new()
+	subtitle.text = "192x192. The road network is a tree: citadel at the roots, bases in the canopy."
+	subtitle.add_theme_font_size_override("font_size", 16)
+	subtitle.add_theme_color_override("font_color", Color("#9BD4A0"))
+	layout.add_child(subtitle)
+
+	var description := RichTextLabel.new()
+	description.custom_minimum_size = Vector2(620, 52)
+	description.fit_content = true
+	description.bbcode_enabled = false
+	description.text = "One trunk rises from Kon's citadel and forks into boughs, with a content plot hanging at every fork and tip like a lantern. A tree has no loops, so every branch is a commitment and the trunk is where everyone ends up -- the map carries its own risk gradient."
+	description.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layout.add_child(description)
+
+	_map_container().add_child(button)
+	_map_container().move_child(button, insert_index)
+
+# Somewhere to lay buildings out without the map arguing.
+func _add_build_sandbox_button() -> void:
+	if map_panel == null:
+		return
+	_ensure_map_scroll()
+	if _map_container().has_node("BuildSandboxButton"):
+		return
+	var insert_index := maxi(0, _map_container().get_child_count())
+	var button := Button.new()
+	button.name = "BuildSandboxButton"
+	button.custom_minimum_size = Vector2(680, 150)
+	button.focus_mode = Control.FOCUS_NONE
+	button.text = ""
+	button.pressed.connect(_on_build_sandbox_pressed)
+
+	var layout := VBoxContainer.new()
+	layout.name = "BuildSandboxLayout"
+	layout.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layout.offset_left = 18.0
+	layout.offset_top = 12.0
+	layout.offset_right = -18.0
+	layout.offset_bottom = -12.0
+	layout.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(layout)
+
+	var name_label := Label.new()
+	name_label.text = "Build Sandbox"
+	name_label.add_theme_font_size_override("font_size", 26)
+	layout.add_child(name_label)
+
+	var subtitle := Label.new()
+	subtitle.text = "160x160 of flat ground. No cliffs, no water, no enemies, no waves."
+	subtitle.add_theme_font_size_override("font_size", 16)
+	subtitle.add_theme_color_override("font_color", Color("#E0C36A"))
+	layout.add_child(subtitle)
+
+	var description := RichTextLabel.new()
+	description.custom_minimum_size = Vector2(620, 52)
+	description.fit_content = true
+	description.bbcode_enabled = false
+	description.text = "Kon's buildings are walkable structures -- the Splicing Laboratory alone is 34x28 -- so this is room to put several down next to each other and see what a town reads like. One central base, generous economy, and nothing that fights back."
+	description.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layout.add_child(description)
+
+	_map_container().add_child(button)
+	_map_container().move_child(button, insert_index)
+
+func _add_citadel_march_button() -> void:
+	if map_panel == null:
+		return
+	_ensure_map_scroll()
+	if _map_container().has_node("CitadelMarchButton"):
+		return
+	var insert_index := maxi(0, _map_container().get_child_count())
+	var button := Button.new()
+	button.name = "CitadelMarchButton"
+	button.custom_minimum_size = Vector2(680, 150)
+	button.focus_mode = Control.FOCUS_NONE
+	button.text = ""
+	button.pressed.connect(_on_citadel_march_pressed)
+
+	var layout := VBoxContainer.new()
+	layout.name = "CitadelMarchLayout"
+	layout.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layout.offset_left = 18.0
+	layout.offset_top = 12.0
+	layout.offset_right = -18.0
+	layout.offset_bottom = -12.0
+	layout.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(layout)
+
+	var name_label := Label.new()
+	name_label.text = "The Citadel March"
+	name_label.add_theme_font_size_override("font_size", 26)
+	layout.add_child(name_label)
+
+	var subtitle := Label.new()
+	subtitle.text = "192x192. Twice the frontier, with Kon's Arcane Citadel held as a guaranteed content plot."
+	subtitle.add_theme_font_size_override("font_size", 16)
+	subtitle.add_theme_color_override("font_color", Color("#4FE3DC"))
+	layout.add_child(subtitle)
+
+	var description := RichTextLabel.new()
+	description.custom_minimum_size = Vector2(620, 52)
+	description.fit_content = true
+	description.bbcode_enabled = false
+	description.text = "A garrisoned fortress sits in its own quarter of the map: walls, a gatehouse choke, wall-walks and a keep. Take it early and you can re-summon your Observation Tower onto the keep plinth -- but the tower is your run, so moving it is the largest bet the game offers."
+	description.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layout.add_child(description)
+
+	_map_container().add_child(button)
+	_map_container().move_child(button, insert_index)
 
 func _add_plot_generator_test_button() -> void:
-	if map_panel == null or map_panel.has_node("PlotGeneratorTestButton"):
+	if map_panel == null:
 		return
-	var insert_index := maxi(0, map_panel.get_child_count() - 1)
+	_ensure_map_scroll()
+	if _map_container().has_node("PlotGeneratorTestButton"):
+		return
+	var insert_index := maxi(0, _map_container().get_child_count())
 	var button := Button.new()
 	button.name = "PlotGeneratorTestButton"
 	button.custom_minimum_size = Vector2(680, 150)
@@ -372,5 +583,5 @@ func _add_plot_generator_test_button() -> void:
 	description.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layout.add_child(description)
 
-	map_panel.add_child(button)
-	map_panel.move_child(button, insert_index)
+	_map_container().add_child(button)
+	_map_container().move_child(button, insert_index)

@@ -19,14 +19,23 @@ var MAP_W := DEFAULT_MAP_SIZE
 var MAP_H := DEFAULT_MAP_SIZE
 
 const DEFAULT_MAP_SIZE := 96
+# The standard frontier map. Grown from 96 so that Kon's Arcane Citadel can be a
+# CONTENT PLOT on the map people actually play, rather than a thing that only
+# exists on a special map type.
+#
+# 96 was never a choice about pacing, it was the size the grid test canvas
+# happened to be. The citadel is 96x96 -- exactly the old map -- so at that size
+# the fortress could not be content, it could only be the level. This is the
+# smallest size at which the citadel, four base plots and the usual content
+# spread all place reliably across seeds; see the sweep in the commit that
+# introduced it.
+const FRONTIER_MAP_SIZE := 160
 # The citadel march. Large enough that a 96-cell fortress is a quarter of the
 # map rather than all of it, which is the difference between a landmark and a
 # level.
 const CITADEL_MAP_SIZE := 192
-# The citadel's own footprint, matched to the authored structure. A quarter of
-# the march's area, which reads as a fortress dominating a region rather than
-# as the region itself.
-const CITADEL_PLOT_SIZE := 96
+# Matches the compact runtime YAML. Map sizes above are intentionally unchanged.
+const CITADEL_PLOT_SIZE := 24
 
 # Chosen before base plots on the march, empty on every other map type.
 var _citadel_rect := Rect2i()
@@ -63,6 +72,25 @@ const MAP_TYPE_GRID_TEST_CANVAS := "grid_test_canvas"
 const MAP_TYPE_AI_TESTING_GROUND := "ai_testing_ground"
 const MAP_TYPE_FORTRESS_AI_ARENA := "fortress_ai_arena"
 const MAP_TYPE_PLOT_GENERATOR_TEST := "plot_generator_test"
+# A flat field and nothing else. Buildings are walkable block structures now and
+# the Splicing Laboratory alone is 34x28, so laying several out next to each
+# other needs room and needs the ground to stop arguing -- no cliffs, no water,
+# no props, no waves. This is where you find out what a town looks like.
+const MAP_TYPE_BUILD_SANDBOX := "build_sandbox"
+# A map whose road network IS a tree: the citadel at the roots, one trunk rising
+# from it, boughs forking outward, and a content plot hanging at every fork and
+# tip like a lantern in the branches.
+#
+# The shape is not decoration. In a tree there is exactly one route between any
+# two points, so every fork is a commitment: going up the wrong bough to reach a
+# plot costs the walk back down. Depth is therefore difficulty -- the tips are
+# quiet and the trunk is where everyone ends up -- and the map reads its own
+# risk gradient without a single hand-placed encounter.
+const MAP_TYPE_LANTERN_TREE := "lantern_tree"
+const LANTERN_TREE_MAP_SIZE := 192
+# Bigger than the 96 test canvas because three laboratories side by side is
+# already 102 cells wide before any space between them.
+const BUILD_SANDBOX_MAP_SIZE := 160
 # Frontier rules at double the scale, carrying Kon's Arcane Citadel as a
 # guaranteed content plot. See master doc section 40.
 const MAP_TYPE_CITADEL_MARCH := "citadel_march"
@@ -223,29 +251,84 @@ func _ready() -> void:
 		_build_plot_generator_test_map()
 		print("[MapGenerator] ", get_map_type_name(), " seed=", seed_value, " complete")
 		print("[MapGenerator] Plot test spawns:", spawn_positions.size(), " | Anchors:", chokepoints.size())
+		generation_complete = true
 		map_generated.emit(get_map_summary())
 		return
-	_configure_seeded_layout()
-	_load_tiles()
-	_build_grid()
-	_build_plots()
-	_assign_plot_elevations()
-	_build_elevation_zones()
-	_stamp_plots_into_grid()
-	_flatten_tiny_high_fragments()
+	_generate_phased()
+
+# Map generation, spread across frames instead of blocking one.
+#
+# Every phase below used to run back-to-back inside _ready(), so the whole map
+# was built during a single add_child(). Measured: 3.6s at 96x96, 8.2s at
+# 160x160, 12.2s on the 192x192 march. The scene being replaced -- the map
+# select screen -- stays on screen and frozen for that entire time, and Windows
+# marks an application "Not Responding" at about five seconds. It read as a
+# hang, then as a crash, which is exactly what it was from the outside.
+#
+# The phases themselves are unchanged and still run in the same order; the only
+# difference is that control returns to the engine between them, so the frame
+# keeps painting and the process stays alive and responsive.
+#
+# Yielding is BUDGETED rather than unconditional: a phase only gives way if the
+# current frame has already spent longer than FRAME_BUDGET_MS. A small map still
+# finishes in one or two frames exactly as before, which matters because the
+# smoke tests wait a fixed number of frames -- making every map take 18 frames
+# minimum would have been a behaviour change dressed up as a fix.
+const FRAME_BUDGET_MS := 12
+
+signal generation_progress(label: String, done: int, total: int)
+
+# True only once every phase has run. Anything that reads heights, costs or the
+# pathfinder must wait for this rather than for `grid` being non-empty: the grid
+# exists from phase 3 and the heights do not exist until phase 16.
+var generation_complete := false
+
+func _generate_phased() -> void:
+	var phases: Array = [
+		["Reading the seed", "_configure_seeded_layout"],
+		["Loading tiles", "_load_tiles"],
+		["Raising the ground", "_build_grid"],
+		["Surveying plots", "_build_plots"],
+		["Deciding elevations", "_assign_plot_elevations"],
+		["Cutting plateaus", "_build_elevation_zones"],
+		["Stamping plots", "_stamp_plots_into_grid"],
+		["Smoothing high ground", "_flatten_tiny_high_fragments"],
+	]
 	if _uses_frontier_rules():
-		_build_landmarks()
-	_build_roads()
-	_flatten_tiny_high_fragments()
-	_validate_frontier_elevation_layout(true)
+		phases.append(["Placing landmarks", "_build_landmarks"])
+	phases.append_array([
+		["Laying roads", "_build_roads"],
+		["Smoothing high ground", "_flatten_tiny_high_fragments"],
+		["Checking elevation", "_validate_frontier_elevation_layout"],
+	])
 	if not _uses_frontier_rules():
-		_build_landmarks()
-	_validate_frontier_landmarks(true)
-	_validate_content_structures(true)
-	_build_height_and_cost_maps()
-	_build_pathfinder()
-	_paint()
-	_register_zones()
+		phases.append(["Placing landmarks", "_build_landmarks"])
+	phases.append_array([
+		["Checking landmarks", "_validate_frontier_landmarks"],
+		["Checking structures", "_validate_content_structures"],
+		["Measuring heights", "_build_height_and_cost_maps"],
+		["Building navigation", "_build_pathfinder"],
+		["Painting terrain", "_paint"],
+		["Registering zones", "_register_zones"],
+	])
+
+	var total := phases.size()
+	var last_yield := Time.get_ticks_msec()
+	for i in total:
+		var label: String = phases[i][0]
+		var method: String = phases[i][1]
+		generation_progress.emit(label, i, total)
+		# The two validators take a "loud" flag; everything else takes nothing.
+		if method.begins_with("_validate_"):
+			call(method, true)
+		else:
+			call(method)
+		if Time.get_ticks_msec() - last_yield >= FRAME_BUDGET_MS:
+			await get_tree().process_frame
+			last_yield = Time.get_ticks_msec()
+	generation_complete = true
+	generation_progress.emit("Ready", total, total)
+
 	_debug_print_elevation_summary()
 	print("[MapGenerator] ", get_map_type_name(), " seed=", seed_value, " complete")
 	print("[MapGenerator] Spawns:", spawn_positions.size(),
@@ -284,6 +367,10 @@ func get_map_type_name() -> String:
 			return "Vampiric Mushroom Forest"
 		MAP_TYPE_GRID_TEST_CANVAS:
 			return "Grid Test Canvas"
+		MAP_TYPE_BUILD_SANDBOX:
+			return "Build Sandbox"
+		MAP_TYPE_LANTERN_TREE:
+			return "The Lantern Tree"
 		MAP_TYPE_AI_TESTING_GROUND:
 			return "Kon's Observation Arena"
 		MAP_TYPE_FORTRESS_AI_ARENA:
@@ -329,6 +416,15 @@ func get_map_type_data() -> Dictionary:
 			"terrain_design": "Single-height flat terrain with no decorative clutter, made to test building placement and unit movement.",
 			"plot_rule": "Simple rectangular base plots with economy spaces are stamped directly onto the grid.",
 		}
+	if map_type_id == MAP_TYPE_BUILD_SANDBOX:
+		return {
+			"id": MAP_TYPE_BUILD_SANDBOX,
+			"name": "Build Sandbox",
+			"art_style": "Flat open ground with no decorative clutter.",
+			"story_theme": "Somewhere to find out what Kon's buildings look like standing next to each other.",
+			"terrain_design": "160x160 of single-height ground: no cliffs, no water, no blockers, no waves.",
+			"plot_rule": "A single central base plot with generous economy spaces; everything else is yours to fill.",
+		}
 	if map_type_id == MAP_TYPE_PLOT_GENERATOR_TEST:
 		return {
 			"id": MAP_TYPE_PLOT_GENERATOR_TEST,
@@ -364,9 +460,27 @@ func _hash_seed_text(text: String) -> int:
 		hash = 1
 	return hash
 
+# Map types that carry the citadel as a guaranteed content plot. The frontier
+# joined the march here: the citadel is meant to be found in ordinary play, not
+# only on a map you have to go looking for in the menu.
+func _carries_citadel() -> bool:
+	return map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER or map_type_id == MAP_TYPE_CITADEL_MARCH 		or map_type_id == MAP_TYPE_LANTERN_TREE
+
+func _map_size_for_type() -> int:
+	match map_type_id:
+		MAP_TYPE_CITADEL_MARCH:
+			return CITADEL_MAP_SIZE
+		MAP_TYPE_SEEDED_GRID_FRONTIER:
+			return FRONTIER_MAP_SIZE
+		MAP_TYPE_BUILD_SANDBOX:
+			return BUILD_SANDBOX_MAP_SIZE
+		MAP_TYPE_LANTERN_TREE:
+			return LANTERN_TREE_MAP_SIZE
+	return DEFAULT_MAP_SIZE
+
 func _configure_map_type() -> void:
 	# Size first: everything downstream sizes its arrays off these.
-	MAP_W = CITADEL_MAP_SIZE if map_type_id == MAP_TYPE_CITADEL_MARCH else DEFAULT_MAP_SIZE
+	MAP_W = _map_size_for_type()
 	MAP_H = MAP_W
 	if _uses_square_grid_map():
 		return
@@ -622,7 +736,7 @@ func _uses_frontier_rules() -> bool:
 	return map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER or map_type_id == MAP_TYPE_CITADEL_MARCH
 
 func _uses_square_grid_map() -> bool:
-	return map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER or map_type_id == MAP_TYPE_GRID_TEST_CANVAS or map_type_id == MAP_TYPE_AI_TESTING_GROUND or map_type_id == MAP_TYPE_FORTRESS_AI_ARENA or map_type_id == MAP_TYPE_PLOT_GENERATOR_TEST or map_type_id == MAP_TYPE_CITADEL_MARCH
+	return map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER or map_type_id == MAP_TYPE_GRID_TEST_CANVAS or map_type_id == MAP_TYPE_AI_TESTING_GROUND or map_type_id == MAP_TYPE_FORTRESS_AI_ARENA or map_type_id == MAP_TYPE_PLOT_GENERATOR_TEST or map_type_id == MAP_TYPE_CITADEL_MARCH or map_type_id == MAP_TYPE_BUILD_SANDBOX or map_type_id == MAP_TYPE_LANTERN_TREE
 
 func _build_plot_generator_test_map() -> void:
 	layer_low.clear()
@@ -926,6 +1040,13 @@ func is_in_bounds(cell: Vector2i) -> bool:
 
 func is_walkable_cell(cell: Vector2i) -> bool:
 	if not is_in_bounds(cell):
+		return false
+	# MAP_W/MAP_H are set before the grid is filled, so in-bounds is not the same
+	# as readable. Generation is spread across frames now, and callers that ask
+	# during it -- a probe spawning, a nearest-walkable search -- were indexing an
+	# empty array. Guarded here rather than at each call site so anything asking
+	# early gets "no" instead of an error.
+	if cell.x >= grid.size() or grid[cell.x].size() <= cell.y:
 		return false
 	if dynamic_blocked_cells.has(cell):
 		return false
@@ -1497,6 +1618,12 @@ func _build_plots() -> void:
 	if map_type_id == MAP_TYPE_GRID_TEST_CANVAS:
 		_build_grid_test_plots()
 		return
+	if map_type_id == MAP_TYPE_BUILD_SANDBOX:
+		_build_build_sandbox_plots()
+		return
+	if map_type_id == MAP_TYPE_LANTERN_TREE:
+		_build_lantern_tree_plots()
+		return
 	var reserved_rects: Array[Rect2i] = []
 
 	var base_1_rect := _find_plot_rect(Vector2i(10, 8), [E_HIGH, E_MID], reserved_rects, 360, Vector2(0.18, 0.20))
@@ -1605,6 +1732,180 @@ func _build_plots() -> void:
 		"story": "A high-ground objective wrapped in vampire roots and huge bloodcap mushrooms.",
 	})
 
+# --- the lantern tree -------------------------------------------------------
+
+# The branch skeleton, grown once and then used by everything: roads follow the
+# segments, plots hang on the nodes, and both therefore agree by construction
+# rather than by being carefully kept in step.
+var _tree_segments: Array[Dictionary] = []
+var _tree_nodes: Array[Dictionary] = []
+
+# How the tree is shaped. These are the only numbers that matter, so they are
+# together and named rather than buried in the recursion.
+# Sized so the canopy reaches the top of the map rather than huddling in the
+# middle. The four segment lengths sum to roughly trunk * 2.6 with this decay,
+# so the trunk is set from the map height instead of being a magic number: at
+# 192 that is 58, and the tree fills its board.
+const TREE_LENGTH_DECAY := 0.72
+const TREE_SPREAD_DEGREES := 38.0
+const TREE_MAX_DEPTH := 4
+const TREE_ROOT_MARGIN := 16
+# Fraction of the map height the whole tree should span, root to canopy.
+const TREE_HEIGHT_FRACTION := 0.82
+
+func _build_lantern_tree_plots() -> void:
+	_tree_segments.clear()
+	_tree_nodes.clear()
+	# Roots at the bottom centre, growing up the map. Cell y increases downward,
+	# so "up the tree" is decreasing y.
+	var root := Vector2(float(MAP_W) * 0.5, float(MAP_H - TREE_ROOT_MARGIN))
+	_tree_nodes.append({"cell": Vector2i(root), "depth": 0, "tip": false})
+	# Sum of the geometric series of segment lengths, so the trunk is derived
+	# from how tall the tree should be rather than guessed.
+	var reach := 0.0
+	var term := 1.0
+	for _i in TREE_MAX_DEPTH:
+		reach += term
+		term *= TREE_LENGTH_DECAY
+	var trunk := float(MAP_H) * TREE_HEIGHT_FRACTION / maxf(1.0, reach)
+	_grow_branch(root, -PI * 0.5, trunk, 1)
+
+	# The citadel sits on the roots. It is the thing every branch eventually
+	# leads back to, which is what makes the trunk worth holding.
+	_citadel_rect = Rect2i()
+	if _carries_citadel():
+		var size := Vector2i(CITADEL_PLOT_SIZE, CITADEL_PLOT_SIZE)
+		var origin := Vector2i(int(root.x) - size.x / 2, MAP_H - size.y - 2)
+		origin.x = clampi(origin.x, 2, MAP_W - size.x - 2)
+		origin.y = clampi(origin.y, 2, MAP_H - size.y - 2)
+		_citadel_rect = Rect2i(origin, size)
+		var citadel := _make_content_plot_at("blank_citadel_content_plot_1", "citadel", _citadel_rect, 0)
+		citadel["block_structure"] = "kons_arcane_citadel_01"
+		citadel["story"] = "Kon's Arcane Citadel, grown into the roots. Every branch comes back here."
+		citadel["difficulty"] = 0.95
+		citadel["defensibility"] = 0.9
+		_register_plot(citadel)
+
+	# A lantern at every fork and every tip.
+	#
+	# Difficulty runs with DEPTH, inverted: the tips are the safe outskirts and
+	# the forks nearer the trunk are where the map converges, so they are worth
+	# more and cost more. That gradient is a property of the shape, not a table.
+	var serial := 0
+	for node in _tree_nodes:
+		var depth := int(node["depth"])
+		if depth == 0:
+			continue
+		serial += 1
+		var is_tip: bool = bool(node["tip"])
+		var size: int = 14 if is_tip else 10
+		var cell: Vector2i = node["cell"]
+		var rect := Rect2i(cell - Vector2i(size / 2, size / 2), Vector2i(size, size))
+		rect.position.x = clampi(rect.position.x, 2, MAP_W - size - 2)
+		rect.position.y = clampi(rect.position.y, 2, MAP_H - size - 2)
+		if not _citadel_rect.has_area() or not _expanded_rect(_citadel_rect, 4).intersects(rect):
+			var plot := _make_content_plot_at(
+				"blank_%s_content_plot_%d" % ["large" if is_tip else "medium", serial],
+				"large" if is_tip else "medium", rect, depth)
+			_register_plot(plot)
+
+	_build_lantern_tree_bases()
+
+# Recursive branch growth. Each branch shortens and splits; the outermost ones
+# are marked as tips because that is where players start.
+func _grow_branch(from: Vector2, angle: float, length: float, depth: int) -> void:
+	if depth > TREE_MAX_DEPTH or length < 6.0:
+		return
+	var to := from + Vector2(cos(angle), sin(angle)) * length
+	to.x = clampf(to.x, 6.0, float(MAP_W - 7))
+	to.y = clampf(to.y, 6.0, float(MAP_H - 7))
+	var tip: bool = depth == TREE_MAX_DEPTH
+	_tree_segments.append({
+		"from": Vector2i(from), "to": Vector2i(to), "depth": depth,
+		# Thick at the trunk, thin at the twigs: the road width carries the same
+		# information the shape does, so the trunk reads as the main route.
+		"width": maxi(1, 4 - depth),
+	})
+	_tree_nodes.append({"cell": Vector2i(to), "depth": depth, "tip": tip})
+	if tip:
+		return
+	# Two or three ways on from here. Three occasionally, so the tree is not a
+	# perfectly predictable binary fan.
+	var children: int = 3 if _rng.range_int(0, 3) == 0 else 2
+	var spread := deg_to_rad(TREE_SPREAD_DEGREES)
+	for i in children:
+		var offset := lerpf(-spread, spread, float(i) / float(maxi(1, children - 1)))
+		# DeterministicRng deals in integers only -- there is no range_float --
+		# and the map must stay reproducible from its seed, so the wobble is
+		# drawn in tenths of a degree and scaled down.
+		var wobble := deg_to_rad(float(_rng.range_int(-70, 70)) * 0.1)
+		_grow_branch(to, angle + offset + wobble, length * TREE_LENGTH_DECAY, depth + 1)
+
+func _make_content_plot_at(id: String, size_label: String, rect: Rect2i, depth: int) -> Dictionary:
+	var anchor := rect.position + rect.size / 2
+	return {
+		"id": id,
+		"name": "%s lantern" % size_label.capitalize(),
+		"kind": "content_blank",
+		"content_archetype": "blank_%s_lantern" % size_label,
+		"content_size": size_label,
+		"requested_size": rect.size,
+		"final_footprint_size": rect.size,
+		"rect": rect,
+		"anchor": anchor,
+		"road_anchor": anchor,
+		"economy_spaces": [],
+		# Nearer the trunk is nearer everyone else.
+		"difficulty": clampf(1.0 - float(depth) * 0.2, 0.25, 0.95),
+		"defensibility": clampf(0.3 + float(depth) * 0.15, 0.3, 0.85),
+		"elevation": "LOW",
+		"story": "A lantern plot hanging at depth %d of the tree." % depth,
+	}
+
+# Players start out in the canopy, on the tips, as far apart as the branches
+# allow -- so the opening is safe, the middle game is the forks, and the trunk
+# and the citadel are the endgame everybody converges on.
+func _build_lantern_tree_bases() -> void:
+	var tips: Array[Dictionary] = []
+	for node in _tree_nodes:
+		if bool(node["tip"]):
+			tips.append(node)
+	if tips.is_empty():
+		return
+	tips.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return (a["cell"] as Vector2i).x < (b["cell"] as Vector2i).x)
+	var wanted: int = mini(4, tips.size())
+	var archetypes := [BASE_ARCHETYPE_FORTRESS, BASE_ARCHETYPE_HOLDFAST,
+		BASE_ARCHETYPE_EXPANSION, BASE_ARCHETYPE_HOLDFAST]
+	for i in wanted:
+		# Spread across the canopy rather than clustered on one bough.
+		var pick: Dictionary = tips[int(float(i) * float(tips.size() - 1) / float(maxi(1, wanted - 1)))]
+		var cell: Vector2i = pick["cell"]
+		var data := _base_archetype_data(str(archetypes[i % archetypes.size()]))
+		var size: Vector2i = data["size"]
+		var rect := Rect2i(cell - size / 2, size)
+		rect.position.x = clampi(rect.position.x, 2, MAP_W - size.x - 2)
+		rect.position.y = clampi(rect.position.y, 2, MAP_H - size.y - 2)
+		_register_plot(_make_base_plot(
+			"base_plot_%d" % (i + 1), "Canopy base %d" % (i + 1), rect,
+			_make_economy_spaces(rect, int(data["resource_node_count"])),
+			float(data["defence_score"]), float(data["economy_score"]),
+			"A base out on the branch tips, where the tree is quietest."))
+
+# One base, dead centre, and a great deal of nothing around it.
+#
+# Deliberately no enemy outpost and no second base: the point is to lay buildings
+# out and look at them, and anything that fights you is a distraction from that.
+# The economy spaces are generous for the same reason -- running out of Bio while
+# arranging a town is not a lesson anyone needs.
+func _build_build_sandbox_plots() -> void:
+	var centre := Vector2i(MAP_W / 2, MAP_H / 2)
+	var base_rect := Rect2i(centre - Vector2i(12, 10), Vector2i(24, 20))
+	_register_plot(_make_base_plot(
+		"base_plot_1", "Sandbox base", base_rect,
+		_make_economy_spaces(base_rect, 4), 0.5, 0.5,
+		"Flat ground, no enemies. Build, and see what a town looks like."))
+
 func _build_grid_test_plots() -> void:
 	var base_1_rect := Rect2i(10, 10, 12, 10)
 	var base_2_rect := Rect2i(38, 28, 16, 12)
@@ -1637,7 +1938,7 @@ func _build_seeded_grid_frontier_plots() -> void:
 	# fight for. The smoke test caught it, and it is exactly the kind of failure
 	# that would otherwise have read as "nice, I spawned somewhere good".
 	_citadel_rect = Rect2i()
-	if map_type_id == MAP_TYPE_CITADEL_MARCH:
+	if _carries_citadel():
 		var citadel_size := Vector2i(CITADEL_PLOT_SIZE, CITADEL_PLOT_SIZE)
 		_citadel_rect = _find_open_frontier_rect(citadel_size, reserved_rects, Vector2(0.62, 0.58), 120)
 		reserved_rects.append(_expanded_rect(_citadel_rect, 6))
@@ -1742,7 +2043,16 @@ func _build_blank_frontier_content_plots(reserved_rects: Array[Rect2i]) -> void:
 		if size_label == "citadel" and _citadel_rect.size.x > 0:
 			# Already chosen, before the bases. Searching again here would find
 			# somewhere else and leave the reservation stranded.
+			#
+			# The debug fields are filled in to say so. Left at their defaults
+			# they logged "candidates=0 chosen_index=-1", which reads as "the
+			# citadel could not be placed and fell back" -- the exact opposite
+			# of what happened, and misleading enough to send a reader hunting
+			# for a placement bug that was not there.
 			placement["rect"] = _citadel_rect
+			placement["candidate_count"] = 1
+			placement["chosen_candidate_index"] = 0
+			placement["preplaced"] = true
 		else:
 			placement = _find_open_frontier_rect_debug(size, reserved_rects, target, 320)
 		var rect: Rect2i = placement["rect"]
@@ -1834,7 +2144,7 @@ func _frontier_content_specs() -> Array[Dictionary]:
 	]
 	var large_target := large_targets[_rng.range_int(0, large_targets.size() - 1)]
 	var specs: Array[Dictionary] = []
-	if map_type_id == MAP_TYPE_CITADEL_MARCH:
+	if _carries_citadel():
 		# FIRST, and deliberately so. A 96x96 reservation has to claim its ground
 		# before anything else fragments the map; asked for last it would never
 		# find a site and fall back on top of something. Everything after it
@@ -2893,6 +3203,9 @@ func _build_roads() -> void:
 		return
 	if plots.is_empty():
 		return
+	if map_type_id == MAP_TYPE_LANTERN_TREE:
+		_build_lantern_tree_roads()
+		return
 	if _uses_frontier_rules():
 		_build_frontier_road_network_for_mode()
 		_smooth_roads_with_validation()
@@ -3471,6 +3784,27 @@ func _is_frontier_plot_reserved_for_roads(cell: Vector2i) -> bool:
 				return false
 		return true
 	return false
+
+# The roads ARE the tree.
+#
+# Carved straight from the branch skeleton the plots were hung on, so the two
+# cannot drift apart -- there is no second description of the shape to keep in
+# step. Width tapers with depth, which is what makes the trunk read as the main
+# road and the twigs as tracks.
+#
+# _smooth_roads_with_validation() is deliberately NOT run afterwards. It exists
+# to tidy the frontier's grid arteries, and its idea of a redundant road cell is
+# a cell with another route around it -- which in a tree is every cell, because
+# a tree has no loops at all. It would happily dissolve the map.
+func _build_lantern_tree_roads() -> void:
+	for segment in _tree_segments:
+		_carve_road_between(segment["from"], segment["to"], int(segment["width"]))
+	# The citadel gets a mouth wide enough to read as the head of the trunk.
+	if _citadel_rect.has_area():
+		var gate := _citadel_rect.position + Vector2i(_citadel_rect.size.x / 2, 0)
+		_carve_road_between(gate, gate - Vector2i(0, 6), 3)
+	print("[MapGenerator] Lantern tree: %d branches, %d lantern nodes"
+		% [_tree_segments.size(), _tree_nodes.size()])
 
 func _carve_road_between(from_cell: Vector2i, to_cell: Vector2i, width: int) -> void:
 	var current := Vector2(from_cell.x, from_cell.y)

@@ -25,6 +25,15 @@ func _run() -> void:
 		session.call("start_new_game", "garrison-smoke", "bad_kon_willow", "citadel_march")
 	var scene: Node = load("res://scripts/map/main_map.tscn").instantiate()
 	root.add_child(scene)
+	# Map generation is spread across frames now, so the scene is not playable
+	# the instant it is added. Waits for the generator to say it is finished
+	# rather than for a fixed frame count -- a count that happened to be long
+	# enough on a 96x96 map is not a guarantee, it is a coincidence.
+	for _gen_wait in 400:
+		var _gen := scene.get_node_or_null("MapGenerator")
+		if _gen == null or bool(_gen.get("generation_complete")):
+			break
+		await process_frame
 	for _i in 70:
 		await process_frame
 
@@ -66,8 +75,14 @@ func _check_defence_is_real(scene: Node, garrison: Node) -> bool:
 		_fail("The garrison stands on one level (%s); it should hold walls, gate and keep" % [levels.keys()])
 		return false
 	var elevated := false
+	var definition := BlockStructureLibrary.load_default().get_definition(&"kons_arcane_citadel_01")
+	var wall_level := -1
+	for cell in definition.nav_cells:
+		if definition.nav_at(cell).get("region_id", &"") == &"wall_walk_outer_ring_nav":
+			wall_level = cell.y
+			break
 	for level in levels:
-		if int(level) >= 10:
+		if wall_level > 0 and int(level) >= wall_level:
 			elevated = true
 	if not elevated:
 		_fail("Nobody is on the wall-walks; levels held were %s" % [levels.keys()])

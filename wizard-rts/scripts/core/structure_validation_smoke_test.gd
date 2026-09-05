@@ -33,6 +33,7 @@ func _initialize() -> void:
 	quit(0)
 
 func _run_case(library: BlockStructureLibrary, structure_id: StringName, case: Dictionary) -> bool:
+	# Acceptance tests must exercise the same definition that ships in-game.
 	var nav := library.navigation_for(structure_id)
 	if nav == null:
 		_fail("%s: could not build navigation" % structure_id)
@@ -55,6 +56,11 @@ func _run_case(library: BlockStructureLibrary, structure_id: StringName, case: D
 			case.get("expected"), "PASS" if reached else "FAIL"])
 		return false
 	return true
+
+func _scaled_cell(cell: Vector3i, factor: int) -> Vector3i:
+	if factor <= 1:
+		return cell
+	return Vector3i(cell.x / factor, cell.y / factor, cell.z / factor)
 
 func _to_cell(value: Array) -> Vector3i:
 	if value.size() < 3:

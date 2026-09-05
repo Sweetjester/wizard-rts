@@ -1,0 +1,18 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/units/mangler.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/units/mangler_painted_art.gd" id="2"]
+[sub_resource type="CircleShape2D" id="shape"]
+radius = 25.0
+
+[node name="Mangler" type="CharacterBody2D"]
+script = ExtResource("1")
+unit_archetype = &"mangler"
+collision_layer = 2
+collision_mask = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("shape")
+
+[node name="ArtSprite" type="Sprite2D" parent="."]
+script = ExtResource("2")

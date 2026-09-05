@@ -18,9 +18,30 @@ var _elapsed := 0.0
 func set_income_multiplier(multiplier: float) -> void:
 	income_multiplier = multiplier
 
+# The sandbox exists to lay out a town and watch units move through it, and
+# running out of Bio halfway through arranging one is not a lesson anyone needs.
+const SANDBOX_BIO := 99999
+
 func _ready() -> void:
 	map_generator = get_node_or_null(map_generator_path)
+	# Topped up when the map SAYS what it is, not here.
+	#
+	# map_type_id is read from GameSession during MapGenerator._ready, which has
+	# not necessarily run when this node is ready -- asking now returns an empty
+	# string and the sandbox quietly started on the standard 1000 Bio.
+	if map_generator != null and map_generator.has_signal("map_generated"):
+		map_generator.map_generated.connect(func(_summary: Dictionary) -> void:
+			_grant_sandbox_bio()
+		)
 	_ensure_player(1)
+
+func _grant_sandbox_bio() -> void:
+	if map_generator == null or str(map_generator.get("map_type_id")) != "build_sandbox":
+		return
+	starting_bio = SANDBOX_BIO
+	var held: int = int(get_resources(1).get("bio", 0))
+	if held < SANDBOX_BIO:
+		add_resource(1, &"bio", SANDBOX_BIO - held)
 
 func _process(delta: float) -> void:
 	_elapsed += delta

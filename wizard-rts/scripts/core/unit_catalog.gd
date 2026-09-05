@@ -27,15 +27,15 @@ const DEFINITIONS := {
 		"sight_radius_cells": 9,
 		"population": 1,
 		"builder_unit": true,
-		"role": "Hero builder. Dual-casts ranged attacks with a split staff and supports ranged allies through Observer Aura.",
-		"passives": ["Builder unit", "Dual-cast staff"],
-		"actives": ["Bio Mend", "Seal Away", "Observer Aura"],
-		"activated_abilities": [&"bio_mend", &"seal_away", &"observer_aura"],
+		"role": "Life wizard. Broken Staff strikes twice. Banishes all units in a circle; Biostorm harms friend and foe. Observation projects sight and tower-top summons.",
+		"passives": ["Builder unit", "Broken Staff", "Observer"],
+		"actives": ["Bio Mend", "Seal Away", "Observation Aura", "Biostorm"],
+		"activated_abilities": [&"bio_mend", &"seal_away", &"observer_aura", &"biostorm"],
 		"passive_abilities": [&"builder_unit", &"dual_cast_staff"],
 		"animation_profile": {
-			"frame_size": Vector2i(160, 192),
-			"directions": 8,
-			"actions": [&"idle", &"move", &"attack_dual_cast", &"bio_mend", &"seal_away", &"observer_aura", &"death"],
+			"frame_size": Vector2i(384, 384),
+			"directions": 2,
+			"actions": [&"idle", &"move", &"attack_dual_cast", &"bio_mend", &"seal_away", &"observer_aura", &"biostorm", &"hit", &"death"],
 		},
 	},
 	&"fire_wizard": {
@@ -337,7 +337,7 @@ const DEFINITIONS := {
 		"form": &"base",
 		"tier": 3,
 		"kon_theme": &"evolution",
-		"card_portrait": "res://assets/ui/unit_cards/spawner_card.png",
+		"card_portrait": "res://assets_game/units/kon/spawner/painted_v2/portrait.png",
 		"card_blurb": "Tier 3. Kon's most capable obedient creation, unleashed only through great effort. Costs Bio every time it summons a drone or fires its cannon.",
 		"max_hp": 360,
 		"armor": 5,
@@ -371,8 +371,8 @@ const DEFINITIONS := {
 		"evolution_xp_required": 180,
 		"evolves_to": &"winged_spawner",
 		"animation_profile": {
-			"frame_size": Vector2i(192, 192),
-			"directions": 8,
+			"frame_size": Vector2i(384, 384),
+			"directions": 2,
 			"actions": [&"idle", &"move", &"root_cast", &"rooted_idle", &"artillery_attack", &"uproot_cast", &"summon_drone", &"evolve_wings", &"death"],
 		},
 	},
@@ -384,7 +384,7 @@ const DEFINITIONS := {
 		"form": &"evolved",
 		"tier": 3,
 		"kon_theme": &"evolution",
-		"card_portrait": "res://assets/ui/unit_cards/spawner_card.png",
+		"card_portrait": "res://assets_game/units/kon/spawner/painted_v2/portrait.png",
 		"card_blurb": "Evolved Spawner. Flies while moving and no longer roots to fire, but range and damage are halved while it is on the move.",
 		"max_hp": 430,
 		"armor": 5,
@@ -418,10 +418,40 @@ const DEFINITIONS := {
 		"moving_attack_range_multiplier": 0.5,
 		"moving_attack_damage_multiplier": 0.5,
 		"animation_profile": {
-			"frame_size": Vector2i(192, 192),
-			"directions": 8,
+			"frame_size": Vector2i(384, 384),
+			"directions": 2,
 			"actions": [&"idle_flying", &"move_flying", &"takeoff", &"landing", &"artillery_attack", &"summon_drone", &"death"],
 		},
+	},
+	&"mangler": {
+		"display_name": "Mangler",
+		"unit_family": &"mangler", "form": &"base", "tier": 2,
+		"kon_theme": &"evolution", "intelligence": 3, "aggro_range_cells": 6,
+		"card_portrait": "res://assets_game/units/kon/mangler/painted_v1/portrait.png",
+		"card_blurb": "A knuckle-running assault hybrid. Five momentum stacks build across five cells of continuous running; the next enemy impact bursts in an area.",
+		"max_hp": 320, "armor": 5, "magic_armor": 2,
+		"move_speed_cells": 2.5, "attack_damage": 30, "attack_range_cells": 0.9,
+		"attack_cooldown_ticks": 22, "attack_speed_seconds": 1.1, "attack_type": &"melee",
+		"sight_radius_cells": 7, "population": 3, "cost_bio": 145, "train_time_seconds": 13.0,
+		"role": "Melee assault. Gains 8% speed per momentum stack, up to 40%; a full charge adds 36 area damage. Stops and collisions reset momentum.",
+		"passives": ["Momentum (5 stacks)", "Full-charge impact"], "actives": [],
+		"evolution_xp_required": 120, "evolves_to": &"winged_mangler",
+		"animation_profile": {"frame_size": Vector2i(384,384), "directions": 2, "actions": [&"idle", &"run", &"attack", &"hit", &"evolve", &"death"]},
+	},
+	&"winged_mangler": {
+		"display_name": "Winged Mangler",
+		"unit_family": &"mangler", "form": &"evolved", "tier": 2,
+		"kon_theme": &"evolution", "intelligence": 3, "aggro_range_cells": 6,
+		"card_portrait": "res://assets_game/units/kon/mangler/painted_v1/portrait.png",
+		"card_blurb": "The assault hybrid sprouts dragonfly wings. Remains ground-based, but can leap to clear ground and slam nearby enemies.",
+		"max_hp": 360, "armor": 6, "magic_armor": 3,
+		"move_speed_cells": 2.5, "attack_damage": 34, "attack_range_cells": 0.9,
+		"attack_cooldown_ticks": 22, "attack_speed_seconds": 1.1, "attack_type": &"melee",
+		"sight_radius_cells": 8, "population": 3, "cost_bio": 0,
+		"role": "Ground assault with manual Leap Slam: 6-cell range, 65 area damage, 1.5s enemy stun, 14s cooldown. Keeps Momentum.",
+		"passives": ["Momentum (5 stacks)", "Full-charge impact"], "actives": ["Leap Slam"],
+		"activated_abilities": [&"mangler_leap"],
+		"animation_profile": {"frame_size": Vector2i(384,384), "directions": 2, "actions": [&"idle", &"run", &"attack", &"hit", &"windup", &"leap", &"land", &"evolve", &"death"]},
 	},
 	&"stone_face_serpent": {
 		"intelligence": 2,
@@ -431,7 +461,7 @@ const DEFINITIONS := {
 		"form": &"growth",
 		"tier": 2,
 		"kon_theme": &"evolution",
-		"card_portrait": "res://assets/ui/unit_cards/stone_face_serpent_card.png",
+		"card_portrait": "res://assets_game/units/kon/serpent/painted_v2/portrait.png",
 		"card_blurb": "Tier 2. A stronger species spliced with the forbidden. Grows up to five times, and can harden its whole length into a portable wall -- losing its attack, gaining HP by level.",
 		"max_hp": 240,
 		"armor": 5,
@@ -453,14 +483,19 @@ const DEFINITIONS := {
 		"activated_abilities": [&"stone_form"],
 		"passive_abilities": [&"poison_sting", &"coil_strike"],
 		"unit_type_tags": [&"evolution"],
-		"evolution_xp_required": 105,
-		"max_evolution_level": 5,
-		"stone_form_base_length": 1,
+		"evolution_xp_required": 45,
+		"max_evolution_level": 6,
+		"stone_form_base_length": 3,
+		"stone_form_hp_multiplier": 2.0,
+		"stone_form_growth_hp_multiplier": 0.2,
+		"stone_form_armor_bonus": 8,
+		"stone_form_growth_armor_bonus": 3,
+		"stone_form_placement_range_cells": 8,
 		"stone_form_cast_seconds": 2.0,
 		"stone_form_cooldown_seconds": 10.0,
 		"growth_hp_bonus": 58,
 		"growth_damage_bonus": 5,
-		"growth_range_cells_bonus": 0.35,
+		"growth_range_cells_bonus": -0.25,
 		"growth_size_bonus": 3.0,
 		"poison_damage_per_second": 5.0,
 		"poison_duration_seconds": 4.0,
@@ -525,12 +560,26 @@ const DEFINITIONS := {
 				"attack_type": &"ranged_single",
 				"projectile_speed": 660.0,
 			},
+			# Brought out only from a structure's upper floors, and swapped away
+			# again on the way down -- see VantageEffects. An Oaven holding a
+			# wall-walk braces a heavier pipe it cannot skirmish with: half again
+			# the reach and nearly double the damage, at two thirds the rate of
+			# fire and a slower dart.
+			&"heavy_blowpipe": {
+				"display_name": "Heavy Blowpipe",
+				"attack_damage": 9,
+				"attack_range_cells": 8,
+				"attack_speed_seconds": 1.6,
+				"attack_type": &"ranged_single",
+				"projectile_speed": 520.0,
+			},
 		},
+		"vantage_weapon_mode": &"heavy_blowpipe",
 		"default_weapon_mode": &"spear",
 		"weapon_swap_seconds": 0.6,
 		"animation_profile": {
-			"frame_size": Vector2i(128, 128),
-			"directions": 8,
+			"frame_size": Vector2i(256, 256),
+			"directions": 2,
 			"actions": [&"idle", &"move", &"attack_spear", &"attack_blowpipe", &"swap_weapon", &"taunt", &"charge", &"evolve", &"death"],
 		},
 	},
@@ -595,8 +644,8 @@ const DEFINITIONS := {
 		"jumper_landing_stun_seconds": 1.25,
 		"jumper_landing_damage": 14,
 		"animation_profile": {
-			"frame_size": Vector2i(128, 128),
-			"directions": 8,
+			"frame_size": Vector2i(256, 256),
+			"directions": 2,
 			"actions": [&"idle", &"move", &"attack_spear", &"attack_blowpipe", &"swap_weapon", &"taunt", &"takeoff", &"flying", &"landing_stun", &"death"],
 		},
 	},
@@ -876,7 +925,10 @@ const DEFINITIONS := {
 		"garrison_aura_radius": 620.0,
 		"garrison_aura_damage_bonus": 0.12,
 		"garrison_aura_armor_bonus": 1,
-		"footprint": Vector2i(3, 3),
+		# Fallback matches the compact runtime plan; BuildSystem reads the plan.
+		"footprint": Vector2i(18, 18),
+		"block_structure": &"kons_observation_wizard_tower_01",
+		"cost_bio": 260,
 		# Megastructure (master doc section 39). Production and research are built
 		# INSIDE it as modules; economy and walls stay on the ground, because their
 		# position on the map is part of the decision, and moving them inside would
@@ -917,24 +969,34 @@ const DEFINITIONS := {
 		"build_time_seconds": 6.0,
 		"auto_evolves": true,
 		"evolution_seconds": 100.0,
-		"footprint": Vector2i(3, 3),
-		# Installed into a tower slot rather than placed on the ground: where a
-		# barracks sits has never been part of any decision, only that you own one.
-		"module_role": &"production",
-		"production": [&"terrible_thing", &"oaven_spear", &"horror", &"apex", &"spawner", &"stone_face_serpent"],
+		# Placed on the ground again, and no longer a 3x3 sprite.
+		#
+		# It was briefly a tower module on the theory that where a barracks sits
+		# was never a decision. It is one now: the Splicing Laboratory is a
+		# walkable block structure with a muster hall, aisles and upper
+		# galleries, and buildings placed next to each other are meant to read as
+		# a town rather than as icons on grass. So position matters again.
+		#
+		# The footprint matches the authored structure exactly. If they disagree
+		# the building's 2D blockers and its 3D geometry describe different
+		# buildings, which is the kind of mismatch nobody sees until a unit walks
+		# through a wall.
+		"footprint": Vector2i(9, 7),
+		"block_structure": &"kons_splicing_laboratory_01",
+		"production": [&"terrible_thing", &"oaven_spear", &"horror", &"apex", &"spawner", &"stone_face_serpent", &"mangler"],
 	},
 	&"terrible_vault": {
 		"sight_radius_cells": 7,
 		"display_name": "Observer Vault",
 		"kon_theme": &"observer",
-		"card_blurb": "Research. Studies ways to sharpen Kon's observer magics -- sight, oversight auras, and the tier gates that let his heavier hybrids out. Installed as a tower module.",
-		"module_role": &"research",
+		"card_blurb": "Research. Kon's walk-in vault and library: a sealed archive, reading hall and upper gallery. Studies observer magics and unlocks heavier hybrids.",
 		"max_hp": 320,
 		"cost_bio": 140,
 		"build_time_seconds": 7.0,
 		"auto_evolves": true,
 		"evolution_seconds": 120.0,
-		"footprint": Vector2i(2, 2),
+		"footprint": Vector2i(9, 7),
+		"block_structure": &"kons_observer_vault_01",
 	},
 	&"vinewall": {
 		"sight_radius_cells": 4,
@@ -979,6 +1041,7 @@ const DEFINITIONS := {
 const CLASS_UNIT_ROSTERS := {
 	"bad_kon_willow": [
 		&"oaven_spear", &"oaven_jumper",
+		&"mangler", &"winged_mangler",
 		&"stone_face_serpent",
 		&"spawner", &"winged_spawner", &"spawner_drone",
 		&"the_forbidden",

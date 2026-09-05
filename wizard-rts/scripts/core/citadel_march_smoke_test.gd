@@ -3,11 +3,13 @@ extends SceneTree
 # The citadel march: a 192x192 map type carrying Kon's Arcane Citadel as a
 # guaranteed content plot (master doc section 40).
 #
-# The assertion that carries the most weight is the LAST one: that the standard
-# frontier map is still 96x96. Map size stopped being a project-wide constant to
-# make this map type possible, and 127 references across the project read it --
-# so "did the other maps change size" is the question that matters, and it is
-# cheaper to ask here than to discover from a broken fog texture.
+# The last check guards the maps that are NOT meant to change size. The frontier
+# deliberately grew to 160x160 so that the citadel could be a content plot in
+# ordinary play rather than only on this map type -- but every other map type
+# must still be 96x96. Map size stopped being a project-wide constant to make
+# these map types possible, and a great many references across the project read
+# it, so "did the other maps change size" is the question worth asking here
+# rather than discovering it from a broken fog texture.
 
 func _initialize() -> void:
 	call_deferred("_run")
@@ -42,8 +44,8 @@ func _check_march() -> bool:
 		_fail("No plot on the march requested the citadel")
 		return false
 	var rect: Rect2i = citadel_plot.get("rect", Rect2i())
-	if rect.size.x < 96 or rect.size.y < 96:
-		_fail("The citadel plot should reserve 96x96, got %s" % [rect.size])
+	if rect.size != Vector2i(24,24):
+		_fail("The compact citadel plot should reserve 24x24, got %s" % [rect.size])
 		return false
 
 	# And it was actually placed there, not merely reserved.
@@ -79,18 +81,39 @@ func _check_march() -> bool:
 # Map size became a variable for the march. Every other map must be exactly as
 # it was.
 func _check_default_map_unchanged() -> bool:
+	# The frontier now carries the citadel too, and grew to fit it.
 	var scene := await _boot("seeded_grid_frontier")
 	var terrain: Node = scene.get_node_or_null("MapGenerator")
-	if int(terrain.get("MAP_W")) != 96 or int(terrain.get("MAP_H")) != 96:
-		_fail("The standard frontier map should still be 96x96, got %sx%s"
+	if int(terrain.get("MAP_W")) != 160 or int(terrain.get("MAP_H")) != 160:
+		_fail("The frontier should be 160x160 to hold the citadel, got %sx%s"
 			% [terrain.get("MAP_W"), terrain.get("MAP_H")])
 		return false
+	var frontier_has_citadel := false
 	for plot in terrain.get("plots"):
-		if str(plot.get("block_structure", "")) != "":
-			_fail("A standard map asked for a block structure; the citadel is march-only")
-			return false
+		if str(plot.get("block_structure", "")) == "kons_arcane_citadel_01":
+			frontier_has_citadel = true
+	if not frontier_has_citadel:
+		_fail("The frontier map did not request the citadel; it should carry one every game")
+		return false
 	scene.queue_free()
 	await process_frame
+
+	# Everything else is untouched. This is the real regression guard: the two
+	# map types that grew must not have dragged the test and benchmark maps with
+	# them, because those size their arrays and their expectations off 96.
+	for map_type in ["grid_test_canvas", "plot_generator_test"]:
+		var other := await _boot(map_type)
+		var other_terrain: Node = other.get_node_or_null("MapGenerator")
+		if int(other_terrain.get("MAP_W")) != 96 or int(other_terrain.get("MAP_H")) != 96:
+			_fail("%s should still be 96x96, got %sx%s"
+				% [map_type, other_terrain.get("MAP_W"), other_terrain.get("MAP_H")])
+			return false
+		for plot in other_terrain.get("plots"):
+			if str(plot.get("block_structure", "")) != "":
+				_fail("%s asked for a block structure; only the frontier and the march carry one" % map_type)
+				return false
+		other.queue_free()
+		await process_frame
 	return true
 
 func _boot(map_type: String) -> Node:
@@ -99,6 +122,15 @@ func _boot(map_type: String) -> Node:
 		session.call("start_new_game", "march-smoke-%s" % map_type, "bad_kon_willow", map_type)
 	var scene: Node = load("res://scripts/map/main_map.tscn").instantiate()
 	root.add_child(scene)
+	# Map generation is spread across frames now, so the scene is not playable
+	# the instant it is added. Waits for the generator to say it is finished
+	# rather than for a fixed frame count -- a count that happened to be long
+	# enough on a 96x96 map is not a guarantee, it is a coincidence.
+	for _gen_wait in 400:
+		var _gen := scene.get_node_or_null("MapGenerator")
+		if _gen == null or bool(_gen.get("generation_complete")):
+			break
+		await process_frame
 	# The march is large and the bridge places after generation settles, so this
 	# waits generously rather than assuming a frame count that suits 96x96.
 	for _i in 60:

@@ -49,6 +49,19 @@ func _draw() -> void:
 	_draw_unit_transform_end()
 	_draw_selection_and_path()
 
+func _spawn_death_fx(source: Node = null) -> void:
+	var art:=get_node_or_null("ArtSprite") as Sprite2D
+	if art==null or art.texture==null:
+		super(source)
+		return
+	var view:=get_parent().get_node_or_null("Map3DView")
+	if is_instance_valid(view) and view.has_method("spawn_painted_unit_death"):
+		view.call("spawn_painted_unit_death",self,art)
+		return
+	var corpse:=preload("res://scripts/fx/oaven_death_sprite.gd").new()
+	get_parent().add_child(corpse)
+	corpse.configure(self,art)
+
 func _draw_limb(a: Vector2, b: Vector2, color: Color, width: float) -> void:
 	draw_line(a, b, color, width)
 	draw_circle(b, width * 0.85, color.lightened(0.08))

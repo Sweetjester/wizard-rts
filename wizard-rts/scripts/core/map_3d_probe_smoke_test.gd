@@ -10,7 +10,13 @@ func _init() -> void:
 func _run() -> void:
 	var scene := MAP_3D_PROTOTYPE.instantiate()
 	root.add_child(scene)
-	await process_frame
+	# The prototype builds its own MapGenerator and generation is spread across
+	# frames, so this waits for the map rather than for two frames.
+	for _gen_wait in 400:
+		var cell: Vector2i = scene.get("_unit_cell")
+		if cell.x >= 0:
+			break
+		await process_frame
 	await process_frame
 
 	var start: Vector2i = scene.get("_unit_cell")

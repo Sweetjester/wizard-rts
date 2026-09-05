@@ -1,0 +1,194 @@
+# Gameplay plans, not a lossy conversion of the full-resolution design masters.
+# x/east, y/up, z/north; inclusive ranges. One cell remains one map cell.
+# Citadel art uses quarter-cell sub-blocks; lab art is bespoke, in game units.
+# The observation tower deliberately has no override: use its original master.
+# Dimensions round UP where a quarter cell cannot be represented on this grid.
+structures:
+
+  kons_splicing_laboratory_01:
+    display_name: "Kon's Splicing Laboratory"
+    compact_runtime: true
+    dimensions: [9, 5, 7]
+    purpose: [barracks, specimen_hall, upper_gallery]
+    art: {laboratory: true, bespoke_skin: splicing_lab_v2}
+    blocks:
+      - {region: {x: [0, 8], y: 0, z: [0, 6]}, material: DARK_STONE}
+      - {region: {x: 0, y: [1, 3], z: [1, 6]}, material: TOWER_STONE}
+      - {region: {x: 8, y: [1, 3], z: [1, 6]}, material: TOWER_STONE}
+      - {region: {x: [1, 7], y: [1, 3], z: 6}, material: TOWER_STONE}
+      - {region: {x: [1, 2], y: [1, 3], z: 1}, material: TOWER_STONE}
+      - {region: {x: [5, 7], y: [1, 3], z: 1}, material: TOWER_STONE}
+      - {region: {x: [3, 4], y: [1, 2], z: 1}, material: GATE}
+      - {region: {x: [3, 4], y: 3, z: 1}, material: DARK_STONE}
+      - {region: {x: 8, y: [1, 2], z: [3, 4]}, material: GATE}
+      - {region: {x: 2, y: 1, z: [3, 4]}, material: METAL}
+      - {region: {x: 6, y: 1, z: [3, 4]}, material: METAL}
+      - {region: {x: 1, y: 3, z: 5}, material: DARK_STONE}
+      - {region: {x: 7, y: 3, z: 5}, material: DARK_STONE}
+      - {region: {x: [2, 6], y: 3, z: 5}, material: DARK_STONE}
+      - {region: {x: 0, y: 3, z: [2, 5]}, material: GLASS}
+      - {region: {x: 8, y: 3, z: [2, 5]}, material: GLASS}
+      - {region: {x: [2, 6], y: 3, z: 6}, material: GLASS}
+      - {region: {x: 1, y: 4, z: 1}, material: METAL}
+      - {region: {x: 7, y: 4, z: 1}, material: METAL}
+    nav_regions:
+      - {id: south_road, type: FLOOR, region: {x: [3, 4], y: 1, z: [0, 1]}, allowed: [infantry, archer, climber, heavy]}
+      - {id: muster_hall, type: FLOOR, region: {x: [1, 7], y: 1, z: 2}, allowed: [infantry, archer, climber, heavy]}
+      - {id: operating_aisle, type: FLOOR, region: {x: [3, 5], y: 1, z: [3, 4]}, allowed: [infantry, archer, climber, heavy]}
+      - {id: west_aisle, type: FLOOR, region: {x: 1, y: 1, z: 3}, allowed: [infantry, archer, climber]}
+      - {id: east_aisle, type: FLOOR, region: {x: 7, y: 1, z: 3}, allowed: [infantry, archer, climber]}
+      - {id: splicing_hall, type: FLOOR, region: {x: [1, 7], y: 1, z: 5}, allowed: [infantry, archer, climber, heavy]}
+      - {id: service_entry, type: FLOOR, region: {x: [7, 8], y: 1, z: 4}, allowed: [infantry, archer, climber]}
+      - {id: gallery_north, type: FLOOR, region: {x: [1, 7], y: 4, z: 5}, allowed: [infantry, archer, climber]}
+    links:
+      - {id: west_gallery_stair, type: STAIR, from: [1, 1, 3], to: [1, 4, 5], width: 1, allowed: [infantry, archer, climber]}
+      - {id: east_gallery_stair, type: STAIR, from: [7, 1, 3], to: [7, 4, 5], width: 1, allowed: [infantry, archer, climber]}
+    gates:
+      - {id: muster_gate, state_key: lab_entry_open, default_state: open, block_region: {x: [3, 4], y: [1, 2], z: 1}, passage_region: {x: [3, 4], y: 1, z: [0, 2]}}
+      - {id: service_gate, state_key: lab_service_open, default_state: closed, block_region: {x: 8, y: [1, 2], z: [3, 4]}, passage_region: {x: [7, 8], y: 1, z: 4}}
+    sockets:
+      - {id: muster_road, type: ROAD_SOCKET, position: [3, 1, 0], facing: south, width: 2}
+      - {id: service_road, type: PATH_SOCKET, position: [8, 1, 4], facing: east, width: 1}
+    validation_tests:
+      - {id: infantry_gallery, unit_class: infantry, start: [3, 1, 0], destination: [4, 4, 5], state: {lab_entry_open: true, lab_service_open: false}, expected: PASS}
+      - {id: archer_gallery, unit_class: archer, start: [3, 1, 0], destination: [4, 4, 5], state: {lab_entry_open: true}, expected: PASS}
+      - {id: climber_gallery, unit_class: climber, start: [3, 1, 0], destination: [4, 4, 5], state: {lab_entry_open: true}, expected: PASS}
+      - {id: heavy_operating_aisle, unit_class: heavy, start: [3, 1, 0], destination: [3, 1, 3], state: {lab_entry_open: true}, expected: PASS}
+      - {id: heavy_no_gallery, unit_class: heavy, start: [3, 1, 0], destination: [4, 4, 5], state: {lab_entry_open: true}, expected: FAIL}
+      - {id: closed_muster_seals, unit_class: infantry, start: [3, 1, 0], destination: [4, 1, 3], state: {lab_entry_open: false, lab_service_open: false}, expected: FAIL}
+      - {id: closed_service_seals, unit_class: infantry, start: [4, 1, 3], destination: [8, 1, 4], state: {lab_entry_open: true, lab_service_open: false}, expected: FAIL}
+      - {id: open_service, unit_class: infantry, start: [4, 1, 3], destination: [8, 1, 4], state: {lab_entry_open: false, lab_service_open: true}, expected: PASS}
+      - {id: flying_gallery, unit_class: flying, start: [3, 1, 0], destination: [4, 4, 5], state: {lab_entry_open: false}, expected: PASS}
+
+  kons_arcane_citadel_01:
+    display_name: "Kon's Arcane Citadel"
+    compact_runtime: true
+    dimensions: [24, 12, 24]
+    purpose: [square_castle, courtyards, wall_walks, four_towers, central_keep]
+    art: {dome: [3.5, 9.0, 20.5], dome_radius: 1.7, dome_height: 1.2}
+    # Towers retain distinct jobs: NW glazed observatory, NE archive,
+    # SW gate lookout, SE alchemical annex. All are reached from the wall walk.
+    blocks:
+      - {region: {x: [0, 23], y: 0, z: [0, 23]}, material: DARK_STONE}
+      - {region: {x: [1, 2], y: [1, 3], z: [1, 22]}, material: TOWER_STONE}
+      - {region: {x: [21, 22], y: [1, 3], z: [1, 22]}, material: TOWER_STONE}
+      - {region: {x: [3, 20], y: [1, 3], z: [21, 22]}, material: TOWER_STONE}
+      - {region: {x: [3, 9], y: [1, 3], z: [1, 2]}, material: TOWER_STONE}
+      - {region: {x: [14, 20], y: [1, 3], z: [1, 2]}, material: TOWER_STONE}
+      - {region: {x: [10, 13], y: 3, z: [1, 2]}, material: DARK_STONE}
+      - {region: {x: [10, 13], y: [1, 2], z: 1}, material: GATE}
+      - {region: {x: [10, 13], y: [1, 2], z: 3}, material: GATE}
+      - {region: {x: [11, 12], y: [1, 2], z: 21}, material: EMPTY, nav: EMPTY}
+      - {region: {x: [11, 12], y: [1, 2], z: 22}, material: GATE}
+      # Solid tower bases support the accessible upper chambers.
+      - {region: {x: [1, 5], y: [1, 3], z: [1, 5]}, material: TOWER_STONE}
+      - {region: {x: [18, 22], y: [1, 3], z: [1, 5]}, material: TOWER_STONE}
+      - {region: {x: [1, 5], y: [1, 3], z: [18, 22]}, material: TOWER_STONE}
+      - {region: {x: [18, 22], y: [1, 3], z: [18, 22]}, material: TOWER_STONE}
+      # Exterior faces stay closed; inward faces open onto the ring walk.
+      - {region: {x: 1, y: [4, 6], z: [1, 5]}, material: TOWER_STONE}
+      - {region: {x: [2, 5], y: [4, 6], z: 1}, material: TOWER_STONE}
+      - {region: {x: 22, y: [4, 7], z: [1, 5]}, material: TOWER_STONE}
+      - {region: {x: [18, 21], y: [4, 7], z: 1}, material: TOWER_STONE}
+      - {region: {x: 1, y: [4, 8], z: [18, 22]}, material: TOWER_STONE}
+      - {region: {x: [2, 5], y: [4, 8], z: 22}, material: TOWER_STONE}
+      - {region: {x: 22, y: [4, 8], z: [18, 22]}, material: TOWER_STONE}
+      - {region: {x: [18, 21], y: [4, 8], z: 22}, material: TOWER_STONE}
+      - {region: {x: [1, 5], y: 6, z: [1, 5]}, material: DARK_STONE}
+      - {region: {x: 4, y: 6, z: [3, 4]}, material: EMPTY, nav: EMPTY}
+      - {region: {x: [18, 22], y: 7, z: [1, 5]}, material: DARK_STONE}
+      - {region: {x: 19, y: 7, z: [3, 4]}, material: EMPTY, nav: EMPTY}
+      - {region: {x: [1, 5], y: 7, z: [18, 22]}, material: DARK_STONE}
+      - {region: {x: 4, y: 7, z: [19, 20]}, material: EMPTY, nav: EMPTY}
+      - {region: {x: [18, 22], y: 8, z: [18, 22]}, material: DARK_STONE}
+      - {region: {x: 19, y: 8, z: [19, 20]}, material: EMPTY, nav: EMPTY}
+      - {region: {x: 1, y: 8, z: [18, 22]}, material: GLASS}
+      - {region: {x: [2, 5], y: 8, z: 22}, material: GLASS}
+      - {region: {x: [19, 20], y: [5, 6], z: 1}, material: GLASS}
+      - {region: {x: 22, y: [5, 6], z: [19, 20]}, material: GLASS}
+      - {region: {x: [2, 3], y: [4, 5], z: 1}, material: GLASS}
+      - {region: {x: 4, y: [4, 5], z: 21}, material: GATE}
+      # Stepped keep; galleries remain exposed for RTS camera readability.
+      - {region: {x: [8, 15], y: [1, 4], z: 9}, material: TOWER_STONE}
+      - {region: {x: 8, y: [1, 4], z: [10, 16]}, material: TOWER_STONE}
+      - {region: {x: 15, y: [1, 4], z: [10, 16]}, material: TOWER_STONE}
+      - {region: {x: [9, 14], y: [1, 4], z: 16}, material: TOWER_STONE}
+      - {region: {x: [11, 12], y: [1, 2], z: 9}, material: GATE}
+      - {region: {x: [8, 15], y: 4, z: [9, 16]}, material: DARK_STONE}
+      - {region: {x: 9, y: 4, z: [12, 14]}, material: EMPTY, nav: EMPTY}
+      - {region: {x: [10, 13], y: [5, 7], z: 13}, material: TOWER_STONE}
+      - {region: {x: [10, 13], y: [5, 7], z: 16}, material: TOWER_STONE}
+      - {region: {x: 10, y: [5, 7], z: [14, 15]}, material: TOWER_STONE}
+      - {region: {x: 13, y: [5, 7], z: [14, 15]}, material: TOWER_STONE}
+      - {region: {x: [10, 13], y: 7, z: [13, 16]}, material: DARK_STONE}
+      - {region: {x: 9, y: 7, z: 15}, material: DARK_STONE}
+      - {region: {x: [11, 12], y: [8, 10], z: [14, 15]}, material: TOWER_STONE}
+      - {region: {x: [10, 13], y: 11, z: [13, 16]}, material: METAL}
+      - {region: {x: 11, y: [5, 6], z: 13}, material: GLASS}
+      - {region: {x: 11, y: 9, z: 14}, material: GLASS}
+    nav_regions:
+      - {id: main_gate_tunnel_nav, type: FLOOR, region: {x: [10, 13], y: 1, z: [0, 2]}, allowed: [infantry, archer, climber, heavy]}
+      - {id: south_courtyard_nav, type: FLOOR, region: {x: [6, 17], y: 1, z: [3, 7]}, allowed: [infantry, archer, climber, heavy]}
+      - {id: keep_plinth_ring_nav, type: FLOOR, region: {x: [6, 17], y: 1, z: 8}, allowed: [infantry, archer, climber, heavy]}
+      - {id: west_courtyard_nav, type: FLOOR, region: {x: [3, 7], y: 1, z: [6, 17]}, allowed: [infantry, archer, climber, heavy]}
+      - {id: east_courtyard_nav, type: FLOOR, region: {x: [16, 20], y: 1, z: [6, 17]}, allowed: [infantry, archer, climber, heavy]}
+      - {id: north_courtyard_nav, type: FLOOR, region: {x: [6, 17], y: 1, z: [17, 20]}, allowed: [infantry, archer, climber, heavy]}
+      - {id: north_service_nav, type: FLOOR, region: {x: [11, 12], y: 1, z: [21, 23]}, allowed: [infantry, archer, climber, heavy]}
+      - {id: keep_door, type: FLOOR, region: {x: [11, 12], y: 1, z: 9}, allowed: [infantry, archer, climber, heavy]}
+      - {id: keep_ground_floor_nav, type: FLOOR, region: {x: [9, 14], y: 1, z: [10, 11]}, allowed: [infantry, archer, climber, heavy]}
+      - {id: keep_ground_floor_nav, type: FLOOR, region: {x: [10, 14], y: 1, z: [12, 15]}, allowed: [infantry, archer, climber, heavy]}
+      - {id: wall_walk_outer_ring_nav, type: FLOOR, region: {x: 2, y: 4, z: [2, 21]}, allowed: [infantry, archer, climber]}
+      - {id: wall_walk_outer_ring_nav, type: FLOOR, region: {x: 21, y: 4, z: [2, 21]}, allowed: [infantry, archer, climber]}
+      - {id: wall_walk_outer_ring_nav, type: FLOOR, region: {x: [3, 20], y: 4, z: 2}, allowed: [infantry, archer, climber]}
+      - {id: wall_walk_outer_ring_nav, type: FLOOR, region: {x: [3, 20], y: 4, z: 21}, allowed: [infantry, archer, climber]}
+      - {id: sw_lookout_room, type: FLOOR, region: {x: [3, 5], y: 4, z: 2}, allowed: [infantry, archer, climber]}
+      - {id: se_alchemy_room, type: FLOOR, region: {x: [18, 20], y: 4, z: 2}, allowed: [infantry, archer, climber]}
+      - {id: nw_observer_room, type: FLOOR, region: {x: [3, 5], y: 4, z: 21}, allowed: [infantry, archer, climber]}
+      - {id: ne_archive_room, type: FLOOR, region: {x: [18, 20], y: 4, z: 21}, allowed: [infantry, archer, climber]}
+      - {id: sw_lookout_crown, type: FLOOR, region: {x: [2, 4], y: 7, z: 5}, allowed: [infantry, archer, climber]}
+      - {id: se_alchemy_crown, type: FLOOR, region: {x: [19, 21], y: 8, z: 5}, allowed: [infantry, archer, climber]}
+      - {id: nw_observation_crown, type: FLOOR, region: {x: [2, 4], y: 8, z: 18}, allowed: [infantry, archer, climber]}
+      - {id: ne_archive_crown, type: FLOOR, region: {x: [19, 21], y: 9, z: 18}, allowed: [infantry, archer, climber]}
+      - {id: keep_first_terrace, type: FLOOR, region: {x: [8, 15], y: 5, z: [9, 11]}, allowed: [infantry, archer, climber]}
+      - {id: keep_first_terrace, type: FLOOR, region: {x: [10, 15], y: 5, z: 12}, allowed: [infantry, archer, climber]}
+      - {id: keep_first_terrace, type: FLOOR, region: {x: 8, y: 5, z: [12, 16]}, allowed: [infantry, archer, climber]}
+      - {id: keep_first_terrace, type: FLOOR, region: {x: 9, y: 5, z: [15, 16]}, allowed: [infantry, archer, climber]}
+      - {id: keep_upper_terrace, type: FLOOR, region: {x: 10, y: 8, z: [13, 16]}, allowed: [infantry, archer, climber]}
+      - {id: keep_upper_terrace, type: FLOOR, region: {x: 9, y: 8, z: 15}, allowed: [infantry, archer, climber]}
+    links:
+      - {id: west_wall_stair, type: STAIR, from: [6, 1, 6], to: [2, 4, 6], width: 1, allowed: [infantry, archer, climber]}
+      - {id: east_wall_stair, type: STAIR, from: [17, 1, 6], to: [21, 4, 6], width: 1, allowed: [infantry, archer, climber]}
+      - {id: sw_tower_stair, type: STAIR, from: [4, 4, 2], to: [4, 7, 5], width: 1, allowed: [infantry, archer, climber]}
+      - {id: se_tower_stair, type: STAIR, from: [19, 4, 2], to: [19, 8, 5], width: 1, allowed: [infantry, archer, climber]}
+      - {id: nw_tower_stair, type: STAIR, from: [4, 4, 21], to: [4, 8, 18], width: 1, allowed: [infantry, archer, climber]}
+      - {id: ne_tower_stair, type: STAIR, from: [19, 4, 21], to: [19, 9, 18], width: 1, allowed: [infantry, archer, climber]}
+      - {id: keep_stair, type: STAIR, from: [9, 1, 11], to: [9, 5, 15], width: 1, allowed: [infantry, archer, climber]}
+      - {id: upper_keep_stair, type: STAIR, from: [8, 5, 12], to: [9, 8, 15], width: 1, allowed: [infantry, archer, climber]}
+      - {id: west_climb, type: CLIMB_POINT, from: [3, 1, 12], to: [2, 4, 12], width: 1, allowed: [climber]}
+    gates:
+      - {id: main_gate, state_key: main_south_gate_open, default_state: closed, block_region: {x: [10, 13], y: [1, 2], z: 1}, passage_region: {x: [10, 13], y: 1, z: [0, 2]}}
+      - {id: inner_main_gate, state_key: main_south_gate_open, default_state: closed, block_region: {x: [10, 13], y: [1, 2], z: 3}, passage_region: {x: [10, 13], y: 1, z: [2, 4]}}
+      - {id: north_service_gate, state_key: north_service_gate_open, default_state: closed, block_region: {x: [11, 12], y: [1, 2], z: 22}, passage_region: {x: [11, 12], y: 1, z: [21, 23]}}
+      - {id: observer_door, state_key: north_west_existing_observation_tower_main_gate_open, default_state: open, block_region: {x: 4, y: [4, 5], z: 21}, passage_region: {x: [3, 5], y: 4, z: 21}}
+      - {id: keep_gate, state_key: citadel_keep_gate_open, default_state: open, block_region: {x: [11, 12], y: [1, 2], z: 9}, passage_region: {x: [11, 12], y: 1, z: [8, 10]}}
+    sockets:
+      - {id: main_gate_road, type: ROAD_SOCKET, position: [11, 1, 0], facing: south, width: 4}
+      - {id: north_service_road, type: ROAD_SOCKET, position: [11, 1, 23], facing: north, width: 2}
+      - {id: north_bridge, type: BRIDGE_SOCKET, position: [11, 4, 23], facing: north, width: 1}
+    validation_tests:
+      - {id: infantry_keep, unit_class: infantry, start: [11, 1, 0], destination: [10, 5, 10], state: {main_south_gate_open: true, citadel_keep_gate_open: true}, expected: PASS}
+      - {id: archer_ring, unit_class: archer, start: [11, 1, 0], destination: [21, 4, 16], state: {main_south_gate_open: true}, expected: PASS}
+      - {id: climber_ring, unit_class: climber, start: [3, 1, 12], destination: [2, 4, 12], state: {}, expected: PASS}
+      - {id: heavy_courtyard, unit_class: heavy, start: [11, 1, 0], destination: [11, 1, 6], state: {main_south_gate_open: true}, expected: PASS}
+      - {id: heavy_keep_ground, unit_class: heavy, start: [11, 1, 0], destination: [11, 1, 11], state: {main_south_gate_open: true, citadel_keep_gate_open: true}, expected: PASS}
+      - {id: heavy_no_ring, unit_class: heavy, start: [11, 1, 0], destination: [21, 4, 16], state: {main_south_gate_open: true}, expected: FAIL}
+      - {id: closed_outer_seals, unit_class: infantry, start: [11, 1, 0], destination: [11, 1, 6], state: {main_south_gate_open: false}, expected: FAIL}
+      - {id: closed_keep_seals, unit_class: infantry, start: [11, 1, 6], destination: [11, 1, 11], state: {main_south_gate_open: true, citadel_keep_gate_open: false}, expected: FAIL}
+      - {id: flying_keep, unit_class: flying, start: [11, 1, 0], destination: [10, 8, 13], state: {}, expected: PASS}
+      - {id: sw_tower, unit_class: infantry, start: [11, 1, 0], destination: [2, 7, 5], state: {main_south_gate_open: true}, expected: PASS}
+      - {id: se_tower, unit_class: infantry, start: [11, 1, 0], destination: [21, 8, 5], state: {main_south_gate_open: true}, expected: PASS}
+      - {id: nw_tower, unit_class: infantry, start: [11, 1, 0], destination: [2, 8, 18], state: {main_south_gate_open: true}, expected: PASS}
+      - {id: ne_tower, unit_class: infantry, start: [11, 1, 0], destination: [21, 9, 18], state: {main_south_gate_open: true}, expected: PASS}
+      - {id: north_service_closed, unit_class: infantry, start: [11, 1, 23], destination: [11, 1, 19], state: {north_service_gate_open: false}, expected: FAIL}
+      - {id: north_service_open, unit_class: infantry, start: [11, 1, 23], destination: [11, 1, 19], state: {north_service_gate_open: true}, expected: PASS}
+      - {id: observer_door_closed, unit_class: infantry, start: [11, 1, 0], destination: [2, 8, 18], state: {main_south_gate_open: true, north_west_existing_observation_tower_main_gate_open: false}, expected: FAIL}

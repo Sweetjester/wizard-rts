@@ -7,6 +7,31 @@ func _ready() -> void:
 	selection_radius = 30.0
 	collision_separation = 34.0
 
+func _fire_attack(target: Node2D, damage_multiplier: float = 1.0) -> void:
+	super(target,damage_multiplier)
+	var art:=get_node_or_null("ArtSprite")
+	if art!=null and art.has_method("play_shot"): art.play_shot()
+
+func _spawn_drone(archetype: StringName, target: Node2D) -> void:
+	var previous:=_drone_children.size()
+	super(archetype,target)
+	var art:=get_node_or_null("ArtSprite")
+	if _drone_children.size()>previous and art!=null and art.has_method("play_summon"):
+		art.play_summon()
+
+func _spawn_death_fx(source: Node = null) -> void:
+	var art:=get_node_or_null("ArtSprite") as Sprite2D
+	if art==null or art.texture==null:
+		super(source)
+		return
+	var view:=get_parent().get_node_or_null("Map3DView")
+	if is_instance_valid(view) and view.has_method("spawn_painted_unit_death"):
+		view.call("spawn_painted_unit_death",self,art)
+		return
+	var corpse:=preload("res://scripts/fx/painted_unit_death.gd").new()
+	get_parent().add_child(corpse)
+	corpse.configure(self,art)
+
 # Redrawn 2026-08-31 against the KoN roster doc's concept art: a heavy
 # bone-plated insect body over a dark rose underbelly, six thin legs, and the
 # large translucent wings that separate the Spawner from its evolved Winged

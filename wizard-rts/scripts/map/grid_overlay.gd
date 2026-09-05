@@ -61,8 +61,7 @@ func _draw_square_test_grid() -> void:
 func _map_ready() -> bool:
 	if not map.has_method("cell_to_world"):
 		return false
-	var grid: Array = map.get("grid")
-	return not grid.is_empty()
+	return bool(map.get("generation_complete"))
 
 func _is_ramp_cell(cell: Vector2i) -> bool:
 	var grid: Array = map.get("grid")

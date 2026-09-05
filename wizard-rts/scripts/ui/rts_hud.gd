@@ -13,6 +13,7 @@ const BARRACKS_UNIT_BUTTONS := [
 	{"archetype": &"apex", "label": "Apex"},
 	{"archetype": &"spawner", "label": "Spawner"},
 	{"archetype": &"stone_face_serpent", "label": "Serpent"},
+	{"archetype": &"mangler", "label": "Mangler"},
 ]
 
 @export var economy_manager_path: NodePath = NodePath("../EconomyManager")
@@ -45,6 +46,7 @@ var alert_label: Label
 var command_container: HBoxContainer
 var ai_test_container: HBoxContainer
 var map_tool_container: HBoxContainer
+var _fog_button: Button
 var ai_telemetry_label: Label
 var ai_spawn_button: Button
 var control_group_label: Label
@@ -98,6 +100,13 @@ func _ready() -> void:
 	_setup_map_generator_controls()
 	if build_system != null and build_system.has_signal("build_rejected"):
 		build_system.build_rejected.connect(_on_build_rejected)
+		if build_system.has_signal("module_installed"):
+			build_system.module_installed.connect(func(_player_id: int, archetype: StringName) -> void:
+				var name := str(UnitCatalog.get_definition(archetype).get("display_name", str(archetype)))
+				status_label.text = "%s installed in the Observation Tower (%s of %s slots free)" % [
+					name, build_system.call("module_slots_free", 1), build_system.call("module_slots_total", 1)]
+				_update_selection_panel(true)
+			)
 		build_system.structure_placed.connect(func(_player_id: int, archetype: StringName, _cell: Vector2i) -> void:
 			status_label.text = "Building %s" % UnitCatalog.get_definition(archetype).get("display_name", archetype)
 		)
@@ -150,6 +159,10 @@ func _process(_delta: float) -> void:
 		_update_ai_telemetry(_delta)
 	elif map_generator != null and str(map_generator.get("map_type_id")) == "plot_generator_test":
 		phase_label.text = "Plot Generator Test"
+	elif map_generator != null and str(map_generator.get("map_type_id")) == "build_sandbox":
+		# Nothing is coming, so do not count down to it. The grace-period line
+		# would otherwise promise a first wave that never arrives.
+		phase_label.text = "Build Sandbox | nothing is coming"
 	elif wave_director != null and wave_director.has_method("is_in_grace_period") and bool(wave_director.call("is_in_grace_period")):
 		# The grace period is the most important thing on screen while it lasts:
 		# it is the only time the player can build without pressure.
@@ -313,6 +326,10 @@ func _setup_map_generator_controls() -> void:
 	if map_tool_container == null or map_generator == null:
 		return
 	var map_type := str(map_generator.get("map_type_id"))
+	# The fog toggle is useful on EVERY map type, so it is added before the
+	# seed tools bail out for map types that have none.
+	_add_fog_toggle_button()
+	_add_sandbox_tools()
 	if map_type != "seeded_grid_frontier" and map_type != "plot_generator_test":
 		return
 	map_tool_container.visible = true
@@ -322,6 +339,52 @@ func _setup_map_generator_controls() -> void:
 		_add_button(map_tool_container, "Generate Map", _regenerate_seeded_grid_map)
 	_add_button(map_tool_container, "Keep Seed", _copy_seed_to_status)
 	_copy_seed_to_status()
+
+# Reveals the whole map for testing. Toggling it back restores what the player
+# had genuinely explored rather than leaving the map permanently lit.
+# Sandbox-only tools. They exist to make testing possible, so they appear only
+# where testing is the point.
+func _add_sandbox_tools() -> void:
+	if map_generator == null or str(map_generator.get("map_type_id")) != "build_sandbox":
+		return
+	map_tool_container.visible = true
+	var button := _add_button(map_tool_container, "Spawn Dummy", _spawn_target_dummy)
+	button.tooltip_text = "A stationary enemy that cannot die. For testing weapons, range and vantage buffs."
+
+func _spawn_target_dummy() -> void:
+	if wave_director == null or not wave_director.has_method("spawn_target_dummy"):
+		return
+	var wizard := _player_wizard()
+	var origin: Vector2i = Vector2i.ZERO
+	if wizard != null and map_generator != null:
+		origin = map_generator.call("world_to_cell", (wizard as Node2D).global_position) + Vector2i(6, 0)
+	var cell: Vector2i = map_generator.call("nearest_walkable_cell", origin, 12)
+	var dummy: Node = wave_director.call("spawn_target_dummy", cell, get_parent())
+	status_label.text = "Target dummy spawned at %s" % cell if dummy != null else "Could not spawn a target dummy"
+
+func _add_fog_toggle_button() -> void:
+	var fog: Node = get_node_or_null("/root/MainMap/FogOfWar")
+	if fog == null:
+		fog = _find_fog_node()
+	if fog == null or not fog.has_method("set_reveal_all"):
+		return
+	map_tool_container.visible = true
+	_fog_button = _add_button(map_tool_container, "Reveal Map", func() -> void:
+		var revealed := not bool(fog.call("is_reveal_all"))
+		fog.call("set_reveal_all", revealed)
+		_fog_button.text = "Hide Map" if revealed else "Reveal Map"
+		status_label.text = "Fog of war revealed (testing)" if revealed else "Fog of war restored"
+	)
+	_fog_button.tooltip_text = "Testing: reveal the whole map, including enemies"
+
+func _find_fog_node() -> Node:
+	var parent := get_parent()
+	while parent != null:
+		var candidate := parent.get_node_or_null("FogOfWar")
+		if candidate != null:
+			return candidate
+		parent = parent.get_parent()
+	return null
 
 func _regenerate_seeded_grid_map() -> void:
 	var session := get_node_or_null("/root/GameSession")
@@ -1004,6 +1067,14 @@ func _update_selection_details(selected: Array[Node]) -> void:
 	var cost := int(definition.get("cost_bio", 0))
 	var speed := float(definition.get("attack_speed_seconds", float(definition.get("attack_cooldown_ticks", 0)) / 20.0))
 	var attack_type := str(definition.get("attack_type", "none")).replace("_", " ").capitalize()
+	if archetype in [&"mangler", &"winged_mangler"]:
+		detail_meta_label.text = "Melee %s | Momentum %s/5 | Speed +%s%%%s" % [node.attack_damage, node.momentum_stacks, node.momentum_stacks*8, " | Leap %.1fs" % node.leap_remaining if archetype==&"winged_mangler" else ""]
+		return
+	if archetype == &"stone_face_serpent":
+		var disarmed := bool(node.get("_stone_form_active"))
+		var live_range := 0.0 if disarmed else float(node.get("attack_range"))/64.0
+		detail_meta_label.text = "%s | Damage %s | Range %.2f | Speed %.2fs | Cost %s Bio" % ["Disarmed wall" if disarmed else "Poison melee",node.get("attack_damage"),live_range,speed,cost]
+		return
 	detail_meta_label.text = "%s | Damage %s | Range %s | Speed %.2fs | Cost %s Bio" % [attack_type, damage, range, speed, cost]
 
 func _set_evolution_bar(node: Node) -> void:
@@ -1065,6 +1136,7 @@ func _rebuild_context_commands(selected: Array[Node]) -> void:
 	if _add_wizard_level_up_buttons(selected):
 		return
 	if _selection_has_archetype(selected, &"life_wizard"):
+		_add_button(command_container, "Observation Tower", func() -> void: _start_build(&"wizard_tower"))
 		_add_button(command_container, "Bio Absorber", func() -> void: _start_build(&"bio_absorber"))
 		_add_button(command_container, "Barracks", func() -> void: _start_build(&"barracks"))
 		_add_button(command_container, "Vault", func() -> void: _start_build(&"terrible_vault"))
@@ -1072,10 +1144,14 @@ func _rebuild_context_commands(selected: Array[Node]) -> void:
 		_add_button(command_container, "Bio Launcher", func() -> void: _start_build(&"bio_launcher"))
 		_add_button(command_container, "Bio Mend", _bio_mend)
 		_add_button(command_container, "Seal Away", _seal_away)
+		var storm := _add_button(command_container, "Biostorm", func() -> void: _target_kon_spell(&"biostorm"))
+		storm.tooltip_text = "60 Bio. Damages ALL units in the circle for 4 seconds, including Kon and allies."
 		_add_button(command_container, "Observer Aura", func() -> void: _activate_selected("activate_observer_aura", "Observer Aura"))
 		var unleash := _add_button(command_container, "Unleash", _unleash_forbidden)
 		unleash.tooltip_text = "Tier 4: release The Forbidden. It obeys nobody and will attack you too."
 		unleash.add_theme_color_override("font_color", Color("#E85A5A"))
+	elif _selection_has_archetype(selected, &"wizard_tower"):
+		_add_tower_module_buttons()
 	elif _selection_has_archetype(selected, &"barracks"):
 		_add_barracks_training_buttons()
 	elif _selection_has_archetype(selected, &"bio_absorber"):
@@ -1129,6 +1205,52 @@ func _selection_has_archetype(selected: Array[Node], archetype: StringName) -> b
 		if _archetype_for(node) == archetype:
 			return true
 	return false
+
+# The Observation Tower's command panel.
+#
+# Barracks and Vault are installed into tower slots rather than placed on the
+# map, so there is no barracks or vault to select any more. Without this branch
+# the player had no way to train a unit or research anything -- the buildings
+# that used to carry those buttons no longer exist as selectable structures.
+func _add_tower_module_buttons() -> void:
+	if build_system == null:
+		return
+	var free_slots := int(build_system.call("module_slots_free", 1))
+	var total_slots := int(build_system.call("module_slots_total", 1))
+	var modules: Array = build_system.call("installed_modules", 1)
+	var has_production := false
+	var has_research := false
+	for module in modules:
+		var role := StringName(UnitCatalog.get_definition(module).get("module_role", &""))
+		if role == &"production":
+			has_production = true
+		elif role == &"research" or module == &"terrible_vault":
+			has_research = true
+	if has_production:
+		_add_barracks_training_buttons()
+	if has_research:
+		_add_research_button(&"tier_two_hybrids", "Tier 2 Hybrids")
+		_add_research_button(&"tier_three_hybrids", "Tier 3 Hybrids")
+		_add_research_button(&"observer_sight", "Observer Sight")
+		_add_research_button(&"observer_command", "Observer Command")
+		_add_research_button(&"observer_oversight", "Oversight")
+		_add_research_button(&"thorned_vines", "Thorned Vines")
+		_add_research_button(&"accelerated_evolution", "Fast Evolution")
+		_add_research_button(&"hardened_horrors", "Harden Horrors")
+		_add_research_button(&"launcher_bile", "Launcher Bile")
+	if not has_production and not has_research:
+		status_label.text = "Observation Tower -- %s of %s module slots free" % [free_slots, total_slots]
+	else:
+		status_label.text = "Observation Tower -- %s of %s module slots free" % [free_slots, total_slots]
+
+# What a selected structure can train, including anything its modules add.
+func _production_list_for_node(node: Node) -> Array:
+	if build_system == null or not build_system.has_method("production_list_for"):
+		return []
+	for structure in build_system.get("structures"):
+		if structure.get("node", null) == node:
+			return build_system.call("production_list_for", structure)
+	return []
 
 func _add_barracks_training_buttons() -> void:
 	var session := get_node_or_null("/root/GameSession")
@@ -1196,7 +1318,7 @@ func _selection_has_evolvable_kon_unit(selected: Array[Node]) -> bool:
 		if not is_instance_valid(node) or not node.has_method("debug_force_evolve"):
 			continue
 		var definition := UnitCatalog.get_definition(_archetype_for(node))
-		if definition.get("unit_family", &"") in [&"terrible_thing", &"oaven", &"horror", &"apex", &"spawner", &"stone_face_serpent"]:
+		if definition.get("unit_family", &"") in [&"terrible_thing", &"oaven", &"horror", &"apex", &"spawner", &"stone_face_serpent", &"mangler"]:
 			var progress: Dictionary = node.get_evolution_progress() if node.has_method("get_evolution_progress") else {}
 			if float(progress.get("needed", definition.get("evolution_xp_required", 0.0))) > 0.0:
 				return true
@@ -1279,7 +1401,14 @@ func _start_build(archetype: StringName) -> void:
 	if build_system == null or not build_system.has_method("start_placement"):
 		return
 	build_system.call("start_placement", archetype)
-	status_label.text = "Place %s with left-click. Right-click cancels." % UnitCatalog.get_definition(archetype).get("display_name", archetype)
+	var definition := UnitCatalog.get_definition(archetype)
+	var name := str(definition.get("display_name", archetype))
+	# Rotation is only mentioned for buildings it does anything to. Telling the
+	# player they can rotate a 1x1 absorber is noise.
+	if definition.has("block_structure"):
+		status_label.text = "Place %s with left-click. R rotates. Right-click cancels." % name
+	else:
+		status_label.text = "Place %s with left-click. Right-click cancels." % name
 
 func _produce(archetype: StringName) -> void:
 	if build_system != null and build_system.has_method("produce_unit"):
@@ -1353,6 +1482,13 @@ func _add_unit_active_buttons(selected: Array[Node]) -> void:
 	var definition := UnitCatalog.get_definition(archetype)
 	for active in definition.get("actives", []):
 		match str(active):
+			"Leap Slam":
+				var caster := selected[0]
+				var leap_button := _add_button(command_container, "Leap Slam", func() -> void:
+					if is_instance_valid(caster) and selection_controller != null:
+						selection_controller.begin_mangler_leap(caster)
+				)
+				leap_button.tooltip_text = "Leap to clear ground: 65 damage and 1.5s stun to nearby enemies. 14s cooldown."
 			"Charge":
 				_add_button(command_container, "Charge", func() -> void: _activate_selected("activate_charge", "Charge"))
 			"Taunt":
@@ -1399,13 +1535,19 @@ func _debug_level_up_selected() -> void:
 func _produce_from_selected(archetype: StringName) -> void:
 	if build_system == null or selection_controller == null:
 		return
+	# Any selected structure that can train, not specifically a barracks. Once
+	# the barracks became a tower module there was no barracks node to find, so
+	# this always fell through to the error and nothing could be trained at all.
 	var producer: Node = null
 	for node in selection_controller.selected_units:
-		if is_instance_valid(node) and _archetype_for(node) == &"barracks":
+		if not is_instance_valid(node) or not _is_structure(node):
+			continue
+		if _production_list_for_node(node).has(archetype):
 			producer = node
 			break
 	if producer == null:
-		status_label.text = "Select a Barracks to train units"
+		status_label.text = "Select a building that trains %s" % str(
+			UnitCatalog.get_definition(archetype).get("display_name", str(archetype)))
 		return
 	if build_system.has_method("produce_unit_from_structure"):
 		build_system.call("produce_unit_from_structure", 1, archetype, producer)
@@ -1431,31 +1573,19 @@ func _bio_mend() -> void:
 	status_label.text = "Bio Mend healed %s selected allies for %s" % [healed, heal_amount]
 
 func _seal_away() -> void:
-	if selection_controller == null or economy_manager == null:
-		return
+	_target_kon_spell(&"seal_away")
+
+func _target_kon_spell(action: StringName) -> void:
+	if selection_controller==null: return
 	var wizard := _player_wizard()
-	var rank := int(wizard.call("wizard_upgrade_rank", "seal_away")) if wizard != null else 0
-	var stun_seconds := 6.0 + float(rank) * 1.5
-	var refunded := 0
-	var stunned := 0
-	for unit in selection_controller.selected_units.duplicate():
-		if not is_instance_valid(unit):
-			continue
-		if int(unit.get("owner_player_id")) != 1:
-			if unit.has_method("stun_for_seconds"):
-				unit.stun_for_seconds(stun_seconds)
-				_spawn_spell_fx(unit, SEAL_AWAY_FX, Vector2(1.25, 1.25), Vector2(0, -12))
-				stunned += 1
-			continue
-		if unit.get("unit_archetype") == &"life_wizard":
-			continue
-		if unit.has_method("salvage_value"):
-			refunded += int(unit.salvage_value())
-			_spawn_spell_fx(unit, SEAL_AWAY_FX, Vector2(1.35, 1.35), Vector2(0, -14))
-			unit.queue_free()
-	if refunded > 0:
-		economy_manager.add_resource(1, &"bio", refunded)
-	status_label.text = "Seal Away returned %s Bio and stunned %s enemies for %ss" % [refunded, stunned, stun_seconds]
+	if wizard==null or not wizard.has_method("cast_kon_spell"): return
+	if not selection_controller.kon_spell_result.is_connected(_kon_spell_feedback):
+		selection_controller.kon_spell_result.connect(_kon_spell_feedback)
+	selection_controller.begin_kon_spell(wizard,action)
+	status_label.text="Select the target circle. Allies are affected too. Right-click cancels."
+
+func _kon_spell_feedback(message: String) -> void:
+	status_label.text=message
 
 func _spawn_spell_fx(target: Node, texture: Texture2D, visual_scale: Vector2, offset: Vector2) -> void:
 	if target == null or not is_instance_valid(target) or not (target is Node2D):

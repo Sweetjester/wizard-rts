@@ -1,0 +1,50 @@
+# Purpose-built at gameplay size. x/east, y/up, z/north; inclusive ranges.
+# No scale conversion. Visual details cannot create or remove navigation.
+structures:
+  kons_observer_vault_01:
+    display_name: "Kon's Observer Vault"
+    compact_runtime: true
+    dimensions: [9, 5, 7]
+    purpose: [research, library, sealed_archive, reading_gallery]
+    art: {bespoke_skin: observer_vault_v1}
+    blocks:
+      - {region: {x: [0, 8], y: 0, z: [0, 6]}, material: DARK_STONE}
+      - {region: {x: 0, y: [1, 3], z: [1, 6]}, material: TOWER_STONE}
+      - {region: {x: 8, y: [1, 3], z: [1, 6]}, material: TOWER_STONE}
+      - {region: {x: [1, 7], y: [1, 3], z: 6}, material: TOWER_STONE}
+      - {region: {x: [1, 2], y: [1, 3], z: 1}, material: TOWER_STONE}
+      - {region: {x: [5, 7], y: [1, 3], z: 1}, material: TOWER_STONE}
+      - {region: {x: [3, 4], y: [1, 2], z: 1}, material: GATE}
+      - {region: {x: [3, 4], y: 4, z: 1}, material: DARK_STONE}
+      - {region: {x: 8, y: [1, 2], z: 4}, material: GATE}
+      # The open circular leaf parks here, outside every traversable region.
+      - {region: {x: 5, y: [1, 2], z: [2, 4]}, material: METAL}
+      - {region: {x: 6, y: 1, z: 3}, material: TIMBER}
+      - {region: {x: [1, 7], y: 3, z: 5}, material: DARK_STONE}
+    nav_regions:
+      - {id: entry_road, type: FLOOR, region: {x: [3, 4], y: 1, z: [0, 1]}, allowed: [infantry, archer, climber, heavy]}
+      - {id: reading_nave, type: FLOOR, region: {x: [2, 4], y: 1, z: [2, 4]}, allowed: [infantry, archer, climber, heavy]}
+      - {id: stair_foot, type: FLOOR, region: {x: 1, y: 1, z: 2}, allowed: [infantry, archer, climber]}
+      - {id: archive_hall, type: FLOOR, region: {x: [2, 7], y: 1, z: 5}, allowed: [infantry, archer, climber, heavy]}
+      - {id: east_reading_aisle, type: FLOOR, region: {x: 7, y: 1, z: [2, 4]}, allowed: [infantry, archer, climber]}
+      - {id: service_entry, type: FLOOR, region: {x: 8, y: 1, z: 4}, allowed: [infantry, archer, climber]}
+      - {id: archive_gallery, type: FLOOR, region: {x: [1, 7], y: 4, z: 5}, allowed: [infantry, archer, climber]}
+    links:
+      - {id: archive_stair, type: STAIR, from: [1, 1, 2], to: [1, 4, 5], width: 1, allowed: [infantry, archer, climber]}
+    gates:
+      - {id: circular_vault_door, state_key: vault_entry_open, default_state: open, block_region: {x: [3, 4], y: [1, 2], z: 1}, passage_region: {x: [3, 4], y: 1, z: [0, 2]}}
+      - {id: librarian_door, state_key: vault_service_open, default_state: closed, block_region: {x: 8, y: [1, 2], z: 4}, passage_region: {x: [7, 8], y: 1, z: 4}}
+    sockets:
+      - {id: archive_road, type: ROAD_SOCKET, position: [3, 1, 0], facing: south, width: 2}
+      - {id: librarian_path, type: PATH_SOCKET, position: [8, 1, 4], facing: east, width: 1}
+    validation_tests:
+      - {id: infantry_gallery, unit_class: infantry, start: [3, 1, 0], destination: [4, 4, 5], state: {vault_entry_open: true}, expected: PASS}
+      - {id: archer_gallery, unit_class: archer, start: [3, 1, 0], destination: [7, 4, 5], state: {vault_entry_open: true}, expected: PASS}
+      - {id: climber_gallery, unit_class: climber, start: [3, 1, 0], destination: [1, 4, 5], state: {vault_entry_open: true}, expected: PASS}
+      - {id: heavy_reading_nave, unit_class: heavy, start: [3, 1, 0], destination: [3, 1, 3], state: {vault_entry_open: true}, expected: PASS}
+      - {id: heavy_no_gallery, unit_class: heavy, start: [3, 1, 0], destination: [4, 4, 5], state: {vault_entry_open: true}, expected: FAIL}
+      - {id: sealed_archive, unit_class: infantry, start: [3, 1, 0], destination: [4, 1, 4], state: {vault_entry_open: false, vault_service_open: false}, expected: FAIL}
+      - {id: service_open, unit_class: infantry, start: [8, 1, 4], destination: [4, 1, 5], state: {vault_entry_open: false, vault_service_open: true}, expected: PASS}
+      - {id: service_closed, unit_class: infantry, start: [8, 1, 4], destination: [4, 1, 5], state: {vault_entry_open: true, vault_service_open: false}, expected: FAIL}
+      - {id: flying_gallery, unit_class: flying, start: [3, 1, 0], destination: [4, 4, 5], state: {vault_entry_open: false}, expected: PASS}
+      - {id: door_parking_not_walkable, unit_class: infantry, start: [3, 1, 0], destination: [5, 1, 3], state: {vault_entry_open: true}, expected: FAIL}

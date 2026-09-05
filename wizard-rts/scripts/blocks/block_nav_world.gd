@@ -172,12 +172,17 @@ func build_from_terrain(terrain: Node) -> void:
 # link and region rotated with it, and getting that subtly wrong is worse than
 # not offering it. Rotate the authored data instead, if a rotated variant is
 # wanted.
-func place_structure(definition: BlockStructureDefinition, origin: Vector2i, base_level: int, instance_id: StringName = &"") -> Dictionary:
+func place_structure(definition: BlockStructureDefinition, origin: Vector2i, base_level: int, instance_id: StringName = &"", rotation_steps: int = 0) -> Dictionary:
+	# Reduced to a rotated definition up front: every line below works on plain
+	# local coordinates and cannot disagree with the geometry, the collision or
+	# the doorways about which way the building is facing.
+	definition = definition.rotated(rotation_steps)
 	var placement := {
 		"id": instance_id if instance_id != &"" else definition.id,
 		"structure": definition.id,
 		"origin": origin,
 		"base_level": base_level,
+		"rotation_steps": rotation_steps,
 		"nodes": [] as Array[int],
 	}
 	# Solid blocks remove the terrain surface they bury. Without this a unit
@@ -203,6 +208,10 @@ func place_structure(definition: BlockStructureDefinition, origin: Vector2i, bas
 			"type": nav.get("type", &"FLOOR"),
 			"state_key": nav.get("state_key", &""),
 			"owner": placement["id"],
+			# Which authored region this cell belongs to -- a wall-walk, a
+			# gallery, a gate tunnel. Carried through so gameplay can ask what a
+			# unit is standing ON, not merely where it is.
+			"region": nav.get("region_id", &""),
 		}
 		(placement["nodes"] as Array[int]).append(node_id)
 
@@ -215,8 +224,80 @@ func place_structure(definition: BlockStructureDefinition, origin: Vector2i, bas
 		if link["type"] != &"DROP_EDGE":
 			_add_link(to_id, from_id, link, drop)
 
+	_connect_exterior_road_sockets(definition, origin, base_level, placement)
 	_placements.append(placement)
 	return placement
+
+# Joins a structure's authored entrances to the ground outside it.
+#
+# Level changes in this lattice happen only on terrain ramps or authored links,
+# so a structure whose ground floor sits above the terrain is an ISLAND: no
+# amount of walking gets you in. That is exactly what the citadel was on the
+# real map -- it rests on a two-block foundation slab, so its gate tunnel,
+# courtyards, wall-walks and keep were all unreachable from outside, every one
+# of them. The standalone demo never showed it because the test unit spawns on
+# the structure rather than walking up to it.
+#
+# The authored data already says where the world is meant to meet it: a ROAD
+# socket placed OUTSIDE the footprint (the citadel's main_gate_road sits at
+# z = -1, facing south). Nothing consumed those. This does.
+#
+# Only ROAD sockets, and only into a cell the structure declares as standing
+# room, so the gate stays a real choke -- units come in where the fortress says
+# they come in, not over the plinth wherever they happen to touch it.
+const SOCKET_FACING := {
+	"north": Vector2i(0, 1), "south": Vector2i(0, -1),
+	"east": Vector2i(1, 0), "west": Vector2i(-1, 0),
+}
+# A gate ramp, not a cliff. Beyond this the entrance is not something a unit
+# could plausibly walk up, and silently linking it would teleport them.
+const MAX_ENTRANCE_STEP := 4
+
+func _connect_exterior_road_sockets(definition: BlockStructureDefinition, origin: Vector2i, base_level: int, placement: Dictionary) -> void:
+	var footprint := Rect2i(origin, Vector2i(int(definition.dimensions.x), int(definition.dimensions.z)))
+	for socket in definition.sockets:
+		# Two authoring schemas spell the same thing differently: the citadel
+		# says ROAD, the laboratory says ROAD_SOCKET / PATH_SOCKET. Both mean
+		# "the world connects to the building here".
+		var socket_type := str(socket.get("type", "")).to_upper()
+		if not (socket_type.begins_with("ROAD") or socket_type.begins_with("PATH")):
+			continue
+		var facing: Vector2i = SOCKET_FACING.get(str(socket.get("facing", "north")), Vector2i.ZERO)
+		if facing == Vector2i.ZERO:
+			continue
+		var local: Vector3i = socket.get("position", Vector3i.ZERO)
+		var socket_cell: Vector2i = origin + Vector2i(local.x, local.z)
+		# A socket is authored either just OUTSIDE the footprint (the citadel's
+		# main_gate_road sits at z = -1) or ON its boundary (the laboratory's
+		# muster_road sits at z = 0). Both are "the door is here"; which cell is
+		# terrain and which is building simply depends on which convention the
+		# author used, so it is resolved rather than assumed.
+		var outside_cell: Vector2i = socket_cell
+		var inside_cell: Vector2i = socket_cell - facing
+		if footprint.has_point(socket_cell):
+			outside_cell = socket_cell + facing
+			inside_cell = socket_cell
+		if not _in_bounds(outside_cell) or not _in_bounds(inside_cell):
+			continue
+		var inside_id: int = encode(inside_cell, base_level + local.y)
+		if not _nodes.has(inside_id):
+			continue
+		var outside_level: int = _terrain_height[outside_cell.x * map_height + outside_cell.y]
+		var outside_id: int = encode(outside_cell, outside_level)
+		if not _nodes.has(outside_id):
+			continue
+		var drop: int = absi((base_level + local.y) - outside_level)
+		if drop > MAX_ENTRANCE_STEP:
+			push_warning("[BlockNavWorld] %s entrance %s is %d levels above the ground; not linked"
+				% [definition.id, socket.get("id", "?"), drop])
+			continue
+		var link := {"type": &"RAMP", "allowed": [], "width": int(socket.get("width", 1))}
+		_add_link(outside_id, inside_id, link, drop)
+		_add_link(inside_id, outside_id, link, drop)
+		(placement["nodes"] as Array[int]).append(inside_id)
+
+func _in_bounds(cell: Vector2i) -> bool:
+	return cell.x >= 0 and cell.y >= 0 and cell.x < map_width and cell.y < map_height
 
 func _add_link(from_id: int, to_id: int, source: Dictionary, drop: int) -> void:
 	if not _links_from.has(from_id):
@@ -237,6 +318,18 @@ func _add_link(from_id: int, to_id: int, source: Dictionary, drop: int) -> void:
 		"width": int(source.get("width", 1)),
 		"drop": drop,
 	})
+
+# The authored region a cell/level belongs to, or "" for open terrain.
+func region_at(cell: Vector2i, level: int) -> StringName:
+	var node: Variant = _nodes.get(encode(cell, level))
+	if node == null:
+		return &""
+	return StringName(node.get("region", &""))
+
+# Whether this cell/level belongs to a placed structure rather than the ground.
+func is_structure_node(cell: Vector2i, level: int) -> bool:
+	var node: Variant = _nodes.get(encode(cell, level))
+	return node != null and StringName(node.get("owner", &"terrain")) != &"terrain"
 
 func placements() -> Array[Dictionary]:
 	return _placements

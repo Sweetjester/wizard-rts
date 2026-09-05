@@ -119,6 +119,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			pending_archetype = &""
 		queue_redraw()
 		get_viewport().set_input_as_handled()
+	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R:
+		rotate_placement(1)
+		_update_3d_placement_preview()
+		get_viewport().set_input_as_handled()
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
 		pending_archetype = &""
 		_dragging_wall = false
@@ -163,7 +167,7 @@ func set_rally_point_for_structure(producer_node: Node, world_pos: Vector2) -> b
 	var index := _structure_index_for_node(producer_node)
 	if index < 0:
 		return false
-	if structures[index]["archetype"] != &"barracks":
+	if not _produces_units(structures[index]):
 		return false
 	structures[index]["rally_point"] = world_pos
 	var node: KonStructure = structures[index].get("node", null)
@@ -171,7 +175,87 @@ func set_rally_point_for_structure(producer_node: Node, world_pos: Vector2) -> b
 		node.set_rally_point(world_pos)
 	return true
 
+# Quarter turns applied to the pending building. Reset on every new placement so
+# a rotation never leaks from one building to the next.
+var pending_rotation := 0
+
+# The footprint a building occupies at its current rotation. A quarter turn
+# swaps width and depth, and everything that asks "does this fit" and "which
+# cells does it cover" has to ask about the TURNED shape or a rotated building
+# validates against its unrotated self.
+func rotated_footprint(archetype: StringName, rotation_steps: int) -> Vector2i:
+	var footprint: Vector2i = _base_footprint(archetype)
+	if ((rotation_steps % 4) + 4) % 4 % 2 == 1:
+		return Vector2i(footprint.y, footprint.x)
+	return footprint
+
+# A building that carries a block structure takes its footprint FROM that
+# runtime structure, not the full-size design master. This also keeps rotated
+# placement previews and footprint reservations aligned with the compact art.
+func _base_footprint(archetype: StringName) -> Vector2i:
+	var definition := UnitCatalog.get_definition(archetype)
+	var structure_id := StringName(definition.get("block_structure", &""))
+	if structure_id != &"":
+		var bridge: Node = get_parent().get_node_or_null("BlockNavBridge") if get_parent() != null else null
+		if bridge != null and bridge.get("library") != null:
+			var block_definition = bridge.get("library").get_definition(structure_id)
+			if block_definition != null:
+				return Vector2i(int(block_definition.dimensions.x), int(block_definition.dimensions.z))
+	return definition.get("footprint", Vector2i.ONE)
+
+# Buildings come out of the menu facing the player.
+#
+# Structures are authored with their door on a particular side -- the
+# laboratory's muster gate faces south -- and a building dropped down with its
+# entrance pointing away is both ugly and actively annoying: units walk the whole
+# way around it to get in. Since the player is almost always looking at their own
+# base from the camera's side, the useful default is the door turned toward the
+# wizard who is building it.
+#
+# R still rotates from there; this only changes where the cycle starts.
+func _default_rotation_for(archetype: StringName) -> int:
+	var structure_id := StringName(UnitCatalog.get_definition(archetype).get("block_structure", &""))
+	if structure_id == &"":
+		return 0
+	var bridge: Node = get_parent().get_node_or_null("BlockNavBridge") if get_parent() != null else null
+	if bridge == null or bridge.get("library") == null:
+		return 0
+	var definition = bridge.get("library").get_definition(structure_id)
+	if definition == null:
+		return 0
+	# Which way the front door faces as authored.
+	var door := ""
+	for socket in definition.sockets:
+		var socket_type := str(socket.get("type", "")).to_upper()
+		if socket_type.begins_with("ROAD"):
+			door = str(socket.get("facing", ""))
+			break
+	if door == "":
+		return 0
+	# The camera sits at +Z relative to what it is looking at and looks back
+	# toward -Z (map_3d_view._apply_camera_transform puts it at
+	# cos(pitch) * distance on Z). So the face turned toward the player is the
+	# one pointing at INCREASING Z, which the socket convention calls north.
+	#
+	# This was south first time round, which is precisely backwards and is why
+	# buildings came out with their doors round the back.
+	var order := BlockStructureDefinition.FACING_ORDER
+	var from := order.find(door)
+	var to := order.find("north")
+	if from < 0 or to < 0:
+		return 0
+	# _turn_facing steps BACKWARDS through the compass, so the steps needed to
+	# bring `from` onto `to` is from - to.
+	return ((from - to) % 4 + 4) % 4
+
+func rotate_placement(steps: int = 1) -> void:
+	if pending_archetype == &"":
+		return
+	pending_rotation = ((pending_rotation + steps) % 4 + 4) % 4
+	queue_redraw()
+
 func start_placement(archetype: StringName) -> void:
+	pending_rotation = _default_rotation_for(archetype)
 	# A module has no location to choose, so it never enters placement mode -- it
 	# is installed into the player's tower directly. Routing it here rather than
 	# in the HUD means every existing build button keeps working unchanged.
@@ -302,7 +386,7 @@ func try_place_structure(player_id: int, archetype: StringName, cell: Vector2i) 
 	if economy_manager == null or not economy_manager.spend(player_id, costs):
 		build_rejected.emit("Not enough Bio")
 		return false
-	if not _can_place(archetype, cell):
+	if not _can_place(archetype, cell, player_id):
 		economy_manager.add_resource(player_id, &"bio", int(costs[&"bio"]))
 		build_rejected.emit("Invalid placement")
 		return false
@@ -312,9 +396,14 @@ func try_place_structure(player_id: int, archetype: StringName, cell: Vector2i) 
 		build_rejected.emit("Bio Absorber must be placed on an economy space")
 		return false
 	var structure := _make_structure_data(player_id, archetype, cell, plot_id, definition)
+	structure["rotation_steps"] = pending_rotation
+	structure["footprint"] = rotated_footprint(archetype, pending_rotation)
+	if not definition.has("block_structure"):
+		structure["blocked_cells"] = _footprint_cells(cell, structure["footprint"])
 	structure["node"] = _create_structure_node(structure)
 	structures.append(structure)
 	_register_blockers(structure)
+	_raise_block_structure(structure)
 	if simulation_runner != null:
 		var command := simulation_runner.make_local_command(RTSCommand.Type.BUILD_STRUCTURE, [], cell, {"structure": str(archetype)})
 		simulation_runner.queue_command(command)
@@ -384,7 +473,7 @@ func _make_structure_data(player_id: int, archetype: StringName, cell: Vector2i,
 	var hp := int(definition.get("max_hp", 200))
 	if definition.has("starts_at_hp_percent"):
 		hp = int(float(hp) * float(definition["starts_at_hp_percent"]))
-	var footprint: Vector2i = definition.get("footprint", Vector2i.ONE)
+	var footprint: Vector2i = _base_footprint(archetype)
 	var build_time := float(definition.get("build_time_seconds", 0.0))
 	return {
 		"player_id": player_id,
@@ -394,7 +483,13 @@ func _make_structure_data(player_id: int, archetype: StringName, cell: Vector2i,
 		"hp": hp,
 		"max_hp": int(definition.get("max_hp", 200)),
 		"footprint": footprint,
-		"blocked_cells": _footprint_cells(cell, footprint),
+		# A building carrying a block structure gets its walls from that
+		# structure once it is stamped into the lattice. Blocking the whole
+		# bounding box would seal its own muster hall, aisles and doorway --
+		# the building would be a solid 34x28 brick that nothing could enter,
+		# which is the entire point of it being walkable.
+		"blocked_cells": ([] as Array[Vector2i]) if definition.has("block_structure") 			else _footprint_cells(cell, footprint),
+		"block_structure": StringName(definition.get("block_structure", &"")),
 		# Component state (master doc section 39). A structure with no authored
 		# components gets one implicit critical component holding all its HP, so
 		# this can be adopted building by building rather than all at once.
@@ -615,6 +710,20 @@ func apply_first_absorber_upgrade(upgrade_id: StringName) -> bool:
 	build_rejected.emit("Requires evolved Bio Absorber")
 	return false
 
+# Whether a structure can train units at all.
+#
+# This used to be spelled `archetype == &"barracks"` in three places. Once the
+# barracks became a TOWER MODULE rather than a building, all three silently
+# stopped matching anything: there is no barracks structure on the map any more,
+# so production never ticked, idle-cycling found nothing, and rally points were
+# refused. Asking about capability instead of identity keeps them correct
+# wherever the production actually lives.
+func _produces_units(structure: Dictionary) -> bool:
+	if not (UnitCatalog.get_definition(structure.get("archetype", &"")).get("production", []) as Array).is_empty():
+		return true
+	var components: StructureComponents = structure.get("components", null)
+	return components != null and components.has_module_role(&"production")
+
 # Idle production buildings, in a stable order, for the "cycle idle barracks"
 # hotkey. Reads the production bookkeeping this system already maintains --
 # no node reflection, and only ever called from a key press.
@@ -623,7 +732,7 @@ func idle_production_nodes(player_id: int) -> Array[Node]:
 	for structure in structures:
 		if int(structure.get("player_id", -1)) != player_id:
 			continue
-		if structure.get("archetype", &"") != &"barracks":
+		if not _produces_units(structure):
 			continue
 		if not bool(structure.get("complete", false)):
 			continue
@@ -690,11 +799,17 @@ func _fire_bio_launcher_at_ground(structure: Dictionary, world_position: Vector2
 func get_structures() -> Array[Dictionary]:
 	return structures.duplicate(true)
 
-func _can_place(archetype: StringName, cell: Vector2i) -> bool:
+func _can_place(archetype: StringName, cell: Vector2i, player_id: int = 1) -> bool:
 	if map_generator == null or not map_generator.has_method("is_walkable_cell"):
 		return false
 	var definition := UnitCatalog.get_definition(archetype)
-	var footprint: Vector2i = definition.get("footprint", Vector2i.ONE)
+	# While observing, construction is projected only from the owned tower crown.
+	# Normal construction rules outside the stance remain unchanged.
+	if rts_world!=null:
+		for unit in rts_world.units_for_owner(player_id):
+			if unit.has_method("can_remote_summon") and unit.is_observer_aura_enabled():
+				if not unit.can_remote_summon(map_generator.cell_to_world(cell)): return false
+	var footprint := rotated_footprint(archetype, pending_rotation)
 	for blocked_cell in _footprint_cells(cell, footprint):
 		if not _is_placement_cell_free(blocked_cell):
 			return false
@@ -713,9 +828,7 @@ func _is_placement_cell_free(cell: Vector2i) -> bool:
 	return true
 
 func get_placement_cells(archetype: StringName, cell: Vector2i) -> Array[Vector2i]:
-	var definition := UnitCatalog.get_definition(archetype)
-	var footprint: Vector2i = definition.get("footprint", Vector2i.ONE)
-	return _footprint_cells(cell, footprint)
+	return _footprint_cells(cell, rotated_footprint(archetype, pending_rotation))
 
 func _footprint_cells(origin: Vector2i, footprint: Vector2i) -> Array[Vector2i]:
 	var cells: Array[Vector2i] = []
@@ -723,6 +836,28 @@ func _footprint_cells(origin: Vector2i, footprint: Vector2i) -> Array[Vector2i]:
 		for y in range(origin.y, origin.y + footprint.y):
 			cells.append(Vector2i(x, y))
 	return cells
+
+# Builds the walkable block structure a building is made of.
+#
+# The bridge owns this: it stamps the structure into the navigation lattice,
+# stitches its authored entrance to the surrounding ground, and registers only
+# the columns that are genuinely wall as 2D blockers. Doing it here by hand
+# would mean two places deciding what a building's walls are.
+func _raise_block_structure(structure: Dictionary) -> void:
+	var structure_id: StringName = structure.get("block_structure", &"")
+	if structure_id == &"":
+		return
+	var bridge: Node = get_parent().get_node_or_null("BlockNavBridge") if get_parent() != null else null
+	if bridge == null or not bridge.has_method("place_runtime_structure"):
+		push_warning("[BuildSystem] %s wants block structure %s but there is no BlockNavBridge"
+			% [structure.get("archetype", &""), structure_id])
+		return
+	var instance_id := StringName("%s_%s_%s" % [structure_id, structure["cell"].x, structure["cell"].y])
+	if not bool(bridge.call("place_runtime_structure", structure_id, structure["cell"], instance_id,
+			int(structure.get("rotation_steps", 0)))):
+		push_warning("[BuildSystem] could not raise %s at %s" % [structure_id, structure["cell"]])
+		return
+	structure["block_instance"] = instance_id
 
 func _register_blockers(structure: Dictionary) -> void:
 	if map_generator != null and map_generator.has_method("add_dynamic_blockers"):
@@ -1058,8 +1193,7 @@ func _update_production(delta: float) -> void:
 		var structure: Dictionary = structures[i]
 		if not bool(structure.get("complete", false)):
 			continue
-		var structure_archetype: StringName = structure.get("archetype", &"")
-		if structure_archetype != &"barracks":
+		if not _produces_units(structure):
 			continue
 		var current: StringName = structure.get("training_archetype", &"")
 		if str(current).is_empty():
@@ -1248,6 +1382,8 @@ func _node_has_property(node: Node, property_name: String) -> bool:
 
 func _scene_for_unit(archetype: StringName) -> PackedScene:
 	match archetype:
+		&"mangler", &"winged_mangler":
+			return preload("res://scenes/units/mangler.tscn")
 		&"terrible_thing", &"awful_thing":
 			return terrible_thing_scene
 		&"oaven_spear", &"oaven_jumper":

@@ -1,19 +1,9 @@
 class_name BlockMaterialPalette
 extends RefCounted
 
-# The arcane-stone skin: what each authored material role looks like.
-#
-# Every block used to be one flat vertex colour in a single MultiMesh, which is
-# why the citadel read as a grey model rather than a building. The reference art
-# is carried almost entirely by ONE thing the old setup could not do: the
-# windows, domes and crystals GLOW. Emission is not decoration here, it is the
-# whole silhouette at night -- a dark teal mass with cyan light coming out of it.
-#
-# Godot's StandardMaterial3D takes one emission value per material, not per
-# instance, so blocks are grouped into FAMILIES and each family gets its own
-# MultiMesh and its own material. Six draw calls instead of one, which is a
-# trade worth making: it is six regardless of whether the structure is a
-# gatehouse or a 104,000-block citadel.
+# Authored material roles select painted stone, timber, iron and leaded glass.
+# A shared texture is projected at a consistent world scale across block faces.
+# Material families remain batched; architectural dressings are separate batches.
 #
 # Material names come from three different authoring schemas, so the lookup
 # covers all of them and falls back to stone rather than to magenta -- an
@@ -104,18 +94,15 @@ static func instance_tint(family: Family, cell: Vector3i) -> Color:
 	var shade: float = 1.0 + (float(noise) - 5.0) * 0.018
 	return Color(base.r * shade, base.g * shade, base.b * shade, base.a)
 
-static func make_material(family: Family) -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color.WHITE
-	material.vertex_color_use_as_albedo = true
-	material.roughness = float(FAMILY_ROUGHNESS.get(family, 0.9))
-	material.metallic = float(FAMILY_METALLIC.get(family, 0.0))
-	var emission: float = float(FAMILY_EMISSION.get(family, 0.0))
-	if emission > 0.0:
-		material.emission_enabled = true
-		material.emission = albedo_for(family)
-		material.emission_energy_multiplier = emission
-		# Glass reads as lit from within rather than as a painted panel.
-		material.rim_enabled = true
-		material.rim = 0.6
+static func make_material(family: Family) -> ShaderMaterial:
+	var material := ShaderMaterial.new()
+	material.shader = preload("res://assets/structures/arcane_stone/painted_structure.gdshader")
+	material.set_shader_parameter("masonry", preload("res://assets/structures/arcane_stone/masonry_painted.png"))
+	material.set_shader_parameter("family", int(family))
+	var tint := Color.WHITE
+	if family == Family.PALE_STONE:
+		tint = Color(1.25, 1.25, 1.18)
+	elif family == Family.ROOF:
+		tint = Color(0.48, 0.65, 0.68)
+	material.set_shader_parameter("tint", tint)
 	return material

@@ -19,7 +19,11 @@ func _ready() -> void:
 func _rebuild() -> void:
 	map = get_node_or_null(map_generator_path)
 	if map == null or not map.has_method("get_plots"):
-		call_deferred("_rebuild")
+		# NEXT frame, not this one. call_deferred() from inside a deferred call lands
+		# in the same frame's queue, so this retry never yielded -- once map
+		# generation stopped finishing within a single frame it spun inside one
+		# flush until the process segfaulted.
+		get_tree().process_frame.connect(_rebuild, CONNECT_ONE_SHOT)
 		return
 	plots = map.get_plots()
 	queue_redraw()

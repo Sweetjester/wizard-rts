@@ -97,6 +97,10 @@ var _observer_aura_enabled := false
 var intelligence: int = UnitCatalog.DEFAULT_INTELLIGENCE
 var aggro_range: float = 256.0
 var weapon_mode: StringName = &""
+# How far above the ground this unit is standing, when it is on a structure's
+# floor rather than on open ground. Set by VantageEffects; 0 means no vantage.
+var vantage_height: int = 0
+var vantage_region: StringName = &""
 var _weapon_swap_remaining := 0.0
 # Cached at spawn from UnitCatalog.kon_theme() so _draw() never has to look it
 # up. The KoN roster doc splits the faction into an "observer" theme
@@ -274,11 +278,24 @@ func uses_central_mass_movement() -> bool:
 	return _force_lightweight_arena_unit or _central_mass_movement_active
 
 func rts_movement_tick(delta: float) -> void:
+	if is_banished():
+		velocity = Vector2.ZERO
+		moving = false
+		path.clear()
+		path_levels.clear()
+		return
 	_life_elapsed += delta
 	_update_weapon_swap(delta)
 	_update_limited_lifetime()
 	_update_damage_over_time(delta)
 	_update_temporary_status_effects()
+	if _observer_aura_enabled:
+		velocity=Vector2.ZERO
+		moving=false
+		path.clear()
+		path_levels.clear()
+		unit_state=&"observing"
+		return
 	_update_spawner_root_casts(delta)
 	_update_winged_spawner_flight(delta)
 	if _flight_cast_remaining > 0.0:
@@ -492,7 +509,7 @@ func issue_stop_order() -> void:
 	_queue_unit_redraw()
 
 func rts_combat_tick(delta: float, nearby_units: Array[Node2D]) -> void:
-	if health <= 0 or _is_stunned() or _flight_cast_remaining > 0.0:
+	if health <= 0 or is_banished() or _is_stunned() or _flight_cast_remaining > 0.0:
 		return
 	_attack_elapsed += delta
 	_grapple_elapsed += delta
@@ -983,6 +1000,18 @@ func _current_attack_cooldown() -> float:
 		cooldown *= 1.0 - bonus
 	return maxf(0.1, cooldown)
 
+# Height is reach. Only for units that already shoot -- putting a spearman on a
+# wall does not let him stab further, and the bonus is capped so a tall tower
+# does not turn an archer into artillery.
+func _vantage_range_bonus() -> float:
+	if vantage_height <= 0:
+		return 0.0
+	if int(UnitCatalog.get_definition(unit_archetype).get("attack_range_cells", 0)) <= 1 			and attack_range <= 64.0:
+		return 0.0
+	var cells := minf(float(vantage_height) * VantageEffects.RANGE_CELLS_PER_LEVEL,
+		VantageEffects.MAX_RANGE_CELLS)
+	return cells * 64.0
+
 func _observer_aura_range_bonus() -> float:
 	if owner_player_id != 1:
 		return 0.0
@@ -1053,6 +1082,7 @@ func _effective_attack_range_to(target: Node2D) -> float:
 	if bool(definition.get("ignores_terrain", false)) and moving and definition.has("moving_attack_range_multiplier"):
 		range *= float(definition.get("moving_attack_range_multiplier", 1.0))
 	range += _observer_aura_range_bonus()
+	range += _vantage_range_bonus()
 	if target != null and is_instance_valid(target) and target.has_method("get_selection_kind") and target.get_selection_kind() == &"structure":
 		return range + maxf(32.0, float(target.get("selection_radius")) * 0.75)
 	return range
@@ -1171,7 +1201,7 @@ func _is_wizard_archetype(archetype: String) -> bool:
 	return _WIZARD_ARCHETYPES.has(StringName(archetype))
 
 func take_damage(amount: int, source: Node = null, damage_type: StringName = &"physical") -> void:
-	if _dying:
+	if _dying or is_banished():
 		return
 	if Time.get_ticks_msec() < _taunt_until_msec:
 		amount = maxi(1, int(float(amount) * (1.0 - float(UnitCatalog.get_definition(unit_archetype).get("taunt_damage_reduction", 0.0)))))
@@ -1277,7 +1307,11 @@ func _spawn_death_fx(source: Node = null) -> void:
 func is_alive() -> bool:
 	return health > 0
 
+func is_banished() -> bool:
+	return bool(get_meta("kon_banished",false))
+
 func heal_damage(amount: int) -> void:
+	if is_banished(): return
 	health = mini(max_health, health + amount)
 	if not _mass_performance_mode() or selected:
 		_queue_unit_redraw()
@@ -1447,7 +1481,7 @@ func activate_grapple() -> bool:
 	return true
 
 func activate_observer_aura() -> bool:
-	if unit_archetype != &"life_wizard":
+	if unit_archetype != &"life_wizard" or is_banished() or _dying:
 		return false
 	_observer_aura_enabled = not _observer_aura_enabled
 	if _observer_aura_enabled:
@@ -1816,6 +1850,7 @@ func _is_stunned() -> bool:
 	return false
 
 func _is_enemy_unit(other: Node) -> bool:
+	if bool(other.get_meta("kon_banished",false)): return false
 	return other != self and other is Node2D and other.get("owner_player_id") != owner_player_id and other.has_method("take_damage")
 
 # ---------------------------------------------------------------------------
@@ -1835,6 +1870,7 @@ const SPOTTER_RADIUS := 320.0
 const MAX_SPOTTERS_CHECKED := 4
 
 func can_engage_target(target: Node2D) -> bool:
+	if is_banished() or bool(target.get_meta("kon_banished",false)): return false
 	if terrain == null or not is_instance_valid(terrain):
 		return true
 	if not terrain.has_method("has_line_of_sight"):
@@ -1999,8 +2035,21 @@ func _update_autonomy_override(target: Node2D) -> void:
 func has_weapon_modes() -> bool:
 	return not UnitCatalog.weapon_modes(unit_archetype).is_empty()
 
+# The modes a player can CHOOSE between. Excludes any weapon granted by
+# position rather than picked.
+#
+# The Oaven's heavy blowpipe is issued by standing on a firing step and taken
+# away on the way down -- it is not a third option on the toggle. Leaving it in
+# meant the toggle cycled spear -> blowpipe -> heavy -> spear, so a player could
+# simply select it on open ground and keep the range and damage without ever
+# climbing anything, which is the entire mechanic given away for one keypress.
 func available_weapon_modes() -> Array:
-	return UnitCatalog.weapon_modes(unit_archetype).keys()
+	var granted := StringName(UnitCatalog.get_definition(unit_archetype).get("vantage_weapon_mode", &""))
+	var out: Array = []
+	for mode in UnitCatalog.weapon_modes(unit_archetype):
+		if StringName(mode) != granted:
+			out.append(mode)
+	return out
 
 func current_weapon_mode() -> StringName:
 	return weapon_mode
@@ -2176,6 +2225,19 @@ func follow_block_path(points: Array[Vector2], levels: Array[int]) -> void:
 
 func _advance_path_lookahead() -> void:
 	if _skip_path_lookahead_for_mass_mode():
+		return
+	# Never shortcut a lattice path.
+	#
+	# The lookahead skips waypoints when a straight 2D line to them is clear,
+	# which is a fine optimisation on open ground and nonsense inside a building:
+	# "clear in 2D" knows nothing about floors, walls or doorways, so it cut the
+	# corner through the wall AND popped the levels along with the points, which
+	# is why a unit ordered into the laboratory adopted the first floor's height
+	# while still outside and walked to the door through the air.
+	#
+	# A lattice path is already the shortest route through a graph that does know
+	# about all three, so there is nothing here worth shortening.
+	if not path_levels.is_empty():
 		return
 	if terrain == null or path.size() < 3 or not terrain.has_method("world_to_cell") or not terrain.has_method("_has_clear_path_segment"):
 		return

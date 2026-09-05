@@ -19,12 +19,27 @@ func _initialize() -> void:
 func _run() -> void:
 	var session := root.get_node_or_null("GameSession")
 	if session != null:
-		session.call("start_new_game", "block-in-game-smoke", "bad_kon_willow", "seeded_grid_frontier")
+		# The citadel march, because that is where a plot actually asks for a
+		# block structure. This used to run on the frontier, which worked only
+		# because BlockNavBridge.auto_place dropped two test structures onto
+		# every map ever generated -- so this test was really asserting that a
+		# debug affordance was still switched on.
+		session.call("start_new_game", "block-in-game-smoke", "bad_kon_willow", "citadel_march")
 	var scene: Node = load("res://scripts/map/main_map.tscn").instantiate()
 	root.add_child(scene)
+	# Map generation is spread across frames now, so the scene is not playable
+	# the instant it is added. Waits for the generator to say it is finished
+	# rather than for a fixed frame count -- a count that happened to be long
+	# enough on a 96x96 map is not a guarantee, it is a coincidence.
+	for _gen_wait in 400:
+		var _gen := scene.get_node_or_null("MapGenerator")
+		if _gen == null or bool(_gen.get("generation_complete")):
+			break
+		await process_frame
 	# Placement is deferred until map generation settles, so this waits rather
-	# than assuming it has happened by the first frame.
-	for _i in 20:
+	# than assuming it has happened by the first frame. The march is 192x192 and
+	# carries a 96x96 structure, so it needs longer than the frontier did.
+	for _i in 80:
 		await process_frame
 
 	var bridge: Node = scene.get_node_or_null("BlockNavBridge")
@@ -40,7 +55,7 @@ func _run() -> void:
 
 	var multi := _find_multi_level_column(bridge, terrain)
 	if multi == Vector2i(-1, -1):
-		_fail("No structure was placed on the generated map, so nothing has two levels")
+		_fail("No structure was placed on the generated map, so nothing has two levels -- did the citadel plot stop requesting one?")
 		return
 	if not _check_walls_block_2d(bridge, terrain):
 		return
@@ -51,6 +66,12 @@ func _run() -> void:
 	print("[BlockStructuresInGameSmokeTest] structures are placed on the live map, their walls block 2D, and right-click routes upward")
 	scene.queue_free()
 	quit(0)
+
+func _footprint_of(bridge: Node, placement: Dictionary) -> Vector2i:
+	var definition = bridge.get("library").get_definition(placement.get("structure", &""))
+	if definition == null:
+		return Vector2i(12, 10)
+	return Vector2i(int(definition.dimensions.x), int(definition.dimensions.z))
 
 func _find_multi_level_column(bridge: Node, terrain: Node) -> Vector2i:
 	for x in int(terrain.get("MAP_W")):
@@ -66,8 +87,11 @@ func _check_walls_block_2d(bridge: Node, terrain: Node) -> bool:
 	var blocked := 0
 	for placement in bridge.get("world").placements():
 		var origin: Vector2i = placement["origin"]
-		for dx in 12:
-			for dy in 10:
+		# Sized from the structure rather than a fixed 12x10 window, which only
+		# ever matched the gatehouse this test was originally written against.
+		var size := _footprint_of(bridge, placement)
+		for dx in size.x:
+			for dy in size.y:
 				if not bool(terrain.call("is_walkable_cell", origin + Vector2i(dx, dy))):
 					blocked += 1
 	if blocked <= 0:
@@ -89,13 +113,23 @@ func _check_right_click_climbs(scene: Node, terrain: Node, bridge: Node, selecti
 	var best_gain := 0
 	for placement in bridge.get("world").placements():
 		var origin: Vector2i = placement["origin"]
-		for dx in 14:
-			for dy in 12:
+		var size := _footprint_of(bridge, placement)
+		# Strided, because every candidate cell costs a full path solve.
+		var stride: int = maxi(1, size.x / 24)
+		for dx in range(0, size.x, stride):
+			for dy in range(0, size.y, stride):
 				var cell: Vector2i = origin + Vector2i(dx, dy)
-				if not bool(bridge.call("is_multi_level", cell)):
+				# The same question the game asks when you right-click, rather
+				# than "has this column two floors". A building's interior floor
+				# is often the ONLY level in its column -- the structure buried
+				# the terrain under it -- so multi-level missed most of the
+				# places a player actually clicks.
+				if not bool(bridge.call("needs_block_routing", cell)):
+					continue
+				if best_gain > 0:
 					continue
 				# Start outside the structure, on ground, every attempt.
-				var start: Vector2i = terrain.call("nearest_walkable_cell", origin + Vector2i(4, -3), 12)
+				var start: Vector2i = terrain.call("nearest_walkable_cell", origin + Vector2i(size.x / 2, -3), 16)
 				unit.global_position = terrain.call("cell_to_world", start)
 				unit.set("nav_level", 0)
 				unit.set("path_levels", [] as Array[int])

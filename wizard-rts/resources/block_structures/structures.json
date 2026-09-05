@@ -7425,6 +7425,1940 @@
 					"type": "FLOOR"
 				}
 			],
+			"runtime_profile": {
+				"art": {
+					"dome": [
+						3.5,
+						9.0,
+						20.5
+					],
+					"dome_height": 1.2,
+					"dome_radius": 1.7
+				},
+				"blocks": [
+					{
+						"material": "DARK_STONE",
+						"region": {
+							"x": [
+								0,
+								23
+							],
+							"y": 0,
+							"z": [
+								0,
+								23
+							]
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": [
+								1,
+								2
+							],
+							"y": [
+								1,
+								3
+							],
+							"z": [
+								1,
+								22
+							]
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": [
+								21,
+								22
+							],
+							"y": [
+								1,
+								3
+							],
+							"z": [
+								1,
+								22
+							]
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": [
+								3,
+								20
+							],
+							"y": [
+								1,
+								3
+							],
+							"z": [
+								21,
+								22
+							]
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": [
+								3,
+								9
+							],
+							"y": [
+								1,
+								3
+							],
+							"z": [
+								1,
+								2
+							]
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": [
+								14,
+								20
+							],
+							"y": [
+								1,
+								3
+							],
+							"z": [
+								1,
+								2
+							]
+						}
+					},
+					{
+						"material": "DARK_STONE",
+						"region": {
+							"x": [
+								10,
+								13
+							],
+							"y": 3,
+							"z": [
+								1,
+								2
+							]
+						}
+					},
+					{
+						"material": "GATE",
+						"region": {
+							"x": [
+								10,
+								13
+							],
+							"y": [
+								1,
+								2
+							],
+							"z": 1
+						}
+					},
+					{
+						"material": "GATE",
+						"region": {
+							"x": [
+								10,
+								13
+							],
+							"y": [
+								1,
+								2
+							],
+							"z": 3
+						}
+					},
+					{
+						"material": "EMPTY",
+						"nav": "EMPTY",
+						"region": {
+							"x": [
+								11,
+								12
+							],
+							"y": [
+								1,
+								2
+							],
+							"z": 21
+						}
+					},
+					{
+						"material": "GATE",
+						"region": {
+							"x": [
+								11,
+								12
+							],
+							"y": [
+								1,
+								2
+							],
+							"z": 22
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": [
+								1,
+								5
+							],
+							"y": [
+								1,
+								3
+							],
+							"z": [
+								1,
+								5
+							]
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": [
+								18,
+								22
+							],
+							"y": [
+								1,
+								3
+							],
+							"z": [
+								1,
+								5
+							]
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": [
+								1,
+								5
+							],
+							"y": [
+								1,
+								3
+							],
+							"z": [
+								18,
+								22
+							]
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": [
+								18,
+								22
+							],
+							"y": [
+								1,
+								3
+							],
+							"z": [
+								18,
+								22
+							]
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": 1,
+							"y": [
+								4,
+								6
+							],
+							"z": [
+								1,
+								5
+							]
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": [
+								2,
+								5
+							],
+							"y": [
+								4,
+								6
+							],
+							"z": 1
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": 22,
+							"y": [
+								4,
+								7
+							],
+							"z": [
+								1,
+								5
+							]
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": [
+								18,
+								21
+							],
+							"y": [
+								4,
+								7
+							],
+							"z": 1
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": 1,
+							"y": [
+								4,
+								8
+							],
+							"z": [
+								18,
+								22
+							]
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": [
+								2,
+								5
+							],
+							"y": [
+								4,
+								8
+							],
+							"z": 22
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": 22,
+							"y": [
+								4,
+								8
+							],
+							"z": [
+								18,
+								22
+							]
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": [
+								18,
+								21
+							],
+							"y": [
+								4,
+								8
+							],
+							"z": 22
+						}
+					},
+					{
+						"material": "DARK_STONE",
+						"region": {
+							"x": [
+								1,
+								5
+							],
+							"y": 6,
+							"z": [
+								1,
+								5
+							]
+						}
+					},
+					{
+						"material": "EMPTY",
+						"nav": "EMPTY",
+						"region": {
+							"x": 4,
+							"y": 6,
+							"z": [
+								3,
+								4
+							]
+						}
+					},
+					{
+						"material": "DARK_STONE",
+						"region": {
+							"x": [
+								18,
+								22
+							],
+							"y": 7,
+							"z": [
+								1,
+								5
+							]
+						}
+					},
+					{
+						"material": "EMPTY",
+						"nav": "EMPTY",
+						"region": {
+							"x": 19,
+							"y": 7,
+							"z": [
+								3,
+								4
+							]
+						}
+					},
+					{
+						"material": "DARK_STONE",
+						"region": {
+							"x": [
+								1,
+								5
+							],
+							"y": 7,
+							"z": [
+								18,
+								22
+							]
+						}
+					},
+					{
+						"material": "EMPTY",
+						"nav": "EMPTY",
+						"region": {
+							"x": 4,
+							"y": 7,
+							"z": [
+								19,
+								20
+							]
+						}
+					},
+					{
+						"material": "DARK_STONE",
+						"region": {
+							"x": [
+								18,
+								22
+							],
+							"y": 8,
+							"z": [
+								18,
+								22
+							]
+						}
+					},
+					{
+						"material": "EMPTY",
+						"nav": "EMPTY",
+						"region": {
+							"x": 19,
+							"y": 8,
+							"z": [
+								19,
+								20
+							]
+						}
+					},
+					{
+						"material": "GLASS",
+						"region": {
+							"x": 1,
+							"y": 8,
+							"z": [
+								18,
+								22
+							]
+						}
+					},
+					{
+						"material": "GLASS",
+						"region": {
+							"x": [
+								2,
+								5
+							],
+							"y": 8,
+							"z": 22
+						}
+					},
+					{
+						"material": "GLASS",
+						"region": {
+							"x": [
+								19,
+								20
+							],
+							"y": [
+								5,
+								6
+							],
+							"z": 1
+						}
+					},
+					{
+						"material": "GLASS",
+						"region": {
+							"x": 22,
+							"y": [
+								5,
+								6
+							],
+							"z": [
+								19,
+								20
+							]
+						}
+					},
+					{
+						"material": "GLASS",
+						"region": {
+							"x": [
+								2,
+								3
+							],
+							"y": [
+								4,
+								5
+							],
+							"z": 1
+						}
+					},
+					{
+						"material": "GATE",
+						"region": {
+							"x": 4,
+							"y": [
+								4,
+								5
+							],
+							"z": 21
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": [
+								8,
+								15
+							],
+							"y": [
+								1,
+								4
+							],
+							"z": 9
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": 8,
+							"y": [
+								1,
+								4
+							],
+							"z": [
+								10,
+								16
+							]
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": 15,
+							"y": [
+								1,
+								4
+							],
+							"z": [
+								10,
+								16
+							]
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": [
+								9,
+								14
+							],
+							"y": [
+								1,
+								4
+							],
+							"z": 16
+						}
+					},
+					{
+						"material": "GATE",
+						"region": {
+							"x": [
+								11,
+								12
+							],
+							"y": [
+								1,
+								2
+							],
+							"z": 9
+						}
+					},
+					{
+						"material": "DARK_STONE",
+						"region": {
+							"x": [
+								8,
+								15
+							],
+							"y": 4,
+							"z": [
+								9,
+								16
+							]
+						}
+					},
+					{
+						"material": "EMPTY",
+						"nav": "EMPTY",
+						"region": {
+							"x": 9,
+							"y": 4,
+							"z": [
+								12,
+								14
+							]
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": [
+								10,
+								13
+							],
+							"y": [
+								5,
+								7
+							],
+							"z": 13
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": [
+								10,
+								13
+							],
+							"y": [
+								5,
+								7
+							],
+							"z": 16
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": 10,
+							"y": [
+								5,
+								7
+							],
+							"z": [
+								14,
+								15
+							]
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": 13,
+							"y": [
+								5,
+								7
+							],
+							"z": [
+								14,
+								15
+							]
+						}
+					},
+					{
+						"material": "DARK_STONE",
+						"region": {
+							"x": [
+								10,
+								13
+							],
+							"y": 7,
+							"z": [
+								13,
+								16
+							]
+						}
+					},
+					{
+						"material": "DARK_STONE",
+						"region": {
+							"x": 9,
+							"y": 7,
+							"z": 15
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": [
+								11,
+								12
+							],
+							"y": [
+								8,
+								10
+							],
+							"z": [
+								14,
+								15
+							]
+						}
+					},
+					{
+						"material": "METAL",
+						"region": {
+							"x": [
+								10,
+								13
+							],
+							"y": 11,
+							"z": [
+								13,
+								16
+							]
+						}
+					},
+					{
+						"material": "GLASS",
+						"region": {
+							"x": 11,
+							"y": [
+								5,
+								6
+							],
+							"z": 13
+						}
+					},
+					{
+						"material": "GLASS",
+						"region": {
+							"x": 11,
+							"y": 9,
+							"z": 14
+						}
+					}
+				],
+				"compact_runtime": true,
+				"dimensions": [
+					24,
+					12,
+					24
+				],
+				"display_name": "Kon's Arcane Citadel",
+				"gate_defaults": {
+					"citadel_keep_gate_open": true,
+					"main_south_gate_open": false,
+					"north_service_gate_open": false,
+					"north_west_existing_observation_tower_main_gate_open": true
+				},
+				"gates": [
+					{
+						"block_region": {
+							"x": [
+								10,
+								13
+							],
+							"y": [
+								1,
+								2
+							],
+							"z": 1
+						},
+						"default_state": "closed",
+						"id": "main_gate",
+						"passage_region": {
+							"x": [
+								10,
+								13
+							],
+							"y": 1,
+							"z": [
+								0,
+								2
+							]
+						},
+						"state_key": "main_south_gate_open"
+					},
+					{
+						"block_region": {
+							"x": [
+								10,
+								13
+							],
+							"y": [
+								1,
+								2
+							],
+							"z": 3
+						},
+						"default_state": "closed",
+						"id": "inner_main_gate",
+						"passage_region": {
+							"x": [
+								10,
+								13
+							],
+							"y": 1,
+							"z": [
+								2,
+								4
+							]
+						},
+						"state_key": "main_south_gate_open"
+					},
+					{
+						"block_region": {
+							"x": [
+								11,
+								12
+							],
+							"y": [
+								1,
+								2
+							],
+							"z": 22
+						},
+						"default_state": "closed",
+						"id": "north_service_gate",
+						"passage_region": {
+							"x": [
+								11,
+								12
+							],
+							"y": 1,
+							"z": [
+								21,
+								23
+							]
+						},
+						"state_key": "north_service_gate_open"
+					},
+					{
+						"block_region": {
+							"x": 4,
+							"y": [
+								4,
+								5
+							],
+							"z": 21
+						},
+						"default_state": "open",
+						"id": "observer_door",
+						"passage_region": {
+							"x": [
+								3,
+								5
+							],
+							"y": 4,
+							"z": 21
+						},
+						"state_key": "north_west_existing_observation_tower_main_gate_open"
+					},
+					{
+						"block_region": {
+							"x": [
+								11,
+								12
+							],
+							"y": [
+								1,
+								2
+							],
+							"z": 9
+						},
+						"default_state": "open",
+						"id": "keep_gate",
+						"passage_region": {
+							"x": [
+								11,
+								12
+							],
+							"y": 1,
+							"z": [
+								8,
+								10
+							]
+						},
+						"state_key": "citadel_keep_gate_open"
+					}
+				],
+				"links": [
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"from": [
+							6,
+							1,
+							6
+						],
+						"id": "west_wall_stair",
+						"to": [
+							2,
+							4,
+							6
+						],
+						"type": "STAIR",
+						"width": 1
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"from": [
+							17,
+							1,
+							6
+						],
+						"id": "east_wall_stair",
+						"to": [
+							21,
+							4,
+							6
+						],
+						"type": "STAIR",
+						"width": 1
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"from": [
+							4,
+							4,
+							2
+						],
+						"id": "sw_tower_stair",
+						"to": [
+							4,
+							7,
+							5
+						],
+						"type": "STAIR",
+						"width": 1
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"from": [
+							19,
+							4,
+							2
+						],
+						"id": "se_tower_stair",
+						"to": [
+							19,
+							8,
+							5
+						],
+						"type": "STAIR",
+						"width": 1
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"from": [
+							4,
+							4,
+							21
+						],
+						"id": "nw_tower_stair",
+						"to": [
+							4,
+							8,
+							18
+						],
+						"type": "STAIR",
+						"width": 1
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"from": [
+							19,
+							4,
+							21
+						],
+						"id": "ne_tower_stair",
+						"to": [
+							19,
+							9,
+							18
+						],
+						"type": "STAIR",
+						"width": 1
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"from": [
+							9,
+							1,
+							11
+						],
+						"id": "keep_stair",
+						"to": [
+							9,
+							5,
+							15
+						],
+						"type": "STAIR",
+						"width": 1
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"from": [
+							8,
+							5,
+							12
+						],
+						"id": "upper_keep_stair",
+						"to": [
+							9,
+							8,
+							15
+						],
+						"type": "STAIR",
+						"width": 1
+					},
+					{
+						"allowed": [
+							"climber"
+						],
+						"from": [
+							3,
+							1,
+							12
+						],
+						"id": "west_climb",
+						"to": [
+							2,
+							4,
+							12
+						],
+						"type": "CLIMB_POINT",
+						"width": 1
+					}
+				],
+				"nav_regions": [
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber",
+							"heavy"
+						],
+						"id": "main_gate_tunnel_nav",
+						"region": {
+							"x": [
+								10,
+								13
+							],
+							"y": 1,
+							"z": [
+								0,
+								2
+							]
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber",
+							"heavy"
+						],
+						"id": "south_courtyard_nav",
+						"region": {
+							"x": [
+								6,
+								17
+							],
+							"y": 1,
+							"z": [
+								3,
+								7
+							]
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber",
+							"heavy"
+						],
+						"id": "keep_plinth_ring_nav",
+						"region": {
+							"x": [
+								6,
+								17
+							],
+							"y": 1,
+							"z": 8
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber",
+							"heavy"
+						],
+						"id": "west_courtyard_nav",
+						"region": {
+							"x": [
+								3,
+								7
+							],
+							"y": 1,
+							"z": [
+								6,
+								17
+							]
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber",
+							"heavy"
+						],
+						"id": "east_courtyard_nav",
+						"region": {
+							"x": [
+								16,
+								20
+							],
+							"y": 1,
+							"z": [
+								6,
+								17
+							]
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber",
+							"heavy"
+						],
+						"id": "north_courtyard_nav",
+						"region": {
+							"x": [
+								6,
+								17
+							],
+							"y": 1,
+							"z": [
+								17,
+								20
+							]
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber",
+							"heavy"
+						],
+						"id": "north_service_nav",
+						"region": {
+							"x": [
+								11,
+								12
+							],
+							"y": 1,
+							"z": [
+								21,
+								23
+							]
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber",
+							"heavy"
+						],
+						"id": "keep_door",
+						"region": {
+							"x": [
+								11,
+								12
+							],
+							"y": 1,
+							"z": 9
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber",
+							"heavy"
+						],
+						"id": "keep_ground_floor_nav",
+						"region": {
+							"x": [
+								9,
+								14
+							],
+							"y": 1,
+							"z": [
+								10,
+								11
+							]
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber",
+							"heavy"
+						],
+						"id": "keep_ground_floor_nav",
+						"region": {
+							"x": [
+								10,
+								14
+							],
+							"y": 1,
+							"z": [
+								12,
+								15
+							]
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"id": "wall_walk_outer_ring_nav",
+						"region": {
+							"x": 2,
+							"y": 4,
+							"z": [
+								2,
+								21
+							]
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"id": "wall_walk_outer_ring_nav",
+						"region": {
+							"x": 21,
+							"y": 4,
+							"z": [
+								2,
+								21
+							]
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"id": "wall_walk_outer_ring_nav",
+						"region": {
+							"x": [
+								3,
+								20
+							],
+							"y": 4,
+							"z": 2
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"id": "wall_walk_outer_ring_nav",
+						"region": {
+							"x": [
+								3,
+								20
+							],
+							"y": 4,
+							"z": 21
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"id": "sw_lookout_room",
+						"region": {
+							"x": [
+								3,
+								5
+							],
+							"y": 4,
+							"z": 2
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"id": "se_alchemy_room",
+						"region": {
+							"x": [
+								18,
+								20
+							],
+							"y": 4,
+							"z": 2
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"id": "nw_observer_room",
+						"region": {
+							"x": [
+								3,
+								5
+							],
+							"y": 4,
+							"z": 21
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"id": "ne_archive_room",
+						"region": {
+							"x": [
+								18,
+								20
+							],
+							"y": 4,
+							"z": 21
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"id": "sw_lookout_crown",
+						"region": {
+							"x": [
+								2,
+								4
+							],
+							"y": 7,
+							"z": 5
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"id": "se_alchemy_crown",
+						"region": {
+							"x": [
+								19,
+								21
+							],
+							"y": 8,
+							"z": 5
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"id": "nw_observation_crown",
+						"region": {
+							"x": [
+								2,
+								4
+							],
+							"y": 8,
+							"z": 18
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"id": "ne_archive_crown",
+						"region": {
+							"x": [
+								19,
+								21
+							],
+							"y": 9,
+							"z": 18
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"id": "keep_first_terrace",
+						"region": {
+							"x": [
+								8,
+								15
+							],
+							"y": 5,
+							"z": [
+								9,
+								11
+							]
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"id": "keep_first_terrace",
+						"region": {
+							"x": [
+								10,
+								15
+							],
+							"y": 5,
+							"z": 12
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"id": "keep_first_terrace",
+						"region": {
+							"x": 8,
+							"y": 5,
+							"z": [
+								12,
+								16
+							]
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"id": "keep_first_terrace",
+						"region": {
+							"x": 9,
+							"y": 5,
+							"z": [
+								15,
+								16
+							]
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"id": "keep_upper_terrace",
+						"region": {
+							"x": 10,
+							"y": 8,
+							"z": [
+								13,
+								16
+							]
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"id": "keep_upper_terrace",
+						"region": {
+							"x": 9,
+							"y": 8,
+							"z": 15
+						},
+						"type": "FLOOR"
+					}
+				],
+				"purpose": [
+					"square_castle",
+					"courtyards",
+					"wall_walks",
+					"four_towers",
+					"central_keep"
+				],
+				"sockets": [
+					{
+						"facing": "south",
+						"id": "main_gate_road",
+						"position": [
+							11,
+							1,
+							0
+						],
+						"type": "ROAD_SOCKET",
+						"width": 4
+					},
+					{
+						"facing": "north",
+						"id": "north_service_road",
+						"position": [
+							11,
+							1,
+							23
+						],
+						"type": "ROAD_SOCKET",
+						"width": 2
+					},
+					{
+						"facing": "north",
+						"id": "north_bridge",
+						"position": [
+							11,
+							4,
+							23
+						],
+						"type": "BRIDGE_SOCKET",
+						"width": 1
+					}
+				],
+				"validation_tests": [
+					{
+						"destination": [
+							10,
+							5,
+							10
+						],
+						"expected": "PASS",
+						"id": "infantry_keep",
+						"start": [
+							11,
+							1,
+							0
+						],
+						"state": {
+							"citadel_keep_gate_open": true,
+							"main_south_gate_open": true
+						},
+						"unit_class": "infantry"
+					},
+					{
+						"destination": [
+							21,
+							4,
+							16
+						],
+						"expected": "PASS",
+						"id": "archer_ring",
+						"start": [
+							11,
+							1,
+							0
+						],
+						"state": {
+							"main_south_gate_open": true
+						},
+						"unit_class": "archer"
+					},
+					{
+						"destination": [
+							2,
+							4,
+							12
+						],
+						"expected": "PASS",
+						"id": "climber_ring",
+						"start": [
+							3,
+							1,
+							12
+						],
+						"state": {},
+						"unit_class": "climber"
+					},
+					{
+						"destination": [
+							11,
+							1,
+							6
+						],
+						"expected": "PASS",
+						"id": "heavy_courtyard",
+						"start": [
+							11,
+							1,
+							0
+						],
+						"state": {
+							"main_south_gate_open": true
+						},
+						"unit_class": "heavy"
+					},
+					{
+						"destination": [
+							11,
+							1,
+							11
+						],
+						"expected": "PASS",
+						"id": "heavy_keep_ground",
+						"start": [
+							11,
+							1,
+							0
+						],
+						"state": {
+							"citadel_keep_gate_open": true,
+							"main_south_gate_open": true
+						},
+						"unit_class": "heavy"
+					},
+					{
+						"destination": [
+							21,
+							4,
+							16
+						],
+						"expected": "FAIL",
+						"id": "heavy_no_ring",
+						"start": [
+							11,
+							1,
+							0
+						],
+						"state": {
+							"main_south_gate_open": true
+						},
+						"unit_class": "heavy"
+					},
+					{
+						"destination": [
+							11,
+							1,
+							6
+						],
+						"expected": "FAIL",
+						"id": "closed_outer_seals",
+						"start": [
+							11,
+							1,
+							0
+						],
+						"state": {
+							"main_south_gate_open": false
+						},
+						"unit_class": "infantry"
+					},
+					{
+						"destination": [
+							11,
+							1,
+							11
+						],
+						"expected": "FAIL",
+						"id": "closed_keep_seals",
+						"start": [
+							11,
+							1,
+							6
+						],
+						"state": {
+							"citadel_keep_gate_open": false,
+							"main_south_gate_open": true
+						},
+						"unit_class": "infantry"
+					},
+					{
+						"destination": [
+							10,
+							8,
+							13
+						],
+						"expected": "PASS",
+						"id": "flying_keep",
+						"start": [
+							11,
+							1,
+							0
+						],
+						"state": {},
+						"unit_class": "flying"
+					},
+					{
+						"destination": [
+							2,
+							7,
+							5
+						],
+						"expected": "PASS",
+						"id": "sw_tower",
+						"start": [
+							11,
+							1,
+							0
+						],
+						"state": {
+							"main_south_gate_open": true
+						},
+						"unit_class": "infantry"
+					},
+					{
+						"destination": [
+							21,
+							8,
+							5
+						],
+						"expected": "PASS",
+						"id": "se_tower",
+						"start": [
+							11,
+							1,
+							0
+						],
+						"state": {
+							"main_south_gate_open": true
+						},
+						"unit_class": "infantry"
+					},
+					{
+						"destination": [
+							2,
+							8,
+							18
+						],
+						"expected": "PASS",
+						"id": "nw_tower",
+						"start": [
+							11,
+							1,
+							0
+						],
+						"state": {
+							"main_south_gate_open": true
+						},
+						"unit_class": "infantry"
+					},
+					{
+						"destination": [
+							21,
+							9,
+							18
+						],
+						"expected": "PASS",
+						"id": "ne_tower",
+						"start": [
+							11,
+							1,
+							0
+						],
+						"state": {
+							"main_south_gate_open": true
+						},
+						"unit_class": "infantry"
+					},
+					{
+						"destination": [
+							11,
+							1,
+							19
+						],
+						"expected": "FAIL",
+						"id": "north_service_closed",
+						"start": [
+							11,
+							1,
+							23
+						],
+						"state": {
+							"north_service_gate_open": false
+						},
+						"unit_class": "infantry"
+					},
+					{
+						"destination": [
+							11,
+							1,
+							19
+						],
+						"expected": "PASS",
+						"id": "north_service_open",
+						"start": [
+							11,
+							1,
+							23
+						],
+						"state": {
+							"north_service_gate_open": true
+						},
+						"unit_class": "infantry"
+					},
+					{
+						"destination": [
+							2,
+							8,
+							18
+						],
+						"expected": "FAIL",
+						"id": "observer_door_closed",
+						"start": [
+							11,
+							1,
+							0
+						],
+						"state": {
+							"main_south_gate_open": true,
+							"north_west_existing_observation_tower_main_gate_open": false
+						},
+						"unit_class": "infantry"
+					}
+				]
+			},
 			"sockets": [
 				{
 					"facing": "south",
@@ -9500,6 +11434,2633 @@
 				},
 				"block_size_m": 1.0,
 				"origin_rule": "Local origin is the south-west-bottom corner.",
+				"ranges_are_inclusive": true
+			}
+		},
+		"kons_observer_vault_01": {
+			"art": {
+				"bespoke_skin": "observer_vault_v1"
+			},
+			"block_cell_count": 157,
+			"blocks": [
+				{
+					"material": "DARK_STONE",
+					"region": {
+						"x": [
+							0,
+							8
+						],
+						"y": 0,
+						"z": [
+							0,
+							6
+						]
+					}
+				},
+				{
+					"material": "TOWER_STONE",
+					"region": {
+						"x": 0,
+						"y": [
+							1,
+							3
+						],
+						"z": [
+							1,
+							6
+						]
+					}
+				},
+				{
+					"material": "TOWER_STONE",
+					"region": {
+						"x": 8,
+						"y": [
+							1,
+							3
+						],
+						"z": [
+							1,
+							6
+						]
+					}
+				},
+				{
+					"material": "TOWER_STONE",
+					"region": {
+						"x": [
+							1,
+							7
+						],
+						"y": [
+							1,
+							3
+						],
+						"z": 6
+					}
+				},
+				{
+					"material": "TOWER_STONE",
+					"region": {
+						"x": [
+							1,
+							2
+						],
+						"y": [
+							1,
+							3
+						],
+						"z": 1
+					}
+				},
+				{
+					"material": "TOWER_STONE",
+					"region": {
+						"x": [
+							5,
+							7
+						],
+						"y": [
+							1,
+							3
+						],
+						"z": 1
+					}
+				},
+				{
+					"material": "GATE",
+					"region": {
+						"x": [
+							3,
+							4
+						],
+						"y": [
+							1,
+							2
+						],
+						"z": 1
+					}
+				},
+				{
+					"material": "DARK_STONE",
+					"region": {
+						"x": [
+							3,
+							4
+						],
+						"y": 4,
+						"z": 1
+					}
+				},
+				{
+					"material": "GATE",
+					"region": {
+						"x": 8,
+						"y": [
+							1,
+							2
+						],
+						"z": 4
+					}
+				},
+				{
+					"material": "METAL",
+					"region": {
+						"x": 5,
+						"y": [
+							1,
+							2
+						],
+						"z": [
+							2,
+							4
+						]
+					}
+				},
+				{
+					"material": "TIMBER",
+					"region": {
+						"x": 6,
+						"y": 1,
+						"z": 3
+					}
+				},
+				{
+					"material": "DARK_STONE",
+					"region": {
+						"x": [
+							1,
+							7
+						],
+						"y": 3,
+						"z": 5
+					}
+				}
+			],
+			"compact_runtime": true,
+			"dimensions": [
+				9,
+				5,
+				7
+			],
+			"display_name": "Kon's Observer Vault",
+			"gate_defaults": {
+				"vault_entry_open": true,
+				"vault_service_open": false
+			},
+			"gates": [
+				{
+					"block_region": {
+						"x": [
+							3,
+							4
+						],
+						"y": [
+							1,
+							2
+						],
+						"z": 1
+					},
+					"default_state": "open",
+					"id": "circular_vault_door",
+					"passage_region": {
+						"x": [
+							3,
+							4
+						],
+						"y": 1,
+						"z": [
+							0,
+							2
+						]
+					},
+					"state_key": "vault_entry_open"
+				},
+				{
+					"block_region": {
+						"x": 8,
+						"y": [
+							1,
+							2
+						],
+						"z": 4
+					},
+					"default_state": "closed",
+					"id": "librarian_door",
+					"passage_region": {
+						"x": [
+							7,
+							8
+						],
+						"y": 1,
+						"z": 4
+					},
+					"state_key": "vault_service_open"
+				}
+			],
+			"id": "kons_observer_vault_01",
+			"links": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						1,
+						1,
+						2
+					],
+					"id": "archive_stair",
+					"to": [
+						1,
+						4,
+						5
+					],
+					"type": "STAIR",
+					"width": 1
+				}
+			],
+			"nav_cell_count": 31,
+			"nav_regions": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "entry_road",
+					"region": {
+						"x": [
+							3,
+							4
+						],
+						"y": 1,
+						"z": [
+							0,
+							1
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "reading_nave",
+					"region": {
+						"x": [
+							2,
+							4
+						],
+						"y": 1,
+						"z": [
+							2,
+							4
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "stair_foot",
+					"region": {
+						"x": 1,
+						"y": 1,
+						"z": 2
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "archive_hall",
+					"region": {
+						"x": [
+							2,
+							7
+						],
+						"y": 1,
+						"z": 5
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "east_reading_aisle",
+					"region": {
+						"x": 7,
+						"y": 1,
+						"z": [
+							2,
+							4
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "service_entry",
+					"region": {
+						"x": 8,
+						"y": 1,
+						"z": 4
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "archive_gallery",
+					"region": {
+						"x": [
+							1,
+							7
+						],
+						"y": 4,
+						"z": 5
+					},
+					"type": "FLOOR"
+				}
+			],
+			"purpose": [
+				"research",
+				"library",
+				"sealed_archive",
+				"reading_gallery"
+			],
+			"sockets": [
+				{
+					"facing": "south",
+					"id": "archive_road",
+					"position": [
+						3,
+						1,
+						0
+					],
+					"type": "ROAD_SOCKET",
+					"width": 2
+				},
+				{
+					"facing": "east",
+					"id": "librarian_path",
+					"position": [
+						8,
+						1,
+						4
+					],
+					"type": "PATH_SOCKET",
+					"width": 1
+				}
+			],
+			"validation_tests": [
+				{
+					"destination": [
+						4,
+						4,
+						5
+					],
+					"expected": "PASS",
+					"id": "infantry_gallery",
+					"start": [
+						3,
+						1,
+						0
+					],
+					"state": {
+						"vault_entry_open": true
+					},
+					"unit_class": "infantry"
+				},
+				{
+					"destination": [
+						7,
+						4,
+						5
+					],
+					"expected": "PASS",
+					"id": "archer_gallery",
+					"start": [
+						3,
+						1,
+						0
+					],
+					"state": {
+						"vault_entry_open": true
+					},
+					"unit_class": "archer"
+				},
+				{
+					"destination": [
+						1,
+						4,
+						5
+					],
+					"expected": "PASS",
+					"id": "climber_gallery",
+					"start": [
+						3,
+						1,
+						0
+					],
+					"state": {
+						"vault_entry_open": true
+					},
+					"unit_class": "climber"
+				},
+				{
+					"destination": [
+						3,
+						1,
+						3
+					],
+					"expected": "PASS",
+					"id": "heavy_reading_nave",
+					"start": [
+						3,
+						1,
+						0
+					],
+					"state": {
+						"vault_entry_open": true
+					},
+					"unit_class": "heavy"
+				},
+				{
+					"destination": [
+						4,
+						4,
+						5
+					],
+					"expected": "FAIL",
+					"id": "heavy_no_gallery",
+					"start": [
+						3,
+						1,
+						0
+					],
+					"state": {
+						"vault_entry_open": true
+					},
+					"unit_class": "heavy"
+				},
+				{
+					"destination": [
+						4,
+						1,
+						4
+					],
+					"expected": "FAIL",
+					"id": "sealed_archive",
+					"start": [
+						3,
+						1,
+						0
+					],
+					"state": {
+						"vault_entry_open": false,
+						"vault_service_open": false
+					},
+					"unit_class": "infantry"
+				},
+				{
+					"destination": [
+						4,
+						1,
+						5
+					],
+					"expected": "PASS",
+					"id": "service_open",
+					"start": [
+						8,
+						1,
+						4
+					],
+					"state": {
+						"vault_entry_open": false,
+						"vault_service_open": true
+					},
+					"unit_class": "infantry"
+				},
+				{
+					"destination": [
+						4,
+						1,
+						5
+					],
+					"expected": "FAIL",
+					"id": "service_closed",
+					"start": [
+						8,
+						1,
+						4
+					],
+					"state": {
+						"vault_entry_open": true,
+						"vault_service_open": false
+					},
+					"unit_class": "infantry"
+				},
+				{
+					"destination": [
+						4,
+						4,
+						5
+					],
+					"expected": "PASS",
+					"id": "flying_gallery",
+					"start": [
+						3,
+						1,
+						0
+					],
+					"state": {
+						"vault_entry_open": false
+					},
+					"unit_class": "flying"
+				},
+				{
+					"destination": [
+						5,
+						1,
+						3
+					],
+					"expected": "FAIL",
+					"id": "door_parking_not_walkable",
+					"start": [
+						3,
+						1,
+						0
+					],
+					"state": {
+						"vault_entry_open": true
+					},
+					"unit_class": "infantry"
+				}
+			]
+		},
+		"kons_splicing_laboratory_01": {
+			"block_cell_count": 3766,
+			"blocks": [
+				{
+					"id": "foundation",
+					"material": "DARK_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							2,
+							29
+						],
+						"y": 0,
+						"z": [
+							2,
+							25
+						]
+					}
+				},
+				{
+					"id": "entry_apron",
+					"material": "TOWER_STONE",
+					"nav": "FLOOR",
+					"region": {
+						"x": [
+							11,
+							20
+						],
+						"y": 0,
+						"z": [
+							0,
+							1
+						]
+					}
+				},
+				{
+					"id": "west_wall",
+					"material": "TOWER_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							2,
+							3
+						],
+						"y": [
+							1,
+							8
+						],
+						"z": [
+							2,
+							25
+						]
+					}
+				},
+				{
+					"id": "east_wall_south",
+					"material": "TOWER_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							28,
+							29
+						],
+						"y": [
+							1,
+							8
+						],
+						"z": [
+							2,
+							12
+						]
+					}
+				},
+				{
+					"id": "east_wall_north",
+					"material": "TOWER_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							28,
+							29
+						],
+						"y": [
+							1,
+							8
+						],
+						"z": [
+							17,
+							25
+						]
+					}
+				},
+				{
+					"id": "service_lintel",
+					"material": "TOWER_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							28,
+							29
+						],
+						"y": [
+							5,
+							8
+						],
+						"z": [
+							13,
+							16
+						]
+					}
+				},
+				{
+					"id": "rear_wall",
+					"material": "TOWER_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							4,
+							27
+						],
+						"y": [
+							1,
+							8
+						],
+						"z": [
+							24,
+							25
+						]
+					}
+				},
+				{
+					"id": "front_west",
+					"material": "TOWER_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							4,
+							13
+						],
+						"y": [
+							1,
+							8
+						],
+						"z": [
+							2,
+							3
+						]
+					}
+				},
+				{
+					"id": "front_east",
+					"material": "TOWER_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							18,
+							27
+						],
+						"y": [
+							1,
+							8
+						],
+						"z": [
+							2,
+							3
+						]
+					}
+				},
+				{
+					"id": "entry_lintel",
+					"material": "TOWER_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							14,
+							17
+						],
+						"y": [
+							5,
+							8
+						],
+						"z": [
+							2,
+							3
+						]
+					}
+				},
+				{
+					"id": "entry_leaf",
+					"material": "GATE",
+					"nav": "GATE",
+					"region": {
+						"x": [
+							14,
+							17
+						],
+						"y": [
+							1,
+							4
+						],
+						"z": 2
+					}
+				},
+				{
+					"id": "service_leaf",
+					"material": "GATE",
+					"nav": "GATE",
+					"region": {
+						"x": 29,
+						"y": [
+							1,
+							4
+						],
+						"z": [
+							13,
+							16
+						]
+					}
+				},
+				{
+					"id": "service_apron",
+					"material": "DARK_STONE",
+					"nav": "FLOOR",
+					"region": {
+						"x": [
+							30,
+							33
+						],
+						"y": 0,
+						"z": [
+							12,
+							17
+						]
+					}
+				},
+				{
+					"id": "west_specimen_plinth",
+					"material": "DARK_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							9,
+							12
+						],
+						"y": 1,
+						"z": [
+							9,
+							15
+						]
+					}
+				},
+				{
+					"id": "east_specimen_plinth",
+					"material": "DARK_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							19,
+							22
+						],
+						"y": 1,
+						"z": [
+							9,
+							15
+						]
+					}
+				},
+				{
+					"id": "west_specimen_glass",
+					"material": "GLASS",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							10,
+							11
+						],
+						"y": [
+							2,
+							4
+						],
+						"z": [
+							10,
+							14
+						]
+					}
+				},
+				{
+					"id": "east_specimen_glass",
+					"material": "GLASS",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							20,
+							21
+						],
+						"y": [
+							2,
+							4
+						],
+						"z": [
+							10,
+							14
+						]
+					}
+				},
+				{
+					"id": "west_specimen_cap",
+					"material": "METAL",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							9,
+							12
+						],
+						"y": 5,
+						"z": [
+							9,
+							15
+						]
+					}
+				},
+				{
+					"id": "east_specimen_cap",
+					"material": "METAL",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							19,
+							22
+						],
+						"y": 5,
+						"z": [
+							9,
+							15
+						]
+					}
+				},
+				{
+					"id": "gallery_west",
+					"material": "DARK_STONE",
+					"nav": "FLOOR",
+					"region": {
+						"x": [
+							4,
+							8
+						],
+						"y": 6,
+						"z": [
+							4,
+							23
+						]
+					}
+				},
+				{
+					"id": "gallery_north",
+					"material": "DARK_STONE",
+					"nav": "FLOOR",
+					"region": {
+						"x": [
+							9,
+							27
+						],
+						"y": 6,
+						"z": [
+							20,
+							23
+						]
+					}
+				},
+				{
+					"id": "gallery_east",
+					"material": "DARK_STONE",
+					"nav": "FLOOR",
+					"region": {
+						"x": [
+							23,
+							27
+						],
+						"y": 6,
+						"z": [
+							4,
+							19
+						]
+					}
+				},
+				{
+					"id": "west_stairwell",
+					"material": "EMPTY",
+					"nav": "EMPTY",
+					"region": {
+						"x": [
+							5,
+							7
+						],
+						"y": 6,
+						"z": [
+							7,
+							16
+						]
+					}
+				},
+				{
+					"id": "east_stairwell",
+					"material": "EMPTY",
+					"nav": "EMPTY",
+					"region": {
+						"x": [
+							24,
+							26
+						],
+						"y": 6,
+						"z": [
+							7,
+							16
+						]
+					}
+				},
+				{
+					"id": "upper_west_wall",
+					"material": "TOWER_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							2,
+							3
+						],
+						"y": [
+							9,
+							12
+						],
+						"z": [
+							4,
+							23
+						]
+					}
+				},
+				{
+					"id": "upper_east_wall",
+					"material": "TOWER_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							28,
+							29
+						],
+						"y": [
+							9,
+							12
+						],
+						"z": [
+							4,
+							23
+						]
+					}
+				},
+				{
+					"id": "upper_north_wall",
+					"material": "TOWER_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							4,
+							27
+						],
+						"y": [
+							9,
+							12
+						],
+						"z": [
+							24,
+							25
+						]
+					}
+				},
+				{
+					"id": "clerestory_west",
+					"material": "GLASS",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							2,
+							3
+						],
+						"y": [
+							9,
+							11
+						],
+						"z": [
+							8,
+							19
+						]
+					}
+				},
+				{
+					"id": "clerestory_east",
+					"material": "GLASS",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							28,
+							29
+						],
+						"y": [
+							9,
+							11
+						],
+						"z": [
+							8,
+							19
+						]
+					}
+				},
+				{
+					"id": "rear_windows",
+					"material": "GLASS",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							10,
+							21
+						],
+						"y": [
+							9,
+							11
+						],
+						"z": [
+							24,
+							25
+						]
+					}
+				},
+				{
+					"id": "west_front_tower",
+					"material": "TOWER_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							4,
+							8
+						],
+						"y": [
+							9,
+							15
+						],
+						"z": [
+							2,
+							4
+						]
+					}
+				},
+				{
+					"id": "east_front_tower",
+					"material": "TOWER_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							23,
+							27
+						],
+						"y": [
+							9,
+							17
+						],
+						"z": [
+							2,
+							4
+						]
+					}
+				},
+				{
+					"id": "west_exhaust_cap",
+					"material": "METAL",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							3,
+							9
+						],
+						"y": 16,
+						"z": [
+							1,
+							5
+						]
+					}
+				},
+				{
+					"id": "east_exhaust_cap",
+					"material": "METAL",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							22,
+							28
+						],
+						"y": 18,
+						"z": [
+							1,
+							5
+						]
+					}
+				},
+				{
+					"id": "gallery_front_west_trim",
+					"material": "DARK_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							9,
+							13
+						],
+						"y": 8,
+						"z": [
+							2,
+							3
+						]
+					}
+				},
+				{
+					"id": "gallery_front_east_trim",
+					"material": "DARK_STONE",
+					"nav": "SOLID",
+					"region": {
+						"x": [
+							18,
+							22
+						],
+						"y": 8,
+						"z": [
+							2,
+							3
+						]
+					}
+				}
+			],
+			"debug_expectations": {
+				"notes": [
+					"The open central atrium reveals units on both levels.",
+					"Specimen plinths are not walkable.",
+					"Heavy units remain on the laboratory floor."
+				],
+				"show": [
+					"structure_bounds",
+					"walkable_nav_regions",
+					"gate_state",
+					"stairs",
+					"procedural_sockets"
+				]
+			},
+			"design_intent": {
+				"summary": "A gothic barracks laboratory with a broad muster entrance, two specimen islands, a six-block central operating aisle, U-shaped upper gallery, rear splicing chamber, glazed clerestory and two asymmetric exhaust towers. Units enter and circulate through authored routes; visual dressing never creates navigation or changes training rules.\n"
+			},
+			"dimensions": [
+				34,
+				20,
+				28
+			],
+			"display_name": "Kon's Splicing Laboratory",
+			"gate_defaults": {
+				"lab_entry_open": true,
+				"lab_service_open": false
+			},
+			"gates": [
+				{
+					"block_region": {
+						"x": [
+							14,
+							17
+						],
+						"y": [
+							1,
+							4
+						],
+						"z": 2
+					},
+					"default_state": "open",
+					"id": "muster_gate",
+					"passage_region": {
+						"x": [
+							14,
+							17
+						],
+						"y": 1,
+						"z": [
+							2,
+							3
+						]
+					},
+					"state_key": "lab_entry_open"
+				},
+				{
+					"block_region": {
+						"x": 29,
+						"y": [
+							1,
+							4
+						],
+						"z": [
+							13,
+							16
+						]
+					},
+					"default_state": "closed",
+					"id": "service_gate",
+					"passage_region": {
+						"x": [
+							28,
+							29
+						],
+						"y": 1,
+						"z": [
+							13,
+							16
+						]
+					},
+					"state_key": "lab_service_open"
+				}
+			],
+			"id": "kons_splicing_laboratory_01",
+			"links": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"from": [
+						15,
+						0,
+						0
+					],
+					"id": "muster_ramp",
+					"to": [
+						15,
+						1,
+						2
+					],
+					"type": "RAMP",
+					"width": 4
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						6,
+						1,
+						7
+					],
+					"id": "west_gallery_stair",
+					"to": [
+						6,
+						7,
+						17
+					],
+					"type": "STAIR",
+					"width": 2
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						25,
+						1,
+						7
+					],
+					"id": "east_gallery_stair",
+					"to": [
+						25,
+						7,
+						17
+					],
+					"type": "STAIR",
+					"width": 2
+				}
+			],
+			"nav_cell_count": 835,
+			"nav_regions": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "south_road",
+					"region": {
+						"x": [
+							11,
+							20
+						],
+						"y": 0,
+						"z": [
+							0,
+							1
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "entrance",
+					"region": {
+						"x": [
+							14,
+							17
+						],
+						"y": 1,
+						"z": [
+							2,
+							3
+						]
+					},
+					"state_key": "lab_entry_open",
+					"type": "GATE"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "muster_hall",
+					"region": {
+						"x": [
+							4,
+							27
+						],
+						"y": 1,
+						"z": [
+							4,
+							8
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "west_aisle",
+					"region": {
+						"x": [
+							4,
+							8
+						],
+						"y": 1,
+						"z": [
+							9,
+							15
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "operating_aisle",
+					"region": {
+						"x": [
+							13,
+							18
+						],
+						"y": 1,
+						"z": [
+							9,
+							15
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "east_aisle",
+					"region": {
+						"x": [
+							23,
+							27
+						],
+						"y": 1,
+						"z": [
+							9,
+							15
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "splicing_hall",
+					"region": {
+						"x": [
+							4,
+							27
+						],
+						"y": 1,
+						"z": [
+							16,
+							23
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "service_entry",
+					"region": {
+						"x": [
+							28,
+							29
+						],
+						"y": 1,
+						"z": [
+							13,
+							16
+						]
+					},
+					"state_key": "lab_service_open",
+					"type": "GATE"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "east_yard",
+					"region": {
+						"x": [
+							30,
+							33
+						],
+						"y": 1,
+						"z": [
+							12,
+							17
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "gallery_west",
+					"region": {
+						"x": [
+							4,
+							8
+						],
+						"y": 7,
+						"z": [
+							5,
+							23
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "gallery_north",
+					"region": {
+						"x": [
+							9,
+							27
+						],
+						"y": 7,
+						"z": [
+							20,
+							23
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "gallery_east",
+					"region": {
+						"x": [
+							23,
+							27
+						],
+						"y": 7,
+						"z": [
+							5,
+							19
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [],
+					"id": "west_stair_reservation",
+					"region": {
+						"x": [
+							5,
+							7
+						],
+						"y": 1,
+						"z": [
+							8,
+							15
+						]
+					},
+					"type": "SOLID"
+				},
+				{
+					"allowed": [],
+					"id": "east_stair_reservation",
+					"region": {
+						"x": [
+							24,
+							26
+						],
+						"y": 1,
+						"z": [
+							8,
+							14
+						]
+					},
+					"type": "SOLID"
+				},
+				{
+					"allowed": [],
+					"id": "west_gallery_hole",
+					"region": {
+						"x": [
+							5,
+							7
+						],
+						"y": 7,
+						"z": [
+							7,
+							16
+						]
+					},
+					"type": "SOLID"
+				},
+				{
+					"allowed": [],
+					"id": "east_gallery_hole",
+					"region": {
+						"x": [
+							24,
+							26
+						],
+						"y": 7,
+						"z": [
+							7,
+							16
+						]
+					},
+					"type": "SOLID"
+				}
+			],
+			"placement": {
+				"clearance_above": 2,
+				"preferred_pad": {
+					"x": [
+						0,
+						33
+					],
+					"z": [
+						0,
+						27
+					]
+				},
+				"rotation_y": [
+					0,
+					90,
+					180,
+					270
+				]
+			},
+			"procedural_generation": {
+				"connection_sockets": [
+					{
+						"facing": "south",
+						"id": "muster_road",
+						"position": [
+							15,
+							0,
+							0
+						],
+						"type": "ROAD_SOCKET",
+						"width": 4
+					},
+					{
+						"facing": "east",
+						"id": "specimen_delivery",
+						"position": [
+							33,
+							1,
+							14
+						],
+						"type": "PATH_SOCKET",
+						"width": 4
+					}
+				],
+				"placement": {
+					"allow_rotation_y": [
+						0,
+						90,
+						180,
+						270
+					],
+					"minimum_clearance": {
+						"x": 36,
+						"z": 30
+					},
+					"terrain_requirement": "mostly_flat"
+				}
+			},
+			"production_integration": {
+				"existing_module_archetype": "barracks",
+				"module_anchor": [
+					16,
+					1,
+					20
+				],
+				"muster_exit": [
+					16,
+					1,
+					4
+				],
+				"note": "Production remains the existing tower module; these anchors do not register a new trainer.",
+				"status": "physical_structure_only"
+			},
+			"runtime_profile": {
+				"art": {
+					"bespoke_skin": "splicing_lab_v2",
+					"laboratory": true
+				},
+				"blocks": [
+					{
+						"material": "DARK_STONE",
+						"region": {
+							"x": [
+								0,
+								8
+							],
+							"y": 0,
+							"z": [
+								0,
+								6
+							]
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": 0,
+							"y": [
+								1,
+								3
+							],
+							"z": [
+								1,
+								6
+							]
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": 8,
+							"y": [
+								1,
+								3
+							],
+							"z": [
+								1,
+								6
+							]
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": [
+								1,
+								7
+							],
+							"y": [
+								1,
+								3
+							],
+							"z": 6
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": [
+								1,
+								2
+							],
+							"y": [
+								1,
+								3
+							],
+							"z": 1
+						}
+					},
+					{
+						"material": "TOWER_STONE",
+						"region": {
+							"x": [
+								5,
+								7
+							],
+							"y": [
+								1,
+								3
+							],
+							"z": 1
+						}
+					},
+					{
+						"material": "GATE",
+						"region": {
+							"x": [
+								3,
+								4
+							],
+							"y": [
+								1,
+								2
+							],
+							"z": 1
+						}
+					},
+					{
+						"material": "DARK_STONE",
+						"region": {
+							"x": [
+								3,
+								4
+							],
+							"y": 3,
+							"z": 1
+						}
+					},
+					{
+						"material": "GATE",
+						"region": {
+							"x": 8,
+							"y": [
+								1,
+								2
+							],
+							"z": [
+								3,
+								4
+							]
+						}
+					},
+					{
+						"material": "METAL",
+						"region": {
+							"x": 2,
+							"y": 1,
+							"z": [
+								3,
+								4
+							]
+						}
+					},
+					{
+						"material": "METAL",
+						"region": {
+							"x": 6,
+							"y": 1,
+							"z": [
+								3,
+								4
+							]
+						}
+					},
+					{
+						"material": "DARK_STONE",
+						"region": {
+							"x": 1,
+							"y": 3,
+							"z": 5
+						}
+					},
+					{
+						"material": "DARK_STONE",
+						"region": {
+							"x": 7,
+							"y": 3,
+							"z": 5
+						}
+					},
+					{
+						"material": "DARK_STONE",
+						"region": {
+							"x": [
+								2,
+								6
+							],
+							"y": 3,
+							"z": 5
+						}
+					},
+					{
+						"material": "GLASS",
+						"region": {
+							"x": 0,
+							"y": 3,
+							"z": [
+								2,
+								5
+							]
+						}
+					},
+					{
+						"material": "GLASS",
+						"region": {
+							"x": 8,
+							"y": 3,
+							"z": [
+								2,
+								5
+							]
+						}
+					},
+					{
+						"material": "GLASS",
+						"region": {
+							"x": [
+								2,
+								6
+							],
+							"y": 3,
+							"z": 6
+						}
+					},
+					{
+						"material": "METAL",
+						"region": {
+							"x": 1,
+							"y": 4,
+							"z": 1
+						}
+					},
+					{
+						"material": "METAL",
+						"region": {
+							"x": 7,
+							"y": 4,
+							"z": 1
+						}
+					}
+				],
+				"compact_runtime": true,
+				"dimensions": [
+					9,
+					5,
+					7
+				],
+				"display_name": "Kon's Splicing Laboratory",
+				"gate_defaults": {
+					"lab_entry_open": true,
+					"lab_service_open": false
+				},
+				"gates": [
+					{
+						"block_region": {
+							"x": [
+								3,
+								4
+							],
+							"y": [
+								1,
+								2
+							],
+							"z": 1
+						},
+						"default_state": "open",
+						"id": "muster_gate",
+						"passage_region": {
+							"x": [
+								3,
+								4
+							],
+							"y": 1,
+							"z": [
+								0,
+								2
+							]
+						},
+						"state_key": "lab_entry_open"
+					},
+					{
+						"block_region": {
+							"x": 8,
+							"y": [
+								1,
+								2
+							],
+							"z": [
+								3,
+								4
+							]
+						},
+						"default_state": "closed",
+						"id": "service_gate",
+						"passage_region": {
+							"x": [
+								7,
+								8
+							],
+							"y": 1,
+							"z": 4
+						},
+						"state_key": "lab_service_open"
+					}
+				],
+				"links": [
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"from": [
+							1,
+							1,
+							3
+						],
+						"id": "west_gallery_stair",
+						"to": [
+							1,
+							4,
+							5
+						],
+						"type": "STAIR",
+						"width": 1
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"from": [
+							7,
+							1,
+							3
+						],
+						"id": "east_gallery_stair",
+						"to": [
+							7,
+							4,
+							5
+						],
+						"type": "STAIR",
+						"width": 1
+					}
+				],
+				"nav_regions": [
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber",
+							"heavy"
+						],
+						"id": "south_road",
+						"region": {
+							"x": [
+								3,
+								4
+							],
+							"y": 1,
+							"z": [
+								0,
+								1
+							]
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber",
+							"heavy"
+						],
+						"id": "muster_hall",
+						"region": {
+							"x": [
+								1,
+								7
+							],
+							"y": 1,
+							"z": 2
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber",
+							"heavy"
+						],
+						"id": "operating_aisle",
+						"region": {
+							"x": [
+								3,
+								5
+							],
+							"y": 1,
+							"z": [
+								3,
+								4
+							]
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"id": "west_aisle",
+						"region": {
+							"x": 1,
+							"y": 1,
+							"z": 3
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"id": "east_aisle",
+						"region": {
+							"x": 7,
+							"y": 1,
+							"z": 3
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber",
+							"heavy"
+						],
+						"id": "splicing_hall",
+						"region": {
+							"x": [
+								1,
+								7
+							],
+							"y": 1,
+							"z": 5
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"id": "service_entry",
+						"region": {
+							"x": [
+								7,
+								8
+							],
+							"y": 1,
+							"z": 4
+						},
+						"type": "FLOOR"
+					},
+					{
+						"allowed": [
+							"infantry",
+							"archer",
+							"climber"
+						],
+						"id": "gallery_north",
+						"region": {
+							"x": [
+								1,
+								7
+							],
+							"y": 4,
+							"z": 5
+						},
+						"type": "FLOOR"
+					}
+				],
+				"purpose": [
+					"barracks",
+					"specimen_hall",
+					"upper_gallery"
+				],
+				"sockets": [
+					{
+						"facing": "south",
+						"id": "muster_road",
+						"position": [
+							3,
+							1,
+							0
+						],
+						"type": "ROAD_SOCKET",
+						"width": 2
+					},
+					{
+						"facing": "east",
+						"id": "service_road",
+						"position": [
+							8,
+							1,
+							4
+						],
+						"type": "PATH_SOCKET",
+						"width": 1
+					}
+				],
+				"validation_tests": [
+					{
+						"destination": [
+							4,
+							4,
+							5
+						],
+						"expected": "PASS",
+						"id": "infantry_gallery",
+						"start": [
+							3,
+							1,
+							0
+						],
+						"state": {
+							"lab_entry_open": true,
+							"lab_service_open": false
+						},
+						"unit_class": "infantry"
+					},
+					{
+						"destination": [
+							4,
+							4,
+							5
+						],
+						"expected": "PASS",
+						"id": "archer_gallery",
+						"start": [
+							3,
+							1,
+							0
+						],
+						"state": {
+							"lab_entry_open": true
+						},
+						"unit_class": "archer"
+					},
+					{
+						"destination": [
+							4,
+							4,
+							5
+						],
+						"expected": "PASS",
+						"id": "climber_gallery",
+						"start": [
+							3,
+							1,
+							0
+						],
+						"state": {
+							"lab_entry_open": true
+						},
+						"unit_class": "climber"
+					},
+					{
+						"destination": [
+							3,
+							1,
+							3
+						],
+						"expected": "PASS",
+						"id": "heavy_operating_aisle",
+						"start": [
+							3,
+							1,
+							0
+						],
+						"state": {
+							"lab_entry_open": true
+						},
+						"unit_class": "heavy"
+					},
+					{
+						"destination": [
+							4,
+							4,
+							5
+						],
+						"expected": "FAIL",
+						"id": "heavy_no_gallery",
+						"start": [
+							3,
+							1,
+							0
+						],
+						"state": {
+							"lab_entry_open": true
+						},
+						"unit_class": "heavy"
+					},
+					{
+						"destination": [
+							4,
+							1,
+							3
+						],
+						"expected": "FAIL",
+						"id": "closed_muster_seals",
+						"start": [
+							3,
+							1,
+							0
+						],
+						"state": {
+							"lab_entry_open": false,
+							"lab_service_open": false
+						},
+						"unit_class": "infantry"
+					},
+					{
+						"destination": [
+							8,
+							1,
+							4
+						],
+						"expected": "FAIL",
+						"id": "closed_service_seals",
+						"start": [
+							4,
+							1,
+							3
+						],
+						"state": {
+							"lab_entry_open": true,
+							"lab_service_open": false
+						},
+						"unit_class": "infantry"
+					},
+					{
+						"destination": [
+							8,
+							1,
+							4
+						],
+						"expected": "PASS",
+						"id": "open_service",
+						"start": [
+							4,
+							1,
+							3
+						],
+						"state": {
+							"lab_entry_open": false,
+							"lab_service_open": true
+						},
+						"unit_class": "infantry"
+					},
+					{
+						"destination": [
+							4,
+							4,
+							5
+						],
+						"expected": "PASS",
+						"id": "flying_gallery",
+						"start": [
+							3,
+							1,
+							0
+						],
+						"state": {
+							"lab_entry_open": false
+						},
+						"unit_class": "flying"
+					}
+				]
+			},
+			"sockets": [
+				{
+					"facing": "south",
+					"id": "muster_road",
+					"position": [
+						15,
+						0,
+						0
+					],
+					"type": "ROAD_SOCKET",
+					"width": 4
+				},
+				{
+					"facing": "east",
+					"id": "specimen_delivery",
+					"position": [
+						33,
+						1,
+						14
+					],
+					"type": "PATH_SOCKET",
+					"width": 4
+				}
+			],
+			"validation_tests": [
+				{
+					"destination": [
+						16,
+						1,
+						21
+					],
+					"expected": "PASS",
+					"id": "infantry_splicing_hall",
+					"start": [
+						15,
+						0,
+						0
+					],
+					"state": {
+						"lab_entry_open": true,
+						"lab_service_open": false
+					},
+					"unit_class": "infantry"
+				},
+				{
+					"destination": [
+						15,
+						1,
+						12
+					],
+					"expected": "PASS",
+					"id": "heavy_operating_aisle",
+					"start": [
+						15,
+						0,
+						0
+					],
+					"state": {
+						"lab_entry_open": true
+					},
+					"unit_class": "heavy"
+				},
+				{
+					"destination": [
+						6,
+						7,
+						18
+					],
+					"expected": "FAIL",
+					"id": "heavy_no_gallery",
+					"start": [
+						15,
+						0,
+						0
+					],
+					"state": {
+						"lab_entry_open": true
+					},
+					"unit_class": "heavy"
+				},
+				{
+					"destination": [
+						25,
+						7,
+						20
+					],
+					"expected": "PASS",
+					"id": "archer_gallery",
+					"start": [
+						15,
+						0,
+						0
+					],
+					"state": {
+						"lab_entry_open": true
+					},
+					"unit_class": "archer"
+				},
+				{
+					"destination": [
+						6,
+						7,
+						20
+					],
+					"expected": "PASS",
+					"id": "climber_gallery",
+					"start": [
+						15,
+						0,
+						0
+					],
+					"state": {
+						"lab_entry_open": true
+					},
+					"unit_class": "climber"
+				},
+				{
+					"destination": [
+						16,
+						1,
+						21
+					],
+					"expected": "FAIL",
+					"id": "closed_muster_gate",
+					"start": [
+						15,
+						0,
+						0
+					],
+					"state": {
+						"lab_entry_open": false,
+						"lab_service_open": false
+					},
+					"unit_class": "infantry"
+				},
+				{
+					"destination": [
+						31,
+						1,
+						14
+					],
+					"expected": "PASS",
+					"id": "service_open",
+					"start": [
+						26,
+						1,
+						18
+					],
+					"state": {
+						"lab_service_open": true
+					},
+					"unit_class": "heavy"
+				},
+				{
+					"destination": [
+						31,
+						1,
+						14
+					],
+					"expected": "FAIL",
+					"id": "service_closed",
+					"start": [
+						26,
+						1,
+						18
+					],
+					"state": {
+						"lab_service_open": false
+					},
+					"unit_class": "infantry"
+				},
+				{
+					"destination": [
+						25,
+						7,
+						20
+					],
+					"expected": "PASS",
+					"id": "flying_gallery",
+					"start": [
+						15,
+						0,
+						0
+					],
+					"state": {
+						"lab_entry_open": false
+					},
+					"unit_class": "flying"
+				}
+			],
+			"world_rules": {
+				"block_size_m": 1.0,
+				"origin_rule": "south-west-bottom",
 				"ranges_are_inclusive": true
 			}
 		},

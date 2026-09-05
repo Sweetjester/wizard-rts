@@ -66,6 +66,17 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_force_ai_test_mode_if_needed()
+	if is_build_sandbox():
+		_process_target_dummies()
+	# Nothing attacks you in the build sandbox. It exists so buildings can be
+	# laid out and looked at, and a wave arriving mid-layout is not a feature.
+	#
+	# Asked here rather than in _ready: the map type is read from GameSession
+	# during MapGenerator._ready, which may not have run when this node is ready.
+	# Checking too early found an empty string and left waves switched on.
+	if is_build_sandbox():
+		enabled = false
+		return
 	if is_ai_testing_ground():
 		_update_ai_test_spawn_queue(delta)
 	if not enabled:
@@ -152,6 +163,9 @@ func trigger_boss_now(reason: String = "manual") -> bool:
 	print("[WaveDirector] Boss triggered now. reason=", reason)
 	_spawn_boss()
 	return boss_has_spawned
+
+func is_build_sandbox() -> bool:
+	return map_generator != null and str(map_generator.get("map_type_id")) == "build_sandbox"
 
 func is_ai_testing_ground() -> bool:
 	return map_generator != null and str(map_generator.get("map_type_id")) in ["ai_testing_ground", "fortress_ai_arena"]
@@ -460,6 +474,31 @@ func _has_property(node: Node, property_name: String) -> bool:
 		if str(property.get("name", "")) == property_name:
 			return true
 	return false
+
+# A punchbag for the sandbox: an enemy that stands still and cannot die.
+#
+# Testing a heavy blowpipe, or whether a unit on a wall-walk can actually shoot
+# what it is looking at, needs something to shoot at that is still there a minute
+# later. It holds position so it does not wander off mid-test, and its health is
+# restored every frame rather than being made invulnerable, so it still shows
+# damage numbers, still draws aggro and still behaves like a target in every way
+# that matters -- it simply never falls over.
+func spawn_target_dummy(cell: Vector2i, parent: Node) -> Node:
+	var dummy := _spawn_enemy(&"terrible_thing", cell, parent, Vector2.ZERO)
+	if dummy == null or not is_instance_valid(dummy):
+		return null
+	dummy.set_meta("sandbox_dummy", true)
+	if dummy.has_method("issue_hold_position_order"):
+		dummy.call_deferred("issue_hold_position_order")
+	return dummy
+
+func _process_target_dummies() -> void:
+	for unit in get_tree().get_nodes_in_group("units"):
+		if not is_instance_valid(unit) or not bool(unit.get_meta("sandbox_dummy", false)):
+			continue
+		var maximum: Variant = unit.get("max_health")
+		if maximum != null:
+			unit.set("health", int(maximum))
 
 func _spawn_enemy(archetype: StringName, spawn_cell: Vector2i, parent: Node, preferred_target: Vector2 = Vector2.ZERO) -> Node:
 	var enemy := enemy_scene.instantiate()

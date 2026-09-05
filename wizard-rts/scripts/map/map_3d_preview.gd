@@ -200,6 +200,10 @@ func _regenerate_map() -> void:
 	if session != null and previous_session_request != null:
 		session.set("new_game_requested", previous_session_request)
 
+	# Generation is spread across frames now, so the grid is empty on the frame
+	# the generator is added. Reading it here indexed _grid[0] on an empty array.
+	if not bool(generator.get("generation_complete")):
+		await generator.map_generated
 	_read_map_data(generator)
 	_render_map()
 

@@ -9,6 +9,15 @@ func _run() -> void:
 		session.call("start_new_game", "flow-field-smoke", "bad_kon_willow", "seeded_grid_frontier")
 	var scene: Node = load("res://scripts/map/main_map.tscn").instantiate()
 	root.add_child(scene)
+	# Map generation is spread across frames now, so the scene is not playable
+	# the instant it is added. Waits for the generator to say it is finished
+	# rather than for a fixed frame count -- a count that happened to be long
+	# enough on a 96x96 map is not a guarantee, it is a coincidence.
+	for _gen_wait in 400:
+		var _gen := scene.get_node_or_null("MapGenerator")
+		if _gen == null or bool(_gen.get("generation_complete")):
+			break
+		await process_frame
 	for _i in 8:
 		await process_frame
 		await physics_frame
@@ -36,7 +45,12 @@ func _run() -> void:
 		_fail("Expected regular wave enemies to spawn")
 		return
 	var initial_distance := _average_distance_to(enemies, target)
-	for _i in 180:
+	# A longer window than the 180 frames this used when the frontier was 96x96.
+	# The map is 160x160 now and carries a 96-cell fortress in the middle of it,
+	# so a wave that has to walk around the citadel makes very little progress in
+	# straight-line terms early on -- it is going sideways on purpose. Measured
+	# on the map as it stands: ~148px of progress at 180 frames, ~487px at 540.
+	for _i in 540:
 		await process_frame
 		await physics_frame
 	enemies = _enemy_units()
@@ -44,8 +58,23 @@ func _run() -> void:
 	var after_stats: Dictionary = map.call("get_path_telemetry")
 	var flow_uses := int(after_stats.get("units_using_flow_field", 0)) - before_flow_uses
 	var recomputes := int(after_stats.get("flow_field_recomputes", 0)) - before_recomputes
-	if recomputes <= 0:
-		_fail("Expected at least one flow-field recompute")
+	# NOT "did a rebuild happen during this window". The frontier now carries the
+	# citadel, whose placement invalidates the path cache and warms a field for
+	# the wave target before the first wave ever spawns -- so the wave finds the
+	# field already built and correctly does not rebuild it. A cache hit is the
+	# desired outcome, and asserting a cache MISS made a faster game look broken.
+	#
+	# What actually has to be true is that a field exists and that it routes the
+	# wave, which is a stronger claim than a counter going up.
+	if int(after_stats.get("flow_field_recomputes", 0)) <= 0:
+		_fail("No flow field was ever built for the wave target")
+		return
+	var routed := 0
+	for enemy in enemies:
+		if is_instance_valid(enemy) and bool(map.call("has_flow_field_route_world", enemy.global_position, target)):
+			routed += 1
+	if routed < maxi(1, enemies.size() / 2):
+		_fail("Only %s of %s wave units have a flow-field route to the target" % [routed, enemies.size()])
 		return
 	if flow_uses < maxi(1, enemies.size() / 2):
 		_fail("Expected most wave units to sample the flow field, got %s for %s enemies" % [flow_uses, enemies.size()])

@@ -40,6 +40,71 @@ var _subgroup_types: Array[StringName] = []
 var _subgroup_state := 0
 var _subgroup_dirty := true
 var _launcher_ground_target: Node = null
+var _kon_spell_caster: Node
+var _kon_spell_preview: Node2D
+var _mangler_caster: Node
+var _mangler_preview: Node2D
+var _mangler_range: Node2D
+signal kon_spell_result(message: String)
+
+func begin_mangler_leap(caster: Node) -> void:
+	_cancel_mangler_target()
+	_cancel_kon_target()
+	if not is_instance_valid(caster) or not caster.has_method("cast_mangler_leap"): return
+	_mangler_caster = caster
+	_pending_target_command = &"mangler_leap"
+	if build_system != null: build_system.pending_archetype = &""
+	_mangler_preview = preload("res://scripts/fx/mangler_impact.gd").new()
+	_mangler_preview.preview = true
+	_mangler_preview.radius = caster.LEAP_RADIUS
+	get_parent().add_child(_mangler_preview)
+	_mangler_range = preload("res://scripts/fx/mangler_impact.gd").new()
+	_mangler_range.preview = true
+	_mangler_range.radius = caster.LEAP_RANGE
+	get_parent().add_child(_mangler_range)
+
+func _cancel_mangler_target() -> void:
+	if is_instance_valid(_mangler_preview): _mangler_preview.queue_free()
+	if is_instance_valid(_mangler_range): _mangler_range.queue_free()
+	_mangler_preview = null
+	_mangler_range = null
+	_mangler_caster = null
+	if _pending_target_command == &"mangler_leap": _pending_target_command = &""
+
+func begin_kon_spell(caster: Node, action: StringName) -> void:
+	_cancel_mangler_target()
+	_cancel_kon_target()
+	if action not in [&"seal_away",&"biostorm"] or not is_instance_valid(caster) or not caster.has_method("cast_kon_spell") or caster.kon_abilities==null: return
+	_kon_spell_caster=caster
+	_pending_target_command=action
+	if build_system!=null: build_system.pending_archetype=&""
+	_kon_spell_preview=preload("res://scripts/fx/kon_spell_fx.gd").new()
+	_kon_spell_preview.action=action
+	_kon_spell_preview.preview=true
+	_kon_spell_preview.duration=999999.0
+	_kon_spell_preview.radius=caster.kon_abilities.seal_radius() if action==&"seal_away" else 200.0
+	get_parent().add_child(_kon_spell_preview)
+
+func _cancel_kon_target() -> void:
+	if is_instance_valid(_kon_spell_preview): _kon_spell_preview.queue_free()
+	_kon_spell_preview=null
+	_kon_spell_caster=null
+	if _pending_target_command in [&"seal_away",&"biostorm"]: _pending_target_command=&""
+
+func _process(_delta: float) -> void:
+	if is_instance_valid(_mangler_preview):
+		if not is_instance_valid(_mangler_caster) or not selected_units.has(_mangler_caster) or not _mangler_caster.is_alive() or _pending_target_command != &"mangler_leap":
+			_cancel_mangler_target()
+		else:
+			_mangler_preview.global_position = _world_mouse_position()
+			_mangler_preview.valid_target = _mangler_caster.can_leap_to(_mangler_preview.global_position)
+			_mangler_range.global_position = _mangler_caster.global_position
+	if is_instance_valid(_kon_spell_preview):
+		if not is_instance_valid(_kon_spell_caster) or _pending_target_command not in [&"seal_away",&"biostorm"]:
+			_cancel_kon_target()
+		else:
+			_kon_spell_preview.global_position=_world_mouse_position()
+			_kon_spell_preview.valid_target=_kon_spell_caster.global_position.distance_to(_kon_spell_preview.global_position)<=640.0 and not _kon_spell_caster.is_banished() and not _kon_spell_caster.is_observer_aura_enabled()
 
 func _ready() -> void:
 	z_index = 3500
@@ -52,6 +117,19 @@ func _ready() -> void:
 		build_system.unit_trained.connect(_on_unit_trained)
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _pending_target_command == &"mangler_leap" and ((event is InputEventKey and event.pressed and event.keycode==KEY_ESCAPE) or (event is InputEventMouseButton and event.pressed and event.button_index==MOUSE_BUTTON_RIGHT)):
+		_cancel_mangler_target()
+		get_viewport().set_input_as_handled()
+		return
+	for unit in selected_units:
+		if is_instance_valid(unit) and unit.has_method("handle_stone_input") and unit.handle_stone_input(event):
+			get_viewport().set_input_as_handled()
+			return
+	if _pending_target_command in [&"seal_away",&"biostorm"]:
+		if (event is InputEventKey and event.pressed and event.keycode==KEY_ESCAPE) or (event is InputEventMouseButton and event.pressed and event.button_index==MOUSE_BUTTON_RIGHT):
+			_cancel_kon_target()
+			get_viewport().set_input_as_handled()
+			return
 	if event is InputEventMouseButton:
 		_handle_mouse_button(event)
 	elif event is InputEventMouseMotion:
@@ -70,8 +148,17 @@ func _unhandled_input(event: InputEvent) -> void:
 # simulation coordinates, so every ORDER path below is identical in both modes.
 func _world_mouse_position() -> Vector2:
 	if _uses_3d_view():
-		return map_3d_view.call("screen_to_sim_position", get_viewport().get_mouse_position())
+		return Vector2(_world_mouse_hit().get("position", Vector2.ZERO))
 	return get_global_mouse_position()
+
+# The cursor's position AND which floor it is pointing at. In 2D there is only
+# ever one floor, so the level is 0 and nothing downstream changes.
+func _world_mouse_hit() -> Dictionary:
+	if not _uses_3d_view():
+		return {"position": get_global_mouse_position(), "level": 0}
+	if map_3d_view.has_method("screen_to_sim_hit"):
+		return map_3d_view.call("screen_to_sim_hit", get_viewport().get_mouse_position())
+	return {"position": map_3d_view.call("screen_to_sim_position", get_viewport().get_mouse_position()), "level": 0}
 
 func _uses_3d_view() -> bool:
 	return map_3d_view != null and is_instance_valid(map_3d_view) and map_3d_view.has_method("screen_to_sim_position")
@@ -161,6 +248,23 @@ func _handle_key(event: InputEventKey) -> void:
 		get_viewport().set_input_as_handled()
 
 func _issue_pending_target_command(target: Vector2) -> void:
+	if _pending_target_command == &"mangler_leap":
+		if not is_instance_valid(_mangler_caster):
+			_cancel_mangler_target()
+		elif _mangler_caster.cast_mangler_leap(target):
+			_cancel_mangler_target()
+		else:
+			kon_spell_result.emit(_mangler_caster.last_leap_error)
+		return
+	if _pending_target_command in [&"seal_away",&"biostorm"]:
+		if is_instance_valid(_kon_spell_caster):
+			if _kon_spell_caster.cast_kon_spell(_pending_target_command,target):
+				kon_spell_result.emit(String(_pending_target_command).capitalize()+" cast")
+				_cancel_kon_target()
+			else:
+				kon_spell_result.emit(_kon_spell_caster.kon_abilities.last_error)
+		else: _cancel_kon_target()
+		return
 	if selected_units.is_empty() and _pending_target_command != &"launcher_ground":
 		_pending_target_command = &""
 		return
@@ -241,8 +345,11 @@ func _apply_selection(nodes: Array[Node], keep_subgroup_cache: bool = false) -> 
 			unit.set_selected(false)
 	selected_units.clear()
 	for node in nodes:
+		if is_instance_valid(node) and node.has_method("get_selection_owner"):
+			node = node.get_selection_owner()
 		if not is_instance_valid(node) or not _is_player_selectable(node):
 			continue
+		if node in selected_units: continue
 		node.set_selected(true)
 		selected_units.append(node)
 	if not keep_subgroup_cache:
@@ -272,6 +379,7 @@ func _push_3d_overlay() -> void:
 	map_3d_view.call("set_cursor_mode", _pending_target_command)
 
 func _is_player_selectable(node: Node) -> bool:
+	if bool(node.get_meta("kon_banished",false)): return false
 	if node == null or not is_instance_valid(node):
 		return false
 	# Plain property read instead of the get_property_list() scan this used to
@@ -551,6 +659,7 @@ func _order_selected_units(target: Vector2) -> void:
 	var movable_units := _movable_selected_units()
 	if movable_units.is_empty():
 		return
+	_show_move_marker(target)
 	# Multi-level destinations route through the block lattice. Ordinary ground
 	# has exactly one level, so this returns false there and the existing 2D
 	# pathfinder handles the order exactly as it always has.
@@ -579,6 +688,23 @@ func _order_selected_units(target: Vector2) -> void:
 # flow fields untouched. Units the lattice cannot route (no path to any level
 # they can stand on) fall through to the normal order rather than silently
 # refusing to move.
+# Shows where the order actually landed.
+#
+# Deliberately fed the ORDER's position rather than the raw cursor, so a
+# mis-aimed click is visible as a ring in the wrong place instead of being
+# invisible and blamed on the units.
+func _show_move_marker(target: Vector2) -> void:
+	if not _uses_3d_view() or not map_3d_view.has_method("show_move_marker"):
+		return
+	var level := 0
+	var bridge := _block_nav_bridge()
+	if bridge != null and bridge.get("terrain") != null:
+		var cell: Vector2i = bridge.get("terrain").call("world_to_cell", target)
+		var levels: Array = bridge.call("levels_at", cell)
+		if not levels.is_empty():
+			level = int(levels[0])
+	map_3d_view.call("show_move_marker", target, level)
+
 func _try_block_move_order(target: Vector2, movable_units: Array) -> bool:
 	var bridge := _block_nav_bridge()
 	if bridge == null:
@@ -587,7 +713,7 @@ func _try_block_move_order(target: Vector2, movable_units: Array) -> bool:
 	if terrain_node == null or not is_instance_valid(terrain_node):
 		return false
 	var cell: Vector2i = terrain_node.call("world_to_cell", target)
-	if not bool(bridge.call("is_multi_level", cell)):
+	if not bool(bridge.call("needs_block_routing", cell)):
 		return false
 	var routed := 0
 	for unit in movable_units:

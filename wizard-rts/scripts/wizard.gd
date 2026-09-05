@@ -25,6 +25,9 @@ var wizard_level := 1
 var wizard_xp := 0.0
 var pending_level_up := false
 var wizard_upgrade_ranks: Dictionary = {}
+var kon_abilities: Node
+var _branch_index := 0
+var _staff_order_epoch := 0
 
 func _ready() -> void:
 	match _get_session_wizard_class():
@@ -39,6 +42,10 @@ func _ready() -> void:
 	selection_radius = 26.0
 	collision_separation = 24.0
 	_apply_wizard_art()
+	if unit_archetype == &"life_wizard":
+		kon_abilities = preload("res://scripts/units/kon_abilities.gd").new()
+		kon_abilities.name = "KonAbilities"
+		add_child(kon_abilities)
 	print("[Wizard] Ready at ", global_position)
 
 func _get_session_wizard_class() -> String:
@@ -55,6 +62,10 @@ func _apply_wizard_art() -> void:
 	if art_sprite == null:
 		return
 	_wizard_class_id = _get_session_wizard_class()
+	if _wizard_class_id == "bad_kon_willow":
+		art_sprite.set_script(preload("res://scripts/units/kon_painted_art.gd"))
+		art_sprite.call("_ready")
+		return
 	art_sprite.offset = Vector2.ZERO
 	if _wizard_class_id == "evangalion":
 		art_sprite.texture = EVANGALION_PORTRAIT
@@ -74,6 +85,8 @@ func _apply_wizard_art() -> void:
 
 func _update_sprite_animation(delta: float) -> void:
 	if art_sprite == null:
+		return
+	if _wizard_class_id == "bad_kon_willow":
 		return
 	if _wizard_class_id == "evangalion":
 		art_sprite.frame = 0
@@ -133,6 +146,8 @@ func _direction_row() -> int:
 	return posmod(int(round((angle + PI * 0.5) / (TAU / 8.0))), 8)
 
 func take_damage(amount: int, source: Node = null, damage_type: StringName = &"physical") -> void:
+	if _dying or is_banished():
+		return
 	var mitigation := magic_armor if damage_type == &"magic" else armor
 	var actual_damage := maxi(1, amount - mitigation)
 	health = maxi(0, health - actual_damage)
@@ -140,6 +155,51 @@ func take_damage(amount: int, source: Node = null, damage_type: StringName = &"p
 	queue_redraw()
 	if health <= 0:
 		_die(source)
+
+func cast_kon_spell(action: StringName, center: Vector2) -> bool:
+	return kon_abilities != null and kon_abilities.cast(action,center)
+
+func sight_radius_cells() -> int:
+	return kon_abilities.sight_radius_cells() if kon_abilities != null else 9
+
+func can_remote_summon(position: Vector2) -> bool:
+	return kon_abilities != null and kon_abilities.can_remote_summon(position)
+
+func _fire_attack(target: Node2D, damage_multiplier: float = 1.0) -> void:
+	if unit_archetype != &"life_wizard":
+		super(target,damage_multiplier)
+		return
+	_branch_index+=1
+	if _branch_index%2==1:
+		art_sprite.play_attack()
+		_delayed_branch(weakref(target),damage_multiplier,0.12,_staff_order_epoch)
+	else:
+		_delayed_branch(weakref(target),damage_multiplier,0.36,_staff_order_epoch)
+
+func issue_stop_order() -> void:
+	_staff_order_epoch+=1
+	super()
+
+func issue_move_order(world_pos: Vector2) -> void:
+	_staff_order_epoch+=1
+	super(world_pos)
+
+func _delayed_branch(target_ref: WeakRef, multiplier: float, delay: float, epoch: int) -> void:
+	await get_tree().create_timer(delay,false).timeout
+	var target: Node2D=target_ref.get_ref()
+	if epoch!=_staff_order_epoch or _dying or is_banished() or _is_stunned() or _observer_aura_enabled or not is_instance_valid(target): return
+	if not target.is_alive() or not can_engage_target(target): return
+	if global_position.distance_to(target.global_position)>_effective_attack_range_to(target): return
+	if kon_abilities!=null:
+		kon_abilities.spawn_fx(&"staff",global_position+Vector2(_facing_sign*24.0,-12),32.0,0.3)
+	super._fire_attack(target,multiplier)
+
+func _spawn_death_fx(source: Node = null) -> void:
+	if unit_archetype == &"life_wizard" and art_sprite != null:
+		var corpse := preload("res://scripts/fx/painted_unit_death.gd").new()
+		get_parent().add_child(corpse)
+		corpse.configure(self,art_sprite)
+	super(source)
 
 func _xp_required_for_level(level: int) -> float:
 	return WIZARD_XP_BASE * pow(WIZARD_XP_GROWTH, float(level - 1))

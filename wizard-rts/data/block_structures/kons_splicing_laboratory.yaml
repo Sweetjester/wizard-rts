@@ -1,0 +1,105 @@
+schema_version: "1.1"
+structure:
+  id: kons_splicing_laboratory_01
+  display_name: "Kon's Splicing Laboratory"
+  dimensions: {x: 34, y: 20, z: 28}
+  world_rules:
+    block_size_m: 1.0
+    ranges_are_inclusive: true
+    origin_rule: south-west-bottom
+  design_intent:
+    summary: >
+      A gothic barracks laboratory with a broad muster entrance, two specimen
+      islands, a six-block central operating aisle, U-shaped upper gallery,
+      rear splicing chamber, glazed clerestory and two asymmetric exhaust towers.
+      Units enter and circulate through authored routes; visual dressing never
+      creates navigation or changes training rules.
+  production_integration:
+    existing_module_archetype: barracks
+    module_anchor: [16, 1, 20]
+    muster_exit: [16, 1, 4]
+    status: physical_structure_only
+    note: "Production remains the existing tower module; these anchors do not register a new trainer."
+  placement:
+    preferred_pad: {x: [0, 33], z: [0, 27]}
+    rotation_y: [0, 90, 180, 270]
+    clearance_above: 2
+  blocks:
+    - {id: foundation, region: {x: [2, 29], y: 0, z: [2, 25]}, material: DARK_STONE, navigation: SOLID}
+    - {id: entry_apron, region: {x: [11, 20], y: 0, z: [0, 1]}, material: TOWER_STONE, navigation: FLOOR}
+    - {id: west_wall, region: {x: [2, 3], y: [1, 8], z: [2, 25]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: east_wall_south, region: {x: [28, 29], y: [1, 8], z: [2, 12]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: east_wall_north, region: {x: [28, 29], y: [1, 8], z: [17, 25]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: service_lintel, region: {x: [28, 29], y: [5, 8], z: [13, 16]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: rear_wall, region: {x: [4, 27], y: [1, 8], z: [24, 25]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: front_west, region: {x: [4, 13], y: [1, 8], z: [2, 3]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: front_east, region: {x: [18, 27], y: [1, 8], z: [2, 3]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: entry_lintel, region: {x: [14, 17], y: [5, 8], z: [2, 3]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: entry_leaf, region: {x: [14, 17], y: [1, 4], z: 2}, material: GATE, navigation: GATE}
+    - {id: service_leaf, region: {x: 29, y: [1, 4], z: [13, 16]}, material: GATE, navigation: GATE}
+    - {id: service_apron, region: {x: [30, 33], y: 0, z: [12, 17]}, material: DARK_STONE, navigation: FLOOR}
+    - {id: west_specimen_plinth, region: {x: [9, 12], y: 1, z: [9, 15]}, material: DARK_STONE, navigation: SOLID}
+    - {id: east_specimen_plinth, region: {x: [19, 22], y: 1, z: [9, 15]}, material: DARK_STONE, navigation: SOLID}
+    - {id: west_specimen_glass, region: {x: [10, 11], y: [2, 4], z: [10, 14]}, material: GLASS, navigation: SOLID}
+    - {id: east_specimen_glass, region: {x: [20, 21], y: [2, 4], z: [10, 14]}, material: GLASS, navigation: SOLID}
+    - {id: west_specimen_cap, region: {x: [9, 12], y: 5, z: [9, 15]}, material: METAL, navigation: SOLID}
+    - {id: east_specimen_cap, region: {x: [19, 22], y: 5, z: [9, 15]}, material: METAL, navigation: SOLID}
+    - {id: gallery_west, region: {x: [4, 8], y: 6, z: [4, 23]}, material: DARK_STONE, navigation: FLOOR}
+    - {id: gallery_north, region: {x: [9, 27], y: 6, z: [20, 23]}, material: DARK_STONE, navigation: FLOOR}
+    - {id: gallery_east, region: {x: [23, 27], y: 6, z: [4, 19]}, material: DARK_STONE, navigation: FLOOR}
+    - {id: west_stairwell, region: {x: [5, 7], y: 6, z: [7, 16]}, material: EMPTY, navigation: EMPTY}
+    - {id: east_stairwell, region: {x: [24, 26], y: 6, z: [7, 16]}, material: EMPTY, navigation: EMPTY}
+    - {id: upper_west_wall, region: {x: [2, 3], y: [9, 12], z: [4, 23]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: upper_east_wall, region: {x: [28, 29], y: [9, 12], z: [4, 23]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: upper_north_wall, region: {x: [4, 27], y: [9, 12], z: [24, 25]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: clerestory_west, region: {x: [2, 3], y: [9, 11], z: [8, 19]}, material: GLASS, navigation: SOLID}
+    - {id: clerestory_east, region: {x: [28, 29], y: [9, 11], z: [8, 19]}, material: GLASS, navigation: SOLID}
+    - {id: rear_windows, region: {x: [10, 21], y: [9, 11], z: [24, 25]}, material: GLASS, navigation: SOLID}
+    - {id: west_front_tower, region: {x: [4, 8], y: [9, 15], z: [2, 4]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: east_front_tower, region: {x: [23, 27], y: [9, 17], z: [2, 4]}, material: TOWER_STONE, navigation: SOLID}
+    - {id: west_exhaust_cap, region: {x: [3, 9], y: 16, z: [1, 5]}, material: METAL, navigation: SOLID}
+    - {id: east_exhaust_cap, region: {x: [22, 28], y: 18, z: [1, 5]}, material: METAL, navigation: SOLID}
+    - {id: gallery_front_west_trim, region: {x: [9, 13], y: 8, z: [2, 3]}, material: DARK_STONE, navigation: SOLID}
+    - {id: gallery_front_east_trim, region: {x: [18, 22], y: 8, z: [2, 3]}, material: DARK_STONE, navigation: SOLID}
+  nav_regions:
+    - {id: south_road, type: FLOOR, region: {x: [11, 20], y: 0, z: [0, 1]}, allowed: [infantry, archer, climber, heavy]}
+    - {id: entrance, type: GATE, region: {x: [14, 17], y: 1, z: [2, 3]}, allowed: [infantry, archer, climber, heavy], state_key: lab_entry_open}
+    - {id: muster_hall, type: FLOOR, region: {x: [4, 27], y: 1, z: [4, 8]}, allowed: [infantry, archer, climber, heavy]}
+    - {id: west_aisle, type: FLOOR, region: {x: [4, 8], y: 1, z: [9, 15]}, allowed: [infantry, archer, climber, heavy]}
+    - {id: operating_aisle, type: FLOOR, region: {x: [13, 18], y: 1, z: [9, 15]}, allowed: [infantry, archer, climber, heavy]}
+    - {id: east_aisle, type: FLOOR, region: {x: [23, 27], y: 1, z: [9, 15]}, allowed: [infantry, archer, climber, heavy]}
+    - {id: splicing_hall, type: FLOOR, region: {x: [4, 27], y: 1, z: [16, 23]}, allowed: [infantry, archer, climber, heavy]}
+    - {id: service_entry, type: GATE, region: {x: [28, 29], y: 1, z: [13, 16]}, allowed: [infantry, archer, climber, heavy], state_key: lab_service_open}
+    - {id: east_yard, type: FLOOR, region: {x: [30, 33], y: 1, z: [12, 17]}, allowed: [infantry, archer, climber, heavy]}
+    - {id: gallery_west, type: FLOOR, region: {x: [4, 8], y: 7, z: [5, 23]}, allowed: [infantry, archer, climber]}
+    - {id: gallery_north, type: FLOOR, region: {x: [9, 27], y: 7, z: [20, 23]}, allowed: [infantry, archer, climber]}
+    - {id: gallery_east, type: FLOOR, region: {x: [23, 27], y: 7, z: [5, 19]}, allowed: [infantry, archer, climber]}
+    - {id: west_stair_reservation, type: SOLID, region: {x: [5, 7], y: 1, z: [8, 15]}, allowed: []}
+    - {id: east_stair_reservation, type: SOLID, region: {x: [24, 26], y: 1, z: [8, 14]}, allowed: []}
+    - {id: west_gallery_hole, type: SOLID, region: {x: [5, 7], y: 7, z: [7, 16]}, allowed: []}
+    - {id: east_gallery_hole, type: SOLID, region: {x: [24, 26], y: 7, z: [7, 16]}, allowed: []}
+  traversal_links:
+    - {id: muster_ramp, type: RAMP, from: [15, 0, 0], to: [15, 1, 2], width: 4, allowed: [infantry, archer, climber, heavy]}
+    - {id: west_gallery_stair, type: STAIR, from: [6, 1, 7], to: [6, 7, 17], width: 2, allowed: [infantry, archer, climber]}
+    - {id: east_gallery_stair, type: STAIR, from: [25, 1, 7], to: [25, 7, 17], width: 2, allowed: [infantry, archer, climber]}
+  gates:
+    - {id: muster_gate, state_key: lab_entry_open, default_state: open, block_region: {x: [14, 17], y: [1, 4], z: 2}, passage_region: {x: [14, 17], y: 1, z: [2, 3]}}
+    - {id: service_gate, state_key: lab_service_open, default_state: closed, block_region: {x: 29, y: [1, 4], z: [13, 16]}, passage_region: {x: [28, 29], y: 1, z: [13, 16]}}
+  procedural_generation:
+    placement: {terrain_requirement: mostly_flat, minimum_clearance: {x: 36, z: 30}, allow_rotation_y: [0, 90, 180, 270]}
+    connection_sockets:
+      - {id: muster_road, type: ROAD_SOCKET, position: [15, 0, 0], facing: south, width: 4}
+      - {id: specimen_delivery, type: PATH_SOCKET, position: [33, 1, 14], facing: east, width: 4}
+  debug_expectations:
+    show: [structure_bounds, walkable_nav_regions, gate_state, stairs, procedural_sockets]
+    notes: ["The open central atrium reveals units on both levels.", "Specimen plinths are not walkable.", "Heavy units remain on the laboratory floor."]
+  validation_tests:
+    - {id: infantry_splicing_hall, unit_class: infantry, start: [15, 0, 0], destination: [16, 1, 21], state: {lab_entry_open: true, lab_service_open: false}, expected: PASS}
+    - {id: heavy_operating_aisle, unit_class: heavy, start: [15, 0, 0], destination: [15, 1, 12], state: {lab_entry_open: true}, expected: PASS}
+    - {id: heavy_no_gallery, unit_class: heavy, start: [15, 0, 0], destination: [6, 7, 18], state: {lab_entry_open: true}, expected: FAIL}
+    - {id: archer_gallery, unit_class: archer, start: [15, 0, 0], destination: [25, 7, 20], state: {lab_entry_open: true}, expected: PASS}
+    - {id: climber_gallery, unit_class: climber, start: [15, 0, 0], destination: [6, 7, 20], state: {lab_entry_open: true}, expected: PASS}
+    - {id: closed_muster_gate, unit_class: infantry, start: [15, 0, 0], destination: [16, 1, 21], state: {lab_entry_open: false, lab_service_open: false}, expected: FAIL}
+    - {id: service_open, unit_class: heavy, start: [26, 1, 18], destination: [31, 1, 14], state: {lab_service_open: true}, expected: PASS}
+    - {id: service_closed, unit_class: infantry, start: [26, 1, 18], destination: [31, 1, 14], state: {lab_service_open: false}, expected: FAIL}
+    - {id: flying_gallery, unit_class: flying, start: [15, 0, 0], destination: [25, 7, 20], state: {lab_entry_open: false}, expected: PASS}

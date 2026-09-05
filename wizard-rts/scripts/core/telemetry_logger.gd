@@ -41,6 +41,17 @@ func _ready() -> void:
 	map_generator = get_node_or_null(map_generator_path)
 	wave_director = get_node_or_null(wave_director_path)
 	combat_system = get_node_or_null(combat_system_path)
+	# Waits for the map to announce itself rather than polling.
+	#
+	# This used to call_deferred itself until the grid appeared. A deferred call
+	# that re-defers itself lands in the SAME frame's queue, so once generation
+	# stopped finishing inside one frame the poll never terminated -- it spun
+	# within a single flush until the process died with a segfault. It looked
+	# like a crash in the map; it was a busy loop in the logger.
+	if map_generator != null and map_generator.has_signal("map_generated"):
+		map_generator.map_generated.connect(func(_summary: Dictionary) -> void:
+			_start_logging()
+		)
 	call_deferred("_start_logging")
 
 func _start_logging() -> void:
@@ -48,8 +59,11 @@ func _start_logging() -> void:
 		return
 	if map_generator == null:
 		map_generator = get_node_or_null(map_generator_path)
-	if map_generator == null or (map_generator.has_method("get_map_summary") and map_generator.get("grid").is_empty()):
-		call_deferred("_start_logging")
+	# Readiness is generation_complete, not "the grid array exists". Generation is
+	# spread across frames now: the grid appears at phase 3 and heights, costs and
+	# the pathfinder do not exist until phase 16. Reading a map in between is not
+	# merely early, it segfaults the engine.
+	if map_generator == null or not bool(map_generator.get("generation_complete")):
 		return
 	_started_msec = Time.get_ticks_msec()
 	_prepare_export_files()

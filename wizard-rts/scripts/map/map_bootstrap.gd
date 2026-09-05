@@ -28,7 +28,11 @@ func _spawn_if_ready() -> void:
 	var map_type_id := str(map_generator.get("map_type_id"))
 	if map_type_id == "fortress_ai_arena":
 		if not _spawn_ai_fortress_bases(map_generator):
-			call_deferred("_spawn_if_ready")
+			# NEXT frame, not this one. call_deferred() from inside a deferred call lands
+		# in the same frame's queue, so this retry never yielded -- once map
+		# generation stopped finishing within a single frame it spun inside one
+		# flush until the process segfaulted.
+			get_tree().process_frame.connect(_spawn_if_ready, CONNECT_ONE_SHOT)
 			return
 		_spawned = true
 		print("[MapBootstrap] Siege arena: spawned mirrored AI forts, no player wizard")
@@ -40,7 +44,11 @@ func _spawn_if_ready() -> void:
 	if map_type_id == "plot_generator_test":
 		var spawn_cell: Vector2i = map_generator.get_spawn_position()
 		if not map_generator.is_walkable_cell(spawn_cell):
-			call_deferred("_spawn_if_ready")
+			# NEXT frame, not this one. call_deferred() from inside a deferred call lands
+		# in the same frame's queue, so this retry never yielded -- once map
+		# generation stopped finishing within a single frame it spun inside one
+		# flush until the process segfaulted.
+			get_tree().process_frame.connect(_spawn_if_ready, CONNECT_ONE_SHOT)
 			return
 		var wizard := wizard_scene.instantiate()
 		wizard.name = "Wizard"
@@ -52,7 +60,11 @@ func _spawn_if_ready() -> void:
 		return
 	var base_plots: Array = map_generator.get_base_plots()
 	if base_plots.is_empty():
-		call_deferred("_spawn_if_ready")
+		# NEXT frame, not this one. call_deferred() from inside a deferred call lands
+		# in the same frame's queue, so this retry never yielded -- once map
+		# generation stopped finishing within a single frame it spun inside one
+		# flush until the process segfaulted.
+		get_tree().process_frame.connect(_spawn_if_ready, CONNECT_ONE_SHOT)
 		return
 
 	var spawn_cell := _find_spawn_cell(base_plots, map_generator)

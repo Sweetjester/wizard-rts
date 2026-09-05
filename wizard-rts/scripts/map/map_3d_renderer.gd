@@ -225,6 +225,10 @@ func render_live_map(generator: Node) -> void:
 		_visual_root.queue_free()
 		_visual_root = null
 	_map_generator = generator
+	# Generation is spread across frames, so the grid is empty on the frame the
+	# generator is added and the probe would spawn on cell (-1, -1).
+	if not bool(generator.get("generation_complete")):
+		await generator.map_generated
 	_read_map_data(generator)
 	_render_map()
 
@@ -839,6 +843,11 @@ func _regenerate_map() -> void:
 		session.set("new_game_requested", previous_session_request)
 
 	_map_generator = generator
+	# Generation is spread across frames, so the grid is empty on the frame the
+	# generator is added. Without this the probe asked for a walkable cell before
+	# any cell existed and spawned on (-1, -1).
+	if not bool(generator.get("generation_complete")):
+		await generator.map_generated
 	_read_map_data(generator)
 	_render_map()
 	if show_gameplay_probe:

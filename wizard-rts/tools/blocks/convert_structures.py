@@ -119,6 +119,23 @@ def load_all():
             merged["structures"][structure["id"]] = structure
             merged["materials"].update(adapter.materials())
             merged.setdefault("_composition_problems", []).extend(adapter.problems)
+    # Runtime profiles are deliberately authored at gameplay resolution. Never
+    # voxel-reduce gates or navigation: different rooms can share a sample bin.
+    profile_dir = os.path.join(SRC_DIR, "runtime")
+    if os.path.isdir(profile_dir):
+        for name in sorted(os.listdir(profile_dir)):
+            if not name.endswith((".yaml", ".yml")):
+                continue
+            with open(os.path.join(profile_dir, name), encoding="utf-8") as handle:
+                profiles = yaml.safe_load(handle) or {}
+            for sid, profile in profiles.get("structures", {}).items():
+                if sid not in merged["structures"]:
+                    raise ValueError("Runtime profile has no design master: " + sid)
+                profile = normalise_structure(profile)
+                problems = validate({"structures": {sid: profile}})
+                if problems:
+                    raise ValueError("Invalid runtime profile: " + "; ".join(problems))
+                merged["structures"][sid]["runtime_profile"] = profile
     return merged
 
 

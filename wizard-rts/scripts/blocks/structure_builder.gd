@@ -52,16 +52,140 @@ var _collision: StaticBody3D
 # visual half, without which an open gate still looks shut.
 var _gate_meshes: Dictionary = {}
 var _family_meshes: Array[MultiMeshInstance3D] = []
+var _gothic_details: Node3D
+var _compact_visual: BlockStructureBuilder
 
 func build(structure: BlockStructureDefinition) -> void:
 	definition = structure
 	_clear()
 	if definition == null:
 		return
+	if definition.art.get("bespoke_skin", "") == "observer_vault_v1":
+		_gothic_details = preload("res://scripts/blocks/compact_observer_vault.gd").new().build()
+		add_child(_gothic_details)
+		_gothic_details.rotation.y = -definition.rotation_steps * PI * 0.5
+		match definition.rotation_steps:
+			1: _gothic_details.position.x = 7.0
+			2: _gothic_details.position = Vector3(9,0,7)
+			3: _gothic_details.position.z = 9.0
+		_gate_meshes[&"vault_entry_open"] = _gothic_details.get_node("VaultGate")
+		_gate_meshes[&"vault_service_open"] = _gothic_details.get_node("ServiceGate")
+		_build_collision()
+		return
+	if definition.runtime_profile and definition.art.get("bespoke_skin", "") == "splicing_lab_v2":
+		_gothic_details = preload("res://scripts/blocks/compact_splicing_lab.gd").new().build()
+		add_child(_gothic_details)
+		_gothic_details.rotation.y = -definition.rotation_steps * PI * 0.5
+		match definition.rotation_steps:
+			1: _gothic_details.position.x = 7.0
+			2: _gothic_details.position = Vector3(9, 0, 7)
+			3: _gothic_details.position.z = 9.0
+		_gate_meshes[&"lab_entry_open"] = _gothic_details.get_node("MusterGate")
+		_gate_meshes[&"lab_service_open"] = _gothic_details.get_node("ServiceGate")
+		_build_collision()
+		return
+	if definition.runtime_profile:
+		_build_compact_visual()
+		return
 	_build_blocks()
+	var skin := BlockArchitecturalSkin.build(definition)
+	add_child(skin)
+	_family_meshes.append(skin)
+	var frames := BlockArchitecturalSkin.build_window_frames(definition)
+	add_child(frames)
+	_family_meshes.append(frames)
+	# Full-size master skins use their original coordinates. Compact profiles
+	# take the separate visual branch above, including its own decoration anchors.
+	if bool(definition.art.get("compact_skin", false)):
+		_gothic_details = preload("res://scripts/blocks/compact_kon_skin.gd").new().build(definition)
+	elif definition.id==&"kons_observation_wizard_tower_01":
+		_gothic_details = ObservationTowerSkin.new().build(definition)
+		for instance in _family_meshes:
+			if instance.material_override is ShaderMaterial:
+				instance.material_override.set_shader_parameter("masonry",preload("res://assets/structures/observation_tower/masonry.png"))
+	elif definition.id==&"kons_splicing_laboratory_01":
+		_gothic_details = SplicingLaboratorySkin.new().build(definition)
+	else:
+		_gothic_details = BlockGothicDetails.new().build(definition)
+	add_child(_gothic_details)
 	_build_stairs()
 	_build_gates()
 	_build_collision()
+
+func _build_compact_visual() -> void:
+	# Subdivide the compact architecture for painted masonry and fine tracery.
+	# This adds visual detail, not gameplay cells. No information is downsampled.
+	var library := BlockStructureLibrary.load_default()
+	var data := definition.source_data.duplicate(true)
+	data["compact_runtime"] = false
+	data["dimensions"] = data["dimensions"].map(func(v: int) -> int: return v * 4)
+	data["art"]["compact_skin"] = true
+	for field in ["blocks", "nav_regions"]:
+		for entry in data.get(field, []):
+			var original_y: Variant = entry["region"].get("y", 0)
+			entry["region"] = _art_region(entry["region"], field == "nav_regions")
+			# Thin floor slabs leave room for full-sized units between storeys.
+			if field == "blocks" and entry.get("material", "") == "DARK_STONE" and not original_y is Array and int(original_y)>0:
+				entry["region"]["y"] = int(original_y)*4+3
+	for gate in data.get("gates", []):
+		gate["block_region"] = _art_region(gate["block_region"], false)
+		gate["passage_region"] = _art_region(gate["passage_region"], true)
+	for link in data.get("links", []):
+		for end in ["from", "to"]:
+			var p: Array = link[end]
+			link[end] = [int(p[0])*4+2, int(p[1])*4, int(p[2])*4+2]
+		link["width"] = int(link.get("width", 1))*4
+	var art_definition := BlockStructureDefinition.from_data(definition.id, data, library.materials)
+	_carve_visual_stair_clearance(art_definition)
+	_compact_visual = BlockStructureBuilder.new()
+	_compact_visual.name = "PaintedQuarterScale"
+	add_child(_compact_visual)
+	_compact_visual.build(art_definition)
+	_scale_compact_materials(_compact_visual)
+	_compact_visual.scale = Vector3.ONE * 0.25
+	_compact_visual.rotation.y = -definition.rotation_steps * PI * 0.5
+	var dims: Array = definition.source_data["dimensions"]
+	match definition.rotation_steps:
+		1: _compact_visual.position.x = float(dims[2])
+		2: _compact_visual.position = Vector3(float(dims[0]), 0, float(dims[2]))
+		3: _compact_visual.position.z = float(dims[0])
+
+func _carve_visual_stair_clearance(art_definition: BlockStructureDefinition) -> void:
+	# The authored links also reserve headroom through the visual floor slabs.
+	# This changes only the dressing plan, never the runtime navigation graph.
+	for link in art_definition.links:
+		if link.type not in [&"STAIR", &"RAMP"]: continue
+		var start := Vector3(link.from)+Vector3(0.5,0,0.5)
+		var end := Vector3(link.to)+Vector3(0.5,0,0.5)
+		var samples := maxi(1, ceili(start.distance_to(end)*2.0))
+		for i in samples+1:
+			var p := start.lerp(end,float(i)/float(samples))
+			for dx in range(-1,2):
+				for dz in range(-1,2):
+					for dy in 10:
+						var c := Vector3i(floori(p.x)+dx,ceili(p.y)+dy,floori(p.z)+dz)
+						art_definition.solid_cells.erase(c)
+						art_definition.open_cells[c] = &"EMPTY"
+
+func _scale_compact_materials(node: Node) -> void:
+	if node is GeometryInstance3D and node.material_override is ShaderMaterial:
+		var material: ShaderMaterial = node.material_override
+		if material.shader == preload("res://assets/structures/arcane_stone/painted_structure.gdshader"):
+			material.set_shader_parameter("paint_scale", 4.0)
+	if node is OmniLight3D:
+		# Light ranges are physical distances, not inherited mesh dimensions.
+		node.omni_range *= 0.25
+		node.light_energy *= 0.65
+	for child in node.get_children(): _scale_compact_materials(child)
+
+func _art_region(region: Dictionary, floor_only: bool) -> Dictionary:
+	var result := {}
+	for axis in ["x", "y", "z"]:
+		var value: Variant = region.get(axis, 0)
+		var low: int = int(value[0]) if value is Array else int(value)
+		var high: int = int(value[1]) if value is Array else int(value)
+		result[axis] = low*4 if floor_only and axis == "y" else [low*4, (high+1)*4-1]
+	return result
 
 func _clear() -> void:
 	for child in get_children():
@@ -70,19 +194,22 @@ func _clear() -> void:
 	_collision = null
 	_gate_meshes.clear()
 	_family_meshes.clear()
+	_gothic_details = null
+	_compact_visual = null
 
 # One MultiMesh per MATERIAL FAMILY rather than one for the whole structure.
 #
-# Emission is per material in Godot, not per instance, and the reference art is
-# carried almost entirely by the windows and domes glowing. A single
-# vertex-coloured mesh cannot express that, so the blocks are grouped and each
-# family gets its own material. Six draw calls instead of one, and six whether
-# the structure is a gatehouse or a 104,000-block citadel.
+# Each family selects its painted shader treatment. Batching keeps the material
+# count independent of the number of authored cells.
 func _build_blocks() -> void:
 	var gated := _all_gate_cells()
 	var by_family := {}
 	for cell in definition.solid_cells:
 		if gated.has(cell):
+			continue
+		if not definition.art.get("compact_skin", false) and definition.id==&"kons_observation_wizard_tower_01" and ObservationTowerSkin.replaces_block(cell,definition.solid_cells[cell]):
+			continue
+		if not definition.art.get("compact_skin", false) and definition.id==&"kons_splicing_laboratory_01" and cell.y>=2 and cell.y<=5 and cell.x>=9 and cell.x<=22 and cell.z>=9 and cell.z<=15 and definition.solid_cells[cell] in [&"GLASS",&"METAL"]:
 			continue
 		var family := BlockMaterialPalette.family_for(definition.solid_cells[cell])
 		if not by_family.has(family):
@@ -142,8 +269,12 @@ func _build_gates() -> void:
 # through. The spec asks for collision and navigation to switch together; this
 # is the visual half of that.
 func set_gate_open(state_key: StringName, open: bool) -> void:
+	if is_instance_valid(_compact_visual):
+		_compact_visual.set_gate_open(state_key, open)
 	if _gate_meshes.has(state_key):
-		(_gate_meshes[state_key] as Node3D).visible = not open
+		var gate := _gate_meshes[state_key] as Node3D
+		if gate.has_method("set_open"): gate.call("set_open",open)
+		else: gate.visible = not open
 
 # Generates visible step geometry along every STAIR and RAMP link.
 #
@@ -210,7 +341,8 @@ func _tread_cells(link: Dictionary) -> Array[Dictionary]:
 			from.y + roundi(float(delta.y) * t),
 			from.z + roundi(float(delta.z) * t))
 		for w in width:
-			var cell: Vector3i = point + across * w + Vector3i(0, -1, 0)
+			var lateral := w-width/2 if definition.art.get("compact_skin", false) else w
+			var cell: Vector3i = point + across * lateral + Vector3i(0, -1, 0)
 			if seen.has(cell):
 				continue
 			# Never overwrite authored structure: a tread that lands inside a
@@ -243,6 +375,10 @@ func _build_collision() -> void:
 		_collision.add_child(shape)
 
 func set_blocks_visible(value: bool) -> void:
+	if is_instance_valid(_compact_visual):
+		_compact_visual.set_blocks_visible(value)
+	if is_instance_valid(_gothic_details):
+		_gothic_details.visible = value
 	for instance in _family_meshes:
 		if is_instance_valid(instance):
 			instance.visible = value

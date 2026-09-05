@@ -51,15 +51,24 @@ func structure_ids() -> Array[StringName]:
 	ids.sort()
 	return ids
 
-# Definitions are expanded lazily and cached: expanding every structure's cells
-# up front would do a lot of work for structures a given map never places.
+# Runtime profiles are authored plans, not divided design coordinates.
+# Keep this compatibility query for older tools; new consumers use named nav
+# regions and sockets. There is no automatic geometry or navigation reduction.
+func factor_for(structure_id: StringName) -> int:
+	return _factor_for(structure_id)
+
+func _factor_for(structure_id: StringName) -> int:
+	# Coordinate arithmetic cannot map a design master to a re-authored plan.
+	# Kept for legacy callers; runtime coordinates now come from named regions.
+	return 1
+
 func get_definition(structure_id: StringName) -> BlockStructureDefinition:
 	if _cache.has(structure_id):
 		return _cache[structure_id]
 	var data: Dictionary = _raw_structures.get(str(structure_id), {})
 	if data.is_empty():
 		return null
-	var definition := BlockStructureDefinition.from_data(structure_id, data, materials)
+	var definition := BlockStructureDefinition.from_data(structure_id, data.get("runtime_profile", data), materials)
 	_cache[structure_id] = definition
 	return definition
 
@@ -68,12 +77,31 @@ func get_definition(structure_id: StringName) -> BlockStructureDefinition:
 # criteria rather than assertions invented after the fact -- so they are run
 # verbatim instead of being reinterpreted.
 func validation_tests_for(structure_id: StringName) -> Array:
+	var data: Dictionary = _raw_structures.get(str(structure_id), {})
+	return data.get("runtime_profile", data).get("validation_tests", [])
+
+func authored_validation_tests_for(structure_id: StringName) -> Array:
 	return _raw_structures.get(str(structure_id), {}).get("validation_tests", [])
 
 # Gate states a structure wants at rest. A gate with no declared default stays
 # closed, which is the safe reading of an unconfigured gate.
 func gate_defaults_for(structure_id: StringName) -> Dictionary:
-	return _raw_structures.get(str(structure_id), {}).get("gate_defaults", {})
+	var data: Dictionary = _raw_structures.get(str(structure_id), {})
+	return data.get("runtime_profile", data).get("gate_defaults", {})
+
+# The full-size design master, for design review and legacy authoring tools.
+# Runtime tests must use navigation_for() and validation_tests_for().
+func authored_definition(structure_id: StringName) -> BlockStructureDefinition:
+	var data: Dictionary = _raw_structures.get(str(structure_id), {})
+	if data.is_empty():
+		return null
+	return BlockStructureDefinition.from_data(structure_id, data, materials)
+
+func authored_navigation_for(structure_id: StringName) -> BlockStructureNavigation:
+	var definition := authored_definition(structure_id)
+	if definition == null:
+		return null
+	return BlockStructureNavigation.new(definition, unit_classes, nav_types)
 
 func navigation_for(structure_id: StringName) -> BlockStructureNavigation:
 	var definition := get_definition(structure_id)

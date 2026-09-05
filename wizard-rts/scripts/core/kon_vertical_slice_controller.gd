@@ -70,6 +70,14 @@ func _ready() -> void:
 		visible = false
 		return
 	_build_ui()
+	# Waits for generation rather than firing one frame after _ready. Generation
+	# is spread across frames now, so initialising early would read plots that
+	# do not exist yet -- and then validate routes across a map with no roads.
+	var generator := get_node_or_null(map_generator_path)
+	if generator != null and generator.has_signal("map_generated"):
+		generator.map_generated.connect(func(_summary: Dictionary) -> void:
+			_initialize()
+		)
 	call_deferred("_initialize")
 
 func _process(delta: float) -> void:
@@ -95,7 +103,22 @@ func _process(delta: float) -> void:
 		print("[KonVerticalSlice] ", _status_line())
 
 func _initialize() -> void:
+	# Reached twice by design: once deferred, once when generation finishes.
+	#
+	# The deferred call now usually arrives BEFORE the map exists, because
+	# generation is spread across frames. Guarding only on _initialized let that
+	# early call win and "succeed" against an empty map -- it reported
+	# content=0 outposts=0 and then blocked the real one. So the guard is on the
+	# map being built, not on having run.
+	if _initialized:
+		return
 	map_generator = get_node_or_null(map_generator_path)
+	# Retried on the NEXT frame while the map is still building, rather than
+	# giving up -- generation is spread across frames, so the first attempt
+	# almost always arrives too early.
+	if map_generator != null and not bool(map_generator.get("generation_complete")):
+		get_tree().process_frame.connect(_initialize, CONNECT_ONE_SHOT)
+		return
 	wave_director = get_node_or_null(wave_director_path)
 	economy_manager = get_node_or_null(economy_manager_path)
 	build_system = get_node_or_null(build_system_path)
@@ -165,11 +188,51 @@ func _is_slice_outpost_archetype(archetype: String) -> bool:
 	var lower := archetype.to_lower()
 	return lower.contains("outpost") or lower.contains("camp") or lower.contains("ambush")
 
+# An outpost guards the road; it does not sit in it.
+#
+# The outpost is a 4x4 block of hard blockers dropped at a content plot's anchor,
+# and the road runs TO that anchor -- so its footprint routinely covered road
+# cells and made them impassable. That is what "Road cell became unwalkable
+# after terrain stamping" was: not terrain, and not the monolith, but an enemy
+# camp parked across the only way in.
+#
+# Nudged off rather than made passable. A blockade the player can walk through is
+# not a blockade, and a road the player cannot walk down at all can strand a
+# whole plot -- so the camp moves to the nearest spot whose whole footprint is
+# clear of road, and only gives up if there is nowhere within reach.
+func _outpost_cell_clear_of_roads(cell: Vector2i) -> Vector2i:
+	if map_generator == null:
+		return cell
+	var roads: Dictionary = map_generator.get("road_cells")
+	if roads == null or roads.is_empty():
+		return cell
+	if _footprint_clear_of(roads, cell):
+		return cell
+	for radius in range(1, 9):
+		for dx in range(-radius, radius + 1):
+			for dy in range(-radius, radius + 1):
+				if absi(dx) != radius and absi(dy) != radius:
+					continue
+				var candidate := cell + Vector2i(dx, dy)
+				if not bool(map_generator.call("is_walkable_cell", candidate)):
+					continue
+				if _footprint_clear_of(roads, candidate):
+					return candidate
+	return cell
+
+func _footprint_clear_of(roads: Dictionary, origin: Vector2i) -> bool:
+	for x in 4:
+		for y in 4:
+			if roads.has(origin + Vector2i(x, y)):
+				return false
+	return true
+
 func _spawn_outpost_objectives() -> void:
 	for i in _outposts.size():
 		var plot: Dictionary = _outposts[i]["plot"]
 		var anchor: Vector2i = plot.get("anchor", Vector2i.ZERO)
 		var cell: Vector2i = map_generator.nearest_walkable_cell(anchor, 10) if map_generator.has_method("nearest_walkable_cell") else anchor
+		cell = _outpost_cell_clear_of_roads(cell)
 		var outpost := KonStructure.new()
 		outpost.configure(OUTPOST_ARCHETYPE, cell, Vector2i(4, 4))
 		outpost.set_runtime_stats(ENEMY_ID, 640 + i * 160, 640 + i * 160, 1)
@@ -621,7 +684,17 @@ func _validate_slice_routes() -> void:
 		if path.is_empty():
 			push_warning("[KonVerticalSlice] Outpost route may be blocked: %s" % str(plot.get("id", "")))
 	for plot in _content_plots:
-		var target_world: Vector2 = map_generator.cell_to_world(plot.get("anchor", Vector2i.ZERO))
+		# A plot occupied by a block structure is entered through its own
+		# authored gate, on the block lattice -- its CENTRE is solid keep, so a
+		# flat 2D path to it fails by design. Validating the approach instead
+		# asks the question that matters: can the player get to the door. Left
+		# as the centre, the citadel warned "content route may be blocked" on
+		# every single frontier game, which is noise that teaches you to ignore
+		# a warning that is real for every other plot.
+		var aim: Vector2i = plot.get("anchor", Vector2i.ZERO)
+		if str(plot.get("block_structure", "")) != "":
+			aim = plot.get("road_anchor", aim)
+		var target_world: Vector2 = map_generator.cell_to_world(aim)
 		var path: Array = map_generator.find_path_world(start_world, target_world)
 		if path.is_empty():
 			push_warning("[KonVerticalSlice] Content route may be blocked: %s" % str(plot.get("id", "")))

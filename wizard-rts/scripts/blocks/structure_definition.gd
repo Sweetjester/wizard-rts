@@ -28,6 +28,10 @@ var id: StringName = &""
 var display_name: String = ""
 var dimensions: Vector3i = Vector3i.ZERO
 var purpose: Array = []
+var runtime_profile: bool = false
+var art: Dictionary = {}
+var source_data: Dictionary = {}
+var rotation_steps: int = 0
 
 # Vector3i -> material StringName. Only cells whose material actually collides.
 var solid_cells: Dictionary = {}
@@ -57,6 +61,9 @@ static func from_data(structure_id: StringName, data: Dictionary, materials: Dic
 	var dims: Array = data.get("dimensions", [0, 0, 0])
 	definition.dimensions = Vector3i(int(dims[0]), int(dims[1]), int(dims[2]))
 	definition.purpose = data.get("purpose", [])
+	definition.runtime_profile = bool(data.get("compact_runtime", false))
+	definition.art = data.get("art", {})
+	definition.source_data = data
 
 	# Blocks, in authored order. Later entries override earlier ones so a
 	# VOID_DECOR volume can be carved through a solid wall -- that is exactly how
@@ -127,7 +134,12 @@ static func from_data(structure_id: StringName, data: Dictionary, materials: Dic
 			definition.nav_cells[cell] = definition.nav_cells[cell].duplicate()
 			definition.nav_cells[cell]["type"] = &"GATE"
 			definition.nav_cells[cell]["state_key"] = state_key
-		definition.gate_cells[state_key] = blocked.keys()
+		# One switch can control several leaves (the citadel's outer/inner gates).
+		var all_leaves: Array = definition.gate_cells.get(state_key, [])
+		for cell in blocked:
+			if not all_leaves.has(cell):
+				all_leaves.append(cell)
+		definition.gate_cells[state_key] = all_leaves
 
 	for link in data.get("links", []):
 		definition.links.append({
@@ -190,3 +202,179 @@ func is_solid(cell: Vector3i) -> bool:
 
 func nav_at(cell: Vector3i) -> Dictionary:
 	return nav_cells.get(cell, {})
+
+# --- rotation ---------------------------------------------------------------
+
+# A copy of this structure turned in 90-degree steps about its own vertical axis.
+#
+# Rotating the DEFINITION once, rather than threading a rotation through the
+# lattice, the builder, the collision boxes and the 2D blockers, means every
+# consumer downstream keeps working on plain local coordinates and none of them
+# has to know rotation exists. It also guarantees they cannot disagree: the
+# walls, the walkable floor, the doorway sockets and the visible mesh are all
+# derived from the same rotated cells.
+#
+# Heights are untouched -- a building turned on its side is a different problem.
+const FACING_ORDER := ["north", "east", "south", "west"]
+
+func rotated(steps: int) -> BlockStructureDefinition:
+	var turns := ((steps % 4) + 4) % 4
+	if turns == 0:
+		return self
+	var out := BlockStructureDefinition.new()
+	out.id = id
+	out.display_name = display_name
+	out.purpose = purpose
+	out.runtime_profile = runtime_profile
+	out.art = art
+	out.source_data = source_data
+	out.rotation_steps = (rotation_steps + turns) % 4
+	# A quarter turn swaps the footprint; a half turn leaves it.
+	out.dimensions = Vector3i(dimensions.z, dimensions.y, dimensions.x) if turns % 2 == 1 else dimensions
+	for cell in solid_cells:
+		out.solid_cells[_turn_cell(cell, turns)] = solid_cells[cell]
+	for cell in nav_cells:
+		out.nav_cells[_turn_cell(cell, turns)] = nav_cells[cell]
+	for cell in open_cells:
+		out.open_cells[_turn_cell(cell, turns)] = open_cells[cell]
+	# gate_cells is keyed by STATE KEY, with the leaf's cells as the value -- so
+	# the key is carried across untouched and the cells inside it are turned.
+	for state_key in gate_cells:
+		var turned_leaves: Array[Vector3i] = []
+		for cell in gate_cells[state_key]:
+			turned_leaves.append(_turn_cell(cell, turns))
+		out.gate_cells[state_key] = turned_leaves
+	for link in links:
+		var turned := link.duplicate()
+		turned["from"] = _turn_cell(link["from"], turns)
+		turned["to"] = _turn_cell(link["to"], turns)
+		out.links.append(turned)
+	for socket in sockets:
+		var turned_socket := socket.duplicate()
+		turned_socket["position"] = _turn_cell(socket["position"], turns)
+		turned_socket["facing"] = _turn_facing(str(socket.get("facing", "north")), turns)
+		out.sockets.append(turned_socket)
+	# Boxes are rebuilt from their two opposite corners, because rotating an
+	# origin alone would leave the box hanging off the wrong side of it.
+	for box in block_boxes:
+		var box_min: Vector3i = box["min"]
+		var box_size: Vector3i = box["size"]
+		var a := _turn_cell(box_min, turns)
+		var b := _turn_cell(box_min + box_size - Vector3i(1, 1, 1), turns)
+		out.block_boxes.append({
+			"min": Vector3i(mini(a.x, b.x), mini(a.y, b.y), mini(a.z, b.z)),
+			"size": Vector3i(absi(b.x - a.x) + 1, absi(b.y - a.y) + 1, absi(b.z - a.z) + 1),
+		})
+	return out
+
+func _turn_cell(cell: Vector3i, turns: int) -> Vector3i:
+	var width := dimensions.x
+	var depth := dimensions.z
+	match turns:
+		1:
+			return Vector3i(depth - 1 - cell.z, cell.y, cell.x)
+		2:
+			return Vector3i(width - 1 - cell.x, cell.y, depth - 1 - cell.z)
+		3:
+			return Vector3i(cell.z, cell.y, width - 1 - cell.x)
+	return cell
+
+# Turned to match _turn_cell, which is the whole point: a door that moves to the
+# east face must SAY east. One step of _turn_cell sends the south edge (z = 0) to
+# the maximum-x edge, so the facing steps backwards through the compass, not
+# forwards. Getting this the wrong way round is quiet and expensive -- the
+# geometry rotates correctly and only the doorway link goes to the wrong side,
+# leaving a building that looks right and cannot be entered.
+func _turn_facing(facing: String, turns: int) -> String:
+	var index := FACING_ORDER.find(facing)
+	if index < 0:
+		return facing
+	return FACING_ORDER[((index - turns) % 4 + 4) % 4]
+
+# --- downsampling -----------------------------------------------------------
+
+# A copy of this structure at 1/factor the size in EVERY axis.
+#
+# The authored structures are drawn at a resolution where a wall is several
+# blocks thick and a hall is thirty across. That is the right resolution to
+# author at -- it is where the detail lives -- and the wrong one to play at: one
+# block is one map cell, so a 34x20x28 laboratory covered 952 cells and stood
+# twenty high, which is a district rather than a building.
+#
+# Squashing the height was tried first and was simply wrong: it flattened the
+# building instead of shrinking it, leaving the same floor area under a lower
+# roof. Downsampling reduces all three axes together, so a 20x20x20 becomes a
+# 5x5x5 that looks like the same building seen from further away.
+#
+# THE RULE, which is the whole difficulty: each output cell covers factor^3
+# input cells and they will not agree. NAV WINS -- a cell comes out solid only
+# if nothing walkable fell inside it.
+#
+# Solid winning was tried first and is catastrophic: a floor is solid blocks
+# with the walkable air directly above them, so almost every group contains
+# some solid and the whole building fuses into a brick. Measured on the
+# laboratory at quarter size: solid-wins left 0 nav cells, a 25% threshold left
+# 14, a 50% threshold 51, and nav-wins 60 with 116 solid -- the only rule that
+# keeps both a building and a way through it.
+#
+# The cost is that walls thinner than the sample window dissolve, which is
+# unavoidable: you cannot keep one-block detail while dividing by four. Walls
+# authored thick enough to survive their own group still read as walls.
+func downsampled(factor: int) -> BlockStructureDefinition:
+	if factor <= 1:
+		return self
+	var out := BlockStructureDefinition.new()
+	out.id = id
+	out.display_name = display_name
+	out.purpose = purpose
+	out.dimensions = Vector3i(
+		maxi(1, int(ceil(float(dimensions.x) / float(factor)))),
+		maxi(1, int(ceil(float(dimensions.y) / float(factor)))),
+		maxi(1, int(ceil(float(dimensions.z) / float(factor)))))
+	for cell in solid_cells:
+		out.solid_cells[_shrink_cell(cell, factor)] = solid_cells[cell]
+	# Applied after solid, and erasing it: anything walkable stays walkable.
+	for cell in nav_cells:
+		var shrunk := _shrink_cell(cell, factor)
+		out.nav_cells[shrunk] = nav_cells[cell]
+		out.solid_cells.erase(shrunk)
+	for cell in open_cells:
+		var open_shrunk := _shrink_cell(cell, factor)
+		if not out.solid_cells.has(open_shrunk):
+			out.open_cells[open_shrunk] = open_cells[cell]
+	for state_key in gate_cells:
+		var leaves: Array[Vector3i] = []
+		for cell in gate_cells[state_key]:
+			var leaf := _shrink_cell(cell, factor)
+			if not leaves.has(leaf):
+				leaves.append(leaf)
+		out.gate_cells[state_key] = leaves
+	for link in links:
+		var turned := link.duplicate()
+		turned["from"] = _shrink_cell(link["from"], factor)
+		turned["to"] = _shrink_cell(link["to"], factor)
+		if turned["from"] != turned["to"]:
+			out.links.append(turned)
+	for socket in sockets:
+		var shrunk_socket := socket.duplicate()
+		shrunk_socket["position"] = _shrink_cell(socket["position"], factor)
+		shrunk_socket["width"] = maxi(1, int(socket.get("width", 1)) / factor)
+		out.sockets.append(shrunk_socket)
+	for box in block_boxes:
+		var box_min: Vector3i = box["min"]
+		var box_size: Vector3i = box["size"]
+		var a := _shrink_cell(box_min, factor)
+		var b := _shrink_cell(box_min + box_size - Vector3i(1, 1, 1), factor)
+		out.block_boxes.append({
+			"min": a,
+			"size": Vector3i(b.x - a.x + 1, b.y - a.y + 1, b.z - a.z + 1),
+		})
+	return out
+
+func _shrink_cell(cell: Vector3i, factor: int) -> Vector3i:
+	# Floor division, so a socket authored just outside the footprint at -1
+	# stays outside rather than rounding onto the wall.
+	return Vector3i(
+		int(floor(float(cell.x) / float(factor))),
+		int(floor(float(cell.y) / float(factor))),
+		int(floor(float(cell.z) / float(factor))))

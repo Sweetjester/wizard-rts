@@ -9,6 +9,15 @@ func _run() -> void:
 		session.call("start_new_game", "frontier-smoke", "bad_kon_willow", "seeded_grid_frontier")
 	var scene: Node = load("res://scripts/map/main_map.tscn").instantiate()
 	root.add_child(scene)
+	# Map generation is spread across frames now, so the scene is not playable
+	# the instant it is added. Waits for the generator to say it is finished
+	# rather than for a fixed frame count -- a count that happened to be long
+	# enough on a 96x96 map is not a guarantee, it is a coincidence.
+	for _gen_wait in 400:
+		var _gen := scene.get_node_or_null("MapGenerator")
+		if _gen == null or bool(_gen.get("generation_complete")):
+			break
+		await process_frame
 	await process_frame
 	await physics_frame
 
@@ -81,6 +90,19 @@ func _run() -> void:
 		return
 	for plot in map.get_plots():
 		var anchor: Vector2i = plot.get("anchor", Vector2i.ZERO)
+		# A plot occupied by a block structure is walked into through its own
+		# authored entrance, on the lattice -- so its CENTRE is solid keep, and
+		# demanding a flat 2D path to it asserts the opposite of what the design
+		# wants. The road still has to arrive at its door, which is checked just
+		# below, and citadel_placement_smoke_test walks the inside properly.
+		if str(plot.get("block_structure", "")) != "":
+			var approach: Vector2i = plot.get("road_anchor", anchor)
+			if map.find_path_cells(first_anchor, approach).is_empty() and first_anchor != approach:
+				push_error("No connected path from starter base to the approach of plot %s at %s"
+					% [str(plot.get("id", "")), approach])
+				quit(1)
+				return
+			continue
 		var path: Array = map.find_path_cells(first_anchor, anchor)
 		if path.is_empty() and first_anchor != anchor:
 			push_error("No connected path from starter base to plot %s" % str(plot.get("id", "")))
@@ -106,8 +128,19 @@ func _run() -> void:
 		push_error("Expected square-grid building placement to work on seeded frontier")
 		quit(1)
 		return
-	if map.is_walkable_cell(placement_cell):
-		push_error("Placed building did not block seeded frontier grid cells")
+	# A building occupies ground -- but not necessarily the cell it was placed
+	# from. The Biospawner is an enterable Splicing Laboratory now: its walls
+	# block and its doorway, aisles and courtyard deliberately do not, so its
+	# origin corner is as likely to be floor as wall. Asserting that one specific
+	# cell went solid was testing a 3x3 sprite that no longer exists.
+	var footprint: Vector2i = build_system.call("rotated_footprint", &"barracks", 0)
+	var blocked_cells := 0
+	for dx in footprint.x:
+		for dy in footprint.y:
+			if not map.is_walkable_cell(placement_cell + Vector2i(dx, dy)):
+				blocked_cells += 1
+	if blocked_cells <= 0:
+		push_error("Placed building blocked none of its %s footprint on the seeded frontier" % [footprint])
 		quit(1)
 		return
 	print("[SeededGridFrontierSmokeTest] seed=", map.get_seed_value(), " plots=", map.get_plots().size(), " ramps=", ramps.size())
@@ -139,9 +172,17 @@ func _content_entrance_has_road_approach(map: Node, plot: Dictionary) -> bool:
 func _road_network_spans_map(map: Node) -> bool:
 	var feature_grid: Array = map.get("feature_grid")
 	var starts: Array[Vector2i] = []
-	for y in range(4, 92):
-		if _is_road_feature(feature_grid[4][y]):
-			starts.append(Vector2i(4, y))
+	# Sized off the map rather than hardcoded to the 96x96 the frontier used to
+	# be. It is 160x160 now, so 4..92 sampled only the western quarter and
+	# "spans the map" was being asked of a strip.
+	var width := int(map.MAP_W)
+	var height := int(map.MAP_H)
+	var margin := 4
+	var far_x := width - margin - 1
+	var far_y := height - margin - 1
+	for y in range(margin, height - margin):
+		if _is_road_feature(feature_grid[margin][y]):
+			starts.append(Vector2i(margin, y))
 	if starts.is_empty():
 		return false
 	var reached := {}
@@ -162,11 +203,11 @@ func _road_network_spans_map(map: Node) -> bool:
 	var touches_north := false
 	var touches_south := false
 	for cell in reached.keys():
-		if cell.x >= 91:
+		if cell.x >= far_x:
 			touches_east = true
-		if cell.y <= 4:
+		if cell.y <= margin:
 			touches_north = true
-		if cell.y >= 91:
+		if cell.y >= far_y:
 			touches_south = true
 	return touches_east and touches_north and touches_south
 

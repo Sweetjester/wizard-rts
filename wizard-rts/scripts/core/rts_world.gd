@@ -179,7 +179,7 @@ func query_units(position: Vector2, radius: float, owner_filter: int = -1, max_r
 			if not _buckets.has(key):
 				continue
 			for unit in _buckets[key]:
-				if not is_instance_valid(unit):
+				if not is_instance_valid(unit) or bool(unit.get_meta("kon_banished",false)):
 					continue
 				if owner_filter >= 0 and _owner_for(unit) != owner_filter:
 					continue
@@ -217,7 +217,7 @@ func query_enemy_attackables(position: Vector2, radius: float, owner_id: int, ma
 			if not _buckets.has(key):
 				continue
 			for unit in _buckets[key]:
-				if not is_instance_valid(unit) or _owner_for(unit) == owner_id:
+				if not is_instance_valid(unit) or bool(unit.get_meta("kon_banished",false)) or _owner_for(unit) == owner_id:
 					continue
 				if position.distance_squared_to(unit.global_position) <= radius_sq:
 					results.append(unit)

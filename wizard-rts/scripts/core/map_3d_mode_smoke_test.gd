@@ -34,6 +34,15 @@ func _check_2d_still_default() -> bool:
 		session.call("start_new_game", "map3d-off", "bad_kon_willow", "seeded_grid_frontier", "", false)
 	var scene: Node = load("res://scripts/map/main_map.tscn").instantiate()
 	root.add_child(scene)
+	# Map generation is spread across frames now, so the scene is not playable
+	# the instant it is added. Waits for the generator to say it is finished
+	# rather than for a fixed frame count -- a count that happened to be long
+	# enough on a 96x96 map is not a guarantee, it is a coincidence.
+	for _gen_wait in 400:
+		var _gen := scene.get_node_or_null("MapGenerator")
+		if _gen == null or bool(_gen.get("generation_complete")):
+			break
+		await process_frame
 	for _i in 6:
 		await process_frame
 	if scene.get_node_or_null("Map3DView") != null:
@@ -60,6 +69,15 @@ func _check_3d_mode() -> bool:
 		session.call("start_new_game", "map3d-on", "bad_kon_willow", "seeded_grid_frontier", "", true)
 	var scene: Node = load("res://scripts/map/main_map.tscn").instantiate()
 	root.add_child(scene)
+	# Map generation is spread across frames now, so the scene is not playable
+	# the instant it is added. Waits for the generator to say it is finished
+	# rather than for a fixed frame count -- a count that happened to be long
+	# enough on a 96x96 map is not a guarantee, it is a coincidence.
+	for _gen_wait in 400:
+		var _gen := scene.get_node_or_null("MapGenerator")
+		if _gen == null or bool(_gen.get("generation_complete")):
+			break
+		await process_frame
 	for _i in 10:
 		await process_frame
 
@@ -179,9 +197,22 @@ func _check_3d_mode() -> bool:
 	if billboard.shaded:
 		_fail("Unit sprites must render unlit so the painted art keeps its own values")
 		return false
-	# The earlier unit had no art, so it must still be a capsule.
-	if int(telemetry.get("units_rendered", 0)) <= int(telemetry.get("units_as_sprites", 0)):
-		_fail("The art-less Oaven should still be counted as a capsule fallback")
+	# Oaven now has painted animation sheets rather than procedural-only art.
+	var oaven_art: Sprite2D=unit.get_node("ArtSprite")
+	oaven_art.set_process(false)
+	oaven_art.flip_h=true
+	view.call("_sync_unit_sprites",[unit] as Array[Node2D])
+	var oaven_billboard: Sprite3D=null
+	for child in sprite_root.get_children():
+		if child is Sprite3D and child.visible and child.texture==oaven_art.texture:
+			oaven_billboard=child
+			break
+	if oaven_billboard==null or not oaven_billboard.flip_h or oaven_billboard.hframes!=12:
+		_fail("Oaven billboard must mirror the painted sheet and horizontal facing")
+		return false
+	var expected_oaven: Transform3D=view.call("_unit_transform",unit,(210.0-128.0)*0.01014)
+	if not oaven_billboard.global_position.is_equal_approx(expected_oaven.origin):
+		_fail("Oaven feet must use the atlas foot anchor")
 		return false
 
 	# --- structures use their real art, and obey fog ------------------------
@@ -194,8 +225,25 @@ func _check_3d_mode() -> bool:
 		var candidate := child as Sprite3D
 		if candidate != null and candidate.visible and str(candidate.name).begins_with("StructureSprite"):
 			structure_sprites += 1
-	if structure_sprites <= 0:
+	# How many structures SHOULD billboard: ones with art that are not
+	# represented by authored block geometry. A building made of blocks draws its
+	# real walls instead, so counting it here would demand a flat painting on top
+	# of the building it duplicates -- which is exactly the bug that made a 952px
+	# barracks hang over the laboratory.
+	var expect_billboards := 0
+	for structure in scene.get_tree().get_nodes_in_group("structures"):
+		if not is_instance_valid(structure):
+			continue
+		var archetype := StringName(structure.get("archetype"))
+		if UnitCatalog.get_definition(archetype).has("block_structure"):
+			continue
+		if structure.get("art_sprite") != null:
+			expect_billboards += 1
+	if expect_billboards > 0 and structure_sprites <= 0:
 		_fail("Structures with art must render as billboards, not boxes")
+		return false
+	if expect_billboards == 0 and structure_sprites > 0:
+		_fail("A block-structure building billboarded its 2D placeholder on top of its own geometry")
 		return false
 	# An enemy structure far from anything the player can see must be concealed.
 	var enemy_structure: Node2D = null
@@ -281,7 +329,12 @@ func _check_3d_mode() -> bool:
 			_fail("Cell %s is marked in 3D but is neither a cliff edge nor an economy space" % cell)
 			return false
 
-	# Units with no sprite sheet -- still the whole KoN roster -- fell back to a
+	var procedural: Node2D=load("res://scenes/units/spawner_drone.tscn").instantiate()
+	procedural.set("owner_player_id",1)
+	scene.add_child(procedural)
+	procedural.global_position=unit.global_position
+	for _i in 8: await process_frame
+	# Units with no sprite sheet fell back to a
 	# featureless capsule in 3D, throwing away the detailed procedural art they
 	# already draw in _draw(). They are now rendered once per archetype into a
 	# SubViewport and billboarded.

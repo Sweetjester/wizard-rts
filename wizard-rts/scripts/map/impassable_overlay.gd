@@ -75,8 +75,12 @@ func _ready() -> void:
 
 func _rebuild() -> void:
 	map = get_node_or_null(map_path)
-	if map == null or map.grid.is_empty():
-		call_deferred("_rebuild")
+	if map == null or not bool(map.get("generation_complete")):
+		# NEXT frame, not this one. call_deferred() from inside a deferred call lands
+		# in the same frame's queue, so this retry never yielded -- once map
+		# generation stopped finishing within a single frame it spun inside one
+		# flush until the process segfaulted.
+		get_tree().process_frame.connect(_rebuild, CONNECT_ONE_SHOT)
 		return
 	# Square-grid maps only: the overlay is an axis-aligned rect over the world
 	# bounds, which does not hold for the legacy isometric map.

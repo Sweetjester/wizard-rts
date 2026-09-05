@@ -25,6 +25,9 @@ class FlatGround extends Node:
 
 var _world: BlockNavWorld
 var _origin := Vector2i(10, 10)
+# The citadel's shipped footprint, read once when it is placed. It is authored
+# at 96 and ships as a compact runtime profile, so nothing here may assume 96.
+var _extent := 96
 
 func _initialize() -> void:
 	var library := BlockStructureLibrary.load_default()
@@ -34,6 +37,7 @@ func _initialize() -> void:
 		return
 	var ground := FlatGround.new()
 	root.add_child(ground)
+	_extent = maxi(4, int(definition.dimensions.x))
 	_world = BlockNavWorld.new(library.unit_classes)
 	_world.build_from_terrain(ground)
 	for key in library.gate_defaults_for(CITADEL):
@@ -53,12 +57,31 @@ func _initialize() -> void:
 # where the route ends up. Costs may differ slightly -- A* stops at the goal
 # while the field is exhaustive -- but reachability must be identical.
 func _check_agreement() -> bool:
-	var goal_cell := Vector2i(_origin.x + 48, _origin.y + 48)
-	var goal_level := 40  # the keep roof, the deepest point in the castle
+	# The deepest point in the castle, found rather than named.
+	#
+	# This used to be cell (+48, +48) at level 40, which were the keep roof's
+	# authored coordinates. The citadel ships as a compact runtime profile now
+	# and its regions have been renamed as well as rescaled, so both the cell and
+	# the level were pointing at nothing. Taking the highest standable node
+	# inside the footprint asks the same question -- "can a field reach the
+	# hardest place in here" -- without depending on the castle's floor plan
+	# staying still.
+	var goal_cell := Vector2i(-1, -1)
+	var goal_level := -1
+	for x in range(_origin.x, _origin.x + _extent):
+		for z in range(_origin.y, _origin.y + _extent):
+			var probe := Vector2i(x, z)
+			for level in _world.levels_at(probe):
+				if int(level) > goal_level and _world.can_occupy(_world.encode(probe, int(level)), &"infantry"):
+					goal_level = int(level)
+					goal_cell = probe
+	if goal_level < 0:
+		_fail("Found no standable cell anywhere inside the citadel")
+		return false
 	var field := BlockFlowField.new()
 	var started := Time.get_ticks_usec()
 	if not field.build(_world, goal_cell, goal_level, &"infantry"):
-		_fail("Flow field refused to build for the keep roof")
+		_fail("Flow field refused to build for the citadel's highest floor at %s level %d" % [goal_cell, goal_level])
 		return false
 	var build_us := Time.get_ticks_usec() - started
 	if field.covered_nodes() <= 0:
@@ -109,21 +132,50 @@ func _check_one_way_links_are_not_reversed() -> bool:
 	field.build(_world, goal_cell, 40, &"heavy")
 	var courtyard := Vector3i(_origin.x + 48, 2, _origin.y + 24)
 	if field.is_reachable(_world, Vector2i(courtyard.x, courtyard.z), courtyard.y):
-		_fail("A heavy reached the keep roof through the flow field, but it cannot use stairs")
+		_fail("A heavy reached the citadel's highest floor through the flow field, but it cannot use stairs")
 		return false
 	return true
 
 func _check_flying() -> bool:
 	var field := BlockFlowField.new()
-	var goal_cell := Vector2i(_origin.x + 48, _origin.y + 48)
-	if not field.build(_world, goal_cell, 40, &"flying"):
-		_fail("Flow field refused to build for a flying class")
+	# A real node a flier can occupy, found rather than assumed. Guessing at the
+	# centre picks a cell that may be solid wall in whatever the citadel's
+	# current floor plan is, and a field cannot be built to a goal that does not
+	# exist -- which reads as "flying is broken" rather than "that is a wall".
+	var goal_cell := Vector2i(-1, -1)
+	var goal_level := -1
+	for x in range(_origin.x, _origin.x + _extent):
+		for z in range(_origin.y, _origin.y + _extent):
+			var probe := Vector2i(x, z)
+			for level in _world.levels_at(probe):
+				if int(level) > goal_level and _world.can_occupy(_world.encode(probe, int(level)), &"flying"):
+					goal_level = int(level)
+					goal_cell = probe
+	if goal_level < 0:
+		_fail("Found no cell inside the citadel a flying class could occupy")
 		return false
-	var start := Vector2i(_origin.x + 48, _origin.y + 2)
-	if not field.is_reachable(_world, start, 2):
-		_fail("Flying should reach the keep roof regardless of the walk graph")
+	if not field.build(_world, goal_cell, goal_level, &"flying"):
+		_fail("Flow field refused to build for a flying class at %s level %d" % [goal_cell, goal_level])
 		return false
-	var path := field.path_from(_world, start, 2)
+	# A real low node to start from. Level 2 was the citadel's ground storey when
+	# it was authored at full size; the compact profile's standable levels are
+	# 1, 4, 5, 7, 8 and 9, so asking about level 2 asked about nothing.
+	var start := Vector2i(-1, -1)
+	var start_level := 999999
+	for x in range(_origin.x, _origin.x + _extent):
+		for z in range(_origin.y, _origin.y + _extent):
+			var probe := Vector2i(x, z)
+			for level in _world.levels_at(probe):
+				if int(level) < start_level and _world.can_occupy(_world.encode(probe, int(level)), &"flying"):
+					start_level = int(level)
+					start = probe
+	if start.x < 0:
+		_fail("Found no low cell inside the citadel a flying class could start from")
+		return false
+	if not field.is_reachable(_world, start, start_level):
+		_fail("Flying should reach the citadel's highest floor regardless of the walk graph")
+		return false
+	var path := field.path_from(_world, start, start_level)
 	if path.size() != 2:
 		_fail("A flying route should be a single hop, got %d steps" % path.size())
 		return false
@@ -131,9 +183,13 @@ func _check_flying() -> bool:
 
 func _sample_starts(unit_class: StringName) -> Array[Vector3i]:
 	var starts: Array[Vector3i] = []
-	var stride: int = 7
-	for x in range(_origin.x, _origin.x + 96, stride):
-		for z in range(_origin.y, _origin.y + 96, stride):
+	# Sized from the structure rather than the 96 it was authored at. The citadel
+	# ships as a compact runtime profile now, so scanning a fixed 96 cells walked
+	# most of the way across empty ground and sampled almost nothing inside it.
+	var extent: int = maxi(4, _extent)
+	var stride: int = maxi(1, extent / 14)
+	for x in range(_origin.x, _origin.x + extent, stride):
+		for z in range(_origin.y, _origin.y + extent, stride):
 			var cell := Vector2i(x, z)
 			for level in _world.levels_at(cell):
 				if _world.can_occupy(_world.encode(cell, level), unit_class):
