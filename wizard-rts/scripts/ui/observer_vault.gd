@@ -354,6 +354,26 @@ func _detail_page() -> void:
 		_gallery()
 		return
 	_button(content, "Back to the shelves", func(): selected_id = &""; refresh())
+	var forms := HFlowContainer.new()
+	forms.name = "UnitForms"
+	forms.add_theme_constant_override("h_separation", 8)
+	content.add_child(forms)
+	for id in Records.family_ids(selected_id):
+		var form := Records.record_for(id, section, build_system, rts_world, session)
+		if form.is_empty(): continue
+		var label := "Sealed evolution" if form.sealed else str(form.name)
+		if id == &"spawner_drone" and not form.sealed: label = "Summoned: " + label
+		var button := _button(forms, label, func():
+			selected_id = id
+			specimen_index = -1
+			refresh()
+		)
+		button.name = "Form_" + str(id)
+		button.toggle_mode = true
+		button.button_pressed = id == selected_id
+		button.disabled = form.sealed
+		if form.sealed: button.tooltip_text = str(form.requirement)
+	forms.visible = forms.get_child_count() > 1
 	var row: BoxContainer = HBoxContainer.new() if overlay.size.x >= 800 else VBoxContainer.new()
 	row.add_theme_constant_override("separation", 32)
 	content.add_child(row)

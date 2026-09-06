@@ -2,7 +2,8 @@
 
 Implemented 2026-09-06. These are working Godot controls, not flattened UI mockups.
 
-Current art and tier-hand layout: see [Drawn V2](DRAWN_V2.md). The original
+Current concept-faithful art and family records: see [Concept V3](CONCEPT_V3.md).
+Previous tier-hand layout: see [Drawn V2](DRAWN_V2.md). The original
 ornate raster assets below are retained as provenance, not used by the new UI.
 
 ## Experience

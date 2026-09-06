@@ -1,7 +1,7 @@
 extends SceneTree
 
 const PUPPET=preload("res://tools/spawner/spawner_puppet.gd")
-const OUT="res://assets_game/units/kon/spawner/painted_v2/"
+const OUT="res://assets_game/units/kon/spawner/painted_v3/"
 
 func _initialize() -> void:
 	call_deferred("_run")

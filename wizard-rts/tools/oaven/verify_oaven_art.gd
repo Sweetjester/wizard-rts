@@ -5,21 +5,21 @@ func _initialize() -> void:
 
 func _run() -> void:
 	for form in ["oaven","jumper"]:
-		var atlas:=Image.load_from_file("res://assets_game/units/kon/oaven/painted_v2/"+form+".png")
-		assert(atlas.get_size()==Vector2i(3072,3840))
+		var atlas:=Image.load_from_file("res://assets_game/units/kon/oaven/painted_v3/"+form+".png")
+		assert(atlas.get_size()==Vector2i(4608,5760))
 		for row in 15:
 			for column in 12:
-				var tile:=atlas.get_region(Rect2i(column*256,row*256,256,256))
+				var tile:=atlas.get_region(Rect2i(column*384,row*384,384,384))
 				var bounds:=tile.get_used_rect()
 				assert(bounds.has_area(),"Empty frame: %s %s %s" % [form,row,column])
-				assert(bounds.position.x>0 and bounds.position.y>0 and bounds.end.x<256 and bounds.end.y<256,"Clipped frame: %s %s %s %s" % [form,row,column,bounds])
+				assert(bounds.position.x>0 and bounds.position.y>0 and bounds.end.x<384 and bounds.end.y<384,"Clipped frame: %s %s %s %s" % [form,row,column,bounds])
 		if form=="oaven":
-			var preview:=Image.create(1024,512,false,Image.FORMAT_RGBA8)
+			var preview:=Image.create(1536,768,false,Image.FORMAT_RGBA8)
 			preview.fill(Color("121c22"))
 			for i in 8:
 				var row: int=[0,1,2,3,4,5,6,8][i]
-				preview.blend_rect(atlas,Rect2i(5*256,row*256,256,256),Vector2i((i%4)*256,(i/4)*256))
-			preview.save_png("res://assets_game/units/kon/oaven/painted_v2/preview.png")
+				preview.blend_rect(atlas,Rect2i(5*384,row*384,384,384),Vector2i((i%4)*384,(i/4)*384))
+			preview.save_png("res://assets_game/units/kon/oaven/painted_v3/preview.png")
 	var unit: Node2D=load("res://scenes/units/oaven_spear.tscn").instantiate()
 	root.add_child(unit)
 	unit.set_physics_process(false)

@@ -330,6 +330,9 @@ func _check_3d_mode() -> bool:
 			return false
 
 	var procedural: Node2D=load("res://scenes/units/spawner_drone.tscn").instantiate()
+	# This fixture deliberately exercises fallback rendering even after drones gain art.
+	var painted := procedural.get_node_or_null("ArtSprite")
+	if painted != null: painted.free()
 	procedural.set("owner_player_id",1)
 	scene.add_child(procedural)
 	procedural.global_position=unit.global_position

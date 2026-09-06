@@ -33,7 +33,7 @@ func _spawn_death_fx(source: Node = null) -> void:
 	corpse.configure(self,art)
 
 # Redrawn 2026-08-31 against the KoN roster doc's concept art: a heavy
-# bone-plated insect body over a dark rose underbelly, six thin legs, and the
+# bone-plated insect body over a dark rose underbelly, four thin legs, and the
 # large translucent wings that separate the Spawner from its evolved Winged
 # form. Rooted, uprooting and takeoff/landing states all keep their existing
 # readable tells -- this is a silhouette pass, not a behaviour change.
@@ -97,7 +97,7 @@ func _draw() -> void:
 func _draw_spawner_legs(o: Vector2, shell: Color, rooted: bool) -> void:
 	var leg := shell.darkened(0.34)
 	var splay := 1.0 if not rooted else 1.25
-	for entry in [[-18.0, 4.0, -34.0], [-6.0, 6.0, -22.0], [8.0, 5.0, 26.0]]:
+	for entry in [[-18.0, 4.0, -34.0], [8.0, 5.0, 26.0]]:
 		for side in [-1.0, 1.0]:
 			var hip := Vector2(float(entry[0]), float(entry[1])) + o
 			var knee := hip + Vector2(side * 12.0 * splay, -6.0)

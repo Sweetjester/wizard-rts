@@ -7,6 +7,19 @@ func _ready() -> void:
 	selection_radius = 12.0
 	collision_separation = 12.0
 
+func _spawn_death_fx(source: Node = null) -> void:
+	var art := get_node_or_null("ArtSprite") as Sprite2D
+	if art == null or art.texture == null:
+		super(source)
+		return
+	var view := get_parent().get_node_or_null("Map3DView")
+	if is_instance_valid(view) and view.has_method("spawn_painted_unit_death"):
+		view.call("spawn_painted_unit_death",self,art)
+		return
+	var corpse := preload("res://scripts/fx/painted_unit_death.gd").new()
+	get_parent().add_child(corpse)
+	corpse.configure(self,art)
+
 func _draw() -> void:
 	if has_node("ArtSprite") and not use_mass_vector_lod():
 		_draw_selection_and_path()

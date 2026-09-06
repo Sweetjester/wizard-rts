@@ -9,10 +9,34 @@ static func entries(section: String, build: Node, world: Node, session: Node) ->
 	else:
 		ids.push_front(&"life_wizard" if session.wizard_class_id == "bad_kon_willow" else (&"fire_wizard" if session.wizard_class_id == "hellfire_baby" else &"evangalion_wizard"))
 	for id in ids:
+		if section != "Felled" and parent_of(StringName(id)) != &"":
+			continue
 		var record := record_for(StringName(id), section, build, world, session)
 		if not record.is_empty():
 			records.append(record)
 	return records
+
+static func parent_of(id: StringName) -> StringName:
+	# Summons live with their creator, just as evolutions live with their base form.
+	if id == &"spawner_drone": return &"spawner"
+	for candidate in UnitCatalog.DEFINITIONS:
+		if StringName(UnitCatalog.DEFINITIONS[candidate].get("evolves_to", &"")) == id:
+			return StringName(candidate)
+	return &""
+
+static func family_ids(id: StringName) -> Array[StringName]:
+	var root := id
+	var visited: Array[StringName] = []
+	while parent_of(root) != &"" and not visited.has(root):
+		visited.append(root)
+		root = parent_of(root)
+	var result: Array[StringName] = []
+	var current := root
+	while current != &"" and not result.has(current):
+		result.append(current)
+		current = StringName(UnitCatalog.get_definition(current).get("evolves_to", &""))
+	if root == &"spawner": result.append(&"spawner_drone")
+	return result
 
 static func record_for(id: StringName, section: String, build: Node, world: Node, session: Node) -> Dictionary:
 	var enemy := section == "Felled"

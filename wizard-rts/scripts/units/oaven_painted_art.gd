@@ -11,15 +11,15 @@ func _ready() -> void:
 	texture_filter=CanvasItem.TEXTURE_FILTER_LINEAR
 	hframes=12
 	vframes=ACTIONS.size()
-	offset=Vector2(0,-82)
-	scale=Vector2.ONE*0.598
-	set_meta("billboard_pixel_size",0.01014)
-	set_meta("foot_anchor_y",210.0)
+	offset=Vector2(0,-123)
+	scale=Vector2.ONE*(0.598/1.5)
+	set_meta("billboard_pixel_size",0.01014/1.5)
+	set_meta("foot_anchor_y",315.0)
 	_set_form(false)
 
 func _set_form(evolved: bool) -> void:
 	_evolved=evolved
-	texture=load("res://assets_game/units/kon/oaven/painted_v2/jumper.png" if evolved else "res://assets_game/units/kon/oaven/painted_v2/oaven.png")
+	texture=load("res://assets_game/units/kon/oaven/painted_v3/jumper.png" if evolved else "res://assets_game/units/kon/oaven/painted_v3/oaven.png")
 
 func _process(delta: float) -> void:
 	var unit:=get_parent()

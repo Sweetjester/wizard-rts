@@ -53,7 +53,7 @@ func run() -> void:
 	hud.observer_vault.section = "Creations"
 	hud.observer_vault.search.text = "oaven"
 	hud.observer_vault.refresh()
-	check(hud.observer_vault.grid.get_child_count() == 2, "Search returned incorrect cards")
+	check(hud.observer_vault.grid.get_child_count() == 1, "Search must return one Oaven family card")
 	hud.observer_vault.search.text = "nonsensequery"
 	hud.observer_vault.refresh()
 	check(hud.observer_vault.grid.get_child_count() == 0, "Empty search did not clear cards")

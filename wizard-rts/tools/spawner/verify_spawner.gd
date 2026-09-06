@@ -10,7 +10,7 @@ func _check(ok: bool, message: String) -> bool:
 	return ok
 
 func _run() -> void:
-	var atlas:=Image.load_from_file("res://assets_game/units/kon/spawner/painted_v2/spawner.png")
+	var atlas:=Image.load_from_file("res://assets_game/units/kon/spawner/painted_v3/spawner.png")
 	if not _check(atlas.get_size()==Vector2i(4608,6144),"Atlas dimensions"): return
 	for row in 16:
 		var first: PackedByteArray

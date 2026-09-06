@@ -8,7 +8,7 @@ var phase:=0.0
 
 func _ready() -> void:
 	texture_filter=CanvasItem.TEXTURE_FILTER_LINEAR
-	source=load("res://assets_game/units/kon/spawner/painted_v2/source_parts.png")
+	source=load("res://assets_game/units/kon/spawner/painted_v3/source_parts.png")
 	var key:=ShaderMaterial.new()
 	key.shader=load("res://tools/oaven/chroma_key.gdshader")
 	material=key
@@ -21,8 +21,8 @@ func _joint(parent: Transform2D, point: Vector2, angle: float) -> Transform2D:
 	return parent*Transform2D(angle,point)
 
 func _leg(base: Transform2D, index: int, far: bool, stride: float, brace: float, dead: float, lift: float) -> void:
-	var direction: float=[-1.0,-0.25,1.0][index]
-	var hip:=Vector2(-66+index*57,-117+(8 if not far else -15))
+	var direction: float=[-1.0,1.0][index]
+	var hip:=Vector2(-66+index*114,-117+(8 if not far else -15))
 	if far: hip.x+=19
 	hip.y-=dead*38.0
 	var shade:=Color(0.57,0.68,0.69) if far else Color.WHITE
@@ -50,8 +50,8 @@ func _draw() -> void:
 	var lift:=spread*22.0
 	var bob:=absf(sin(cycle))*3.0 if walking else sin(cycle)*1.5
 	var base:=Transform2D(-hurt*0.08-dead*0.20,Vector2(-shot*7,brace*16+dead*65-lift-bob))
-	for i in 3:
-		_leg(base,i,true,sin(cycle+i*TAU/3) if walking else 0.0,brace,dead,lift)
+	for i in 2:
+		_leg(base,i,true,sin(cycle+i*PI) if walking else 0.0,brace,dead,lift)
 	var abdomen:=_joint(base,Vector2(-34,-144),sin(cycle)*0.015+summon*0.045)
 	var swell:=1.0+summon*0.07
 	_part(0,Rect2(-89*swell,-69*swell,178*swell,142*swell),abdomen)
@@ -59,9 +59,9 @@ func _draw() -> void:
 	_part(9 if summon>0.35 else 11,Rect2(-27,-20,54,44),hatch)
 	var thorax:=_joint(base,Vector2(36,-149),hurt*0.12+shot*0.06)
 	_part(1,Rect2(-47,-61,98,120),thorax)
-	# Three visible leg pairs use alternating phases, keeping the heavy shell stable.
-	for i in 3:
-		_leg(base,i,false,sin(cycle+i*TAU/3) if walking else 0.0,brace,dead,lift)
+	# Four weight-bearing legs match the quadrupedal concept silhouette.
+	for i in 2:
+		_leg(base,i,false,sin(cycle+i*PI) if walking else 0.0,brace,dead,lift)
 	var cannon:=maxf(brace,1.0 if action==&"air_artillery" else 0.0)
 	if cannon>0.01:
 		_part(8,Rect2(-21,-93*cannon,43,100*cannon),_joint(base,Vector2(0,-190+shot*11),0.20),Color(1,1,1,1-dead*0.6))

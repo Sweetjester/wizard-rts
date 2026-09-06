@@ -1,6 +1,9 @@
 extends Button
 const Style := preload("res://scripts/ui/observer_theme.gd")
 const ART := preload("res://assets/ui/observer_vault/portraits_drawn_v2.png")
+const CONCEPT_ART := preload("res://assets/ui/observer_vault/concept_portraits_v3.png")
+const CONCEPT_CELLS := {&"oaven_spear":0, &"oaven_jumper":1, &"stone_face_serpent":2,
+	&"spawner":3, &"winged_spawner":4, &"spawner_drone":5}
 const VARIANT_ART := preload("res://assets/ui/observer_vault/variants_drawn_v2.png")
 const VARIANTS := {&"oaven_jumper":0, &"winged_spawner":1, &"spawner_drone":2}
 const CELLS := {&"life_wizard":0, &"oaven_spear":1, &"oaven_jumper":1, &"mangler":2,
@@ -24,7 +27,12 @@ func setup(data: Dictionary) -> void:
 	focus_mode = Control.FOCUS_ALL
 	tooltip_text = str(data.get("requirement", "")) if data.sealed else "Read " + str(data.name)
 	if not data.sealed:
-		if VARIANTS.has(data.id):
+		if CONCEPT_CELLS.has(data.id):
+			portrait = CONCEPT_ART
+			var cell: int = CONCEPT_CELLS[data.id]
+			var cell_size := CONCEPT_ART.get_size()/Vector2(3,2)
+			portrait_region = Rect2(Vector2(cell%3,cell/3)*cell_size,cell_size)
+		elif VARIANTS.has(data.id):
 			portrait = VARIANT_ART
 			var cell_size := VARIANT_ART.get_size()/Vector2(3,1)
 			portrait_region = Rect2(Vector2(int(VARIANTS[data.id]),0)*cell_size,cell_size)

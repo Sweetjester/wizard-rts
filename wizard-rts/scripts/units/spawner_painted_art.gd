@@ -9,7 +9,7 @@ var _shot_left:=0.0
 var _summon_left:=0.0
 
 func _ready() -> void:
-	texture=preload("res://assets_game/units/kon/spawner/painted_v2/spawner.png")
+	texture=load("res://assets_game/units/kon/spawner/painted_v3/spawner.png")
 	texture_filter=CanvasItem.TEXTURE_FILTER_LINEAR
 	hframes=12
 	vframes=ACTIONS.size()

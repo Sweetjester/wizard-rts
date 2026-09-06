@@ -9,7 +9,7 @@ var winged := false
 
 func _ready() -> void:
 	texture_filter=CanvasItem.TEXTURE_FILTER_LINEAR
-	source=load("res://assets_game/units/kon/oaven/painted_v2/source_parts.png")
+	source=load("res://assets_game/units/kon/oaven/painted_v3/source_parts.png")
 	var key := ShaderMaterial.new()
 	key.shader=load("res://tools/oaven/chroma_key.gdshader")
 	material=key
