@@ -36,6 +36,12 @@ buildings, navigation definitions or research rules were replaced.
 
 ## Art and Animation
 
+**Current runtime: eight-direction v2.** See [DIRECTIONAL_V2.md](DIRECTIONAL_V2.md)
+for the source paintings, rebuild procedure, frame contract, camera handling,
+verification and costs. Both forms now use distinct E/SE/S/SW/W/NW/N/NE pages.
+The following v1 description is historical; its atlases and baker are retained
+for rollback/reference but are no longer loaded by the Mangler art script.
+
 `assets_game/units/kon/mangler/painted_v1/` contains the original transparent
 painted source, portrait, and both runtime atlases. The source uses irregular
 pose boundaries; do not replace the authored regions with a uniform grid.
@@ -58,7 +64,7 @@ Each runtime atlas is 4608x3456, 12 columns by 9 rows, 384x384 per frame:
 These are 16 painted source poses with timed pose changes and procedural
 breathing, bob, lean and squash baked into 216 playback frames. They are NOT
 216 independently painted poses, a skeletal 3D model, or an eight-direction
-set. The current presentation uses two mirrored facings, matching the other
+set. The original presentation used two mirrored facings, matching the other
 painted units. Base leap rows are unused compatibility rows.
 
 The shared Sprite2D/Sprite3D presentation renders these sheets. The art script
@@ -81,11 +87,12 @@ Impact and target indicators work in both 2D and 3D. No custom audio was added.
 Run from the Godot project root using Godot 4.6.2:
 
 ```text
-godot --path . --script tools/mangler/bake_mangler.gd
+godot --path . --script tools/mangler/bake_directional.gd
 godot --headless --path . --editor --quit
+godot --headless --path . --script tools/mangler/verify_directional.gd
 godot --headless --path . --script tools/mangler/verify_mangler.gd
 godot --headless --path . --script scripts/core/evolution_stat_integrity_smoke_test.gd
-godot --path . --script tools/mangler/shot_mangler.gd
+godot --path . --script tools/mangler/preview_directional.gd
 godot --path . --script tools/mangler/verify_mangler_ingame.gd
 ```
 

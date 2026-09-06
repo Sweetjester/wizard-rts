@@ -1,0 +1,27 @@
+{
+  "prompt": "Create a polished production illustration atlas for a fantasy RTS trading-card library. EXACT 2 by 2 equal square panels, edge to edge, no gutters, no text, no card borders, no numbers or lettering. Each panel is one finished illustration. Image 1 is STYLE reference only: match its confident black ink outlines, broad cel-painted shapes, appealing early illustrated trading-card craft, controlled painted texture and simple circular engraved backdrop. Images 2-5 are CHARACTER identity references. Do not copy their tiny sprite scale; draw large new compositions filling each panel. TOP LEFT: Poorper, scrappy small cloth doll infantry, round charcoal head, two huge round warm golden eyes, no human skin, ochre scarf, ragged grey wraps, short improvised spear held diagonally, satchel and little brass charms. Waist-up dynamic three-quarter portrait, whole head and weapon tip safely within frame. TOP RIGHT: Steel Knight, imposing slow heavy melee infantry, broad grey steel plate armor, closed slit visor glowing amber, worn pale plume, steel round shield and broad golden sword diagonally down across foreground. Three-quarter upper body, readable bold simplified plates. BOTTOM LEFT: Proper Blimp, broad silver-grey stitched airship balloon and wooden gondola, three visible Poorper crew with round golden eyes and little steel helmets, small forward artillery barrel and hanging amber lantern, entire balloon and gondola visible, attractive oblique flight view. BOTTOM RIGHT: Mounted Knight, horned armored knight riding an armored BULL (not horse); bullish wide muzzle and two huge curved horns, plate armor, pale torn banner, poleaxe with a small warm golden flame. Rider and bull head are the focal forms, dynamic three-quarter portrait. Palette: neutral pewter, charcoal ink, desaturated olive-grey backdrops, restrained ochre cloth, warm gold eyes and weapon accents. Every panel has a simple pale gold painted engraved-circle backdrop, NOT intense visual FX or complex noisy scene. Keep the subjects readable at 244 pixel display size. Clean beautiful hand-drawn line work, broad clearly separated highlights/shadows, no photorealism, no 3D render, no glossy mobile-game bevels, no excessive tiny detail. Keep important faces inside the central 80 percent of each panel. Produce high resolution crisp art, ideally 2048x2048 atlas.",
+  "references": [
+    "C:/Users/AndrewHyslop/Documents/GitHub/wizard-rts/wizard-rts/assets/ui/observer_vault/portraits_drawn_v2.png",
+    "C:/Users/AndrewHyslop/Documents/GitHub/wizard-rts/wizard-rts/assets_game/units/steel_force/painted_v1/poorper_portrait.png",
+    "C:/Users/AndrewHyslop/Documents/GitHub/wizard-rts/wizard-rts/assets_game/units/steel_force/painted_v1/steel_knight_portrait.png",
+    "C:/Users/AndrewHyslop/Documents/GitHub/wizard-rts/wizard-rts/assets_game/units/steel_force/painted_v1/proper_blimp_portrait.png",
+    "C:/Users/AndrewHyslop/Documents/GitHub/wizard-rts/wizard-rts/assets_game/units/steel_force/mounted_knight/directional_v1/sources/concept.png"
+  ],
+  "source": "C:/Users/AndrewHyslop/.codex/generated_images/01a06da8-de36-7961-98f3-7d4735c8b5a4/exec-9e980498-44bb-4ca5-9be4-c318c6ef4c60.png",
+  "asset": "res://assets/ui/observer_vault/steel_portraits_drawn_v4.png",
+  "native_size": [
+    1254,
+    1254
+  ],
+  "grid": [
+    2,
+    2
+  ],
+  "cells": [
+    "poorper",
+    "steel_knight",
+    "proper_blimp",
+    "mounted_knight"
+  ],
+  "notes": "Generated bitmap illustrations only. All card frames, names, tiers and live statistics are drawn by Godot, not baked into the art."
+}

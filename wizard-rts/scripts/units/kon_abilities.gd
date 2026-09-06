@@ -50,6 +50,9 @@ func cast(action: StringName, center: Vector2) -> bool:
 			last_error="Biostorm requires 60 Bio"
 			return false
 	unit.call("issue_stop_order")
+	var art := unit.get_node_or_null("ArtSprite")
+	if art != null and art.has_method("face_world_position"):
+		art.face_world_position(center)
 	unit.call("_set_ability_animation",action,1.0)
 	if action==&"seal_away":
 		cooldowns[action]=12.0

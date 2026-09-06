@@ -20,9 +20,28 @@ func _check_3d_mode() -> bool:
 	var sprite: Sprite3D
 	for child in sprite_root.get_children():
 		if child is Sprite3D and child.visible and child.texture==art.texture: sprite=child
-	if sprite==null or sprite.frame!=52 or not sprite.flip_h or sprite.vframes!=8:
+	if sprite==null or sprite.frame!=52 or sprite.flip_h or sprite.vframes!=8:
 		_fail("Kon billboard frame/facing/atlas mismatch")
 		return false
+	var original_basis: Basis = view.camera.global_basis
+	kon.velocity=Vector2.ZERO
+	kon.attack_target=null
+	kon.ability_animation_action=&"observer_aura"
+	art.world_facing=Vector2.RIGHT
+	for yaw in 8:
+		view.camera.global_basis=Basis(Vector3.UP,yaw*PI/4)*Basis(Vector3.RIGHT,-PI/4)
+		view._sync_unit_sprites([kon] as Array[Node2D])
+		var ground: Transform3D = view._unit_transform(kon)
+		var lift := (float(art.get_meta("foot_anchor_y"))-192)*sprite.pixel_size
+		if art.facing_index!=yaw or sprite.texture!=art.texture or sprite.frame!=52 or sprite.flip_h or absf(sprite.global_position.y-ground.origin.y-lift)>.001:
+			_fail("Kon eight-yaw page/frame/foot anchor mismatch")
+			return false
+		if art.world_facing!=Vector2.RIGHT:
+			_fail("Camera orbit rotated observing Kon in world space")
+			return false
+	view.camera.global_basis=original_basis
+	kon.ability_animation_action=&""
+	art._process(.01)
 	kon.set_meta("kon_banished",true)
 	if view._is_revealed(kon):
 		_fail("Banished hero visible in 3D")

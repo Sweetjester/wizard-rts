@@ -93,12 +93,12 @@ func _run() -> void:
 	check(not serpent._stone_cells_are_valid(remote),"Remote placement rejected")
 	check(not serpent._stone_cells_are_valid(diagonal),"Diagonal wall segment rejected")
 	for level in range(1,7):
-		var img := Image.load_from_file("res://assets_game/units/kon/serpent/painted_v2/serpent_%d.png" % level)
-		check(img.get_size()==Vector2i(6144,2304),"Level %d contains 108 animation frames" % level)
+		var img := Image.load_from_file("res://assets_game/units/kon/serpent/directional_v3/serpent_%d_e.png" % level)
+		check(img.get_size()==Vector2i(2048,2304),"Level %d contains 72 frames per direction" % level)
 		for row in 9:
-			var a := img.get_region(Rect2i(0,row*256,512,256))
-			var b := img.get_region(Rect2i(5*512,row*256,512,256))
-			check(a.get_used_rect().size.x>40 and a.get_used_rect().position.x>0 and a.get_used_rect().end.x<512,"Unclipped level %d row %d" % [level,row])
+			var a := img.get_region(Rect2i(0,row*256,256,256))
+			var b := img.get_region(Rect2i(5*256,row*256,256,256))
+			check(a.get_used_rect().size.x>40 and a.get_used_rect().position.x>0 and a.get_used_rect().end.x<256,"Unclipped level %d row %d" % [level,row])
 			if row!=4: check(a.get_data()!=b.get_data(),"Animation changes level %d row %d" % [level,row])
 	serpent.take_damage(9999,null,&"magic")
 	await process_frame

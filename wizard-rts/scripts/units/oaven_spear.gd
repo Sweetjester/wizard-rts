@@ -55,6 +55,7 @@ func _spawn_death_fx(source: Node = null) -> void:
 		super(source)
 		return
 	var view:=get_parent().get_node_or_null("Map3DView")
+	if art.has_method("sync_view_facing"): art.sync_view_facing()
 	if is_instance_valid(view) and view.has_method("spawn_painted_unit_death"):
 		view.call("spawn_painted_unit_death",self,art)
 		return

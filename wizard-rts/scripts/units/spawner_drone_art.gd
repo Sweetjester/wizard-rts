@@ -36,6 +36,16 @@ func _process(delta: float) -> void:
 	if next == &"hit": index = mini(11,int(_clock*44))
 	frame = ACTIONS.find(next)*12+index
 	var direction: Vector2 = unit.get("velocity")
-	var target: Node2D = unit.get("attack_target")
-	if is_instance_valid(target): direction = target.global_position-unit.global_position
+	# NOT typed as Node2D. attack_target can hold a unit that was queue_free()d
+	# earlier this same frame -- a killed unit is not actually gone until the end
+	# of it -- and assigning a freed object to a TYPED local raises "Trying to
+	# assign invalid previously freed instance" instead of giving null. The
+	# is_instance_valid() below is the right check; it just never gets to run.
+	#
+	# The engine does not stop for it, so nothing looks broken from GDScript: it
+	# raises once per frame, per unit, for as long as the stale reference is
+	# there, each one with a stack capture written to the log and sent to the
+	# attached debugger. That is what the freeze was.
+	var target = unit.get("attack_target")
+	if target != null and is_instance_valid(target): direction = target.global_position-unit.global_position
 	if absf(direction.x) > .5: flip_h = direction.x < 0

@@ -1,5 +1,13 @@
 # Kon: Broken Staff / Life Wizard Overhaul
 
+## Current Art: Eight Directions (2026-09-06)
+
+The live hero now uses `directional_v3`, not the two mirrored facings described
+in the historical overhaul below. Read [DIRECTIONAL_V3.md](DIRECTIONAL_V3.md)
+for the current assets, generation prompts, animation pipeline and verification.
+The existing `painted_v2/spells.png` effects are still used. Gameplay rules were
+not rebalanced by this art upgrade.
+
 ## Delivered
 
 The live `scenes/wizard.tscn` selects the new artwork for Bad Kon Willow only.

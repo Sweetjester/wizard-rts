@@ -106,6 +106,7 @@ const CAT_LANTERN_TREE_BLOCKER := &"LANTERN_TREE_BLOCKER"
 # camera, no UI, no probe, and consumes no input -- it is terrain geometry and
 # nothing else.
 var embedded_mode := false
+var _live_render_request := 0
 var _map_generator: Node
 var _map_width := 0
 var _map_height := 0
@@ -221,14 +222,21 @@ func render_live_map(generator: Node) -> void:
 		push_error("[Map3DRenderer] render_live_map called without a generator")
 		return
 	embedded_mode = true
-	if _visual_root != null and is_instance_valid(_visual_root):
-		_visual_root.queue_free()
-		_visual_root = null
+	_live_render_request += 1
+	var request := _live_render_request
 	_map_generator = generator
 	# Generation is spread across frames, so the grid is empty on the frame the
 	# generator is added and the probe would spawn on cell (-1, -1).
 	if not bool(generator.get("generation_complete")):
 		await generator.map_generated
+	if request != _live_render_request:
+		return
+	# Bootstrap and map_generated may both request a render. Retire the old
+	# geometry after the await so two callers cannot leave overlapping terrain.
+	if _visual_root != null and is_instance_valid(_visual_root):
+		_visual_root.hide()
+		_visual_root.queue_free()
+		_visual_root = null
 	_read_map_data(generator)
 	_render_map()
 
@@ -1018,6 +1026,10 @@ func _render_map() -> void:
 	_visual_root = Node3D.new()
 	_visual_root.name = "PrototypeGeometry"
 	add_child(_visual_root)
+	# The standalone preview is centred on zero; the live simulation starts at
+	# cell (0,0). Move geometry only so units, blocks and picking keep one origin.
+	if embedded_mode:
+		_visual_root.position = Vector3(_map_width * 0.5, 0, _map_height * 0.5) * TILE_SIZE
 
 	_terrain_root = _add_root("Terrain", true)
 	_road_root = _add_root("Roads", _show_roads)

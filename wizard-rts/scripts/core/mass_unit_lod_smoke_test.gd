@@ -8,6 +8,16 @@ func _init() -> void:
 	call_deferred("_run")
 
 func _run() -> void:
+	# Explicitly the 2D presentation, because that is what this test measures.
+	#
+	# GameSession's default became 3D on 2026-09-06, and Map3DView hides every
+	# CanvasItem in the map subtree when it is active -- which silently turned
+	# this into a test of an invisible scene. Anything asserting on the 2D
+	# renderer, the overlays or unit.visible has to say so rather than inherit
+	# whichever presentation happens to be the default.
+	var session := root.get_node_or_null("GameSession")
+	if session != null:
+		session.set("render_3d", false)
 	var scene: Node = load("res://scripts/map/main_map.tscn").instantiate()
 	root.add_child(scene)
 	# Map generation is spread across frames now, so the scene is not playable

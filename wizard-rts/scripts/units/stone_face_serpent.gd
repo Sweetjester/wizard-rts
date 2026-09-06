@@ -517,6 +517,7 @@ func _spawn_death_fx(source: Node = null) -> void:
 	if art == null or art.texture == null:
 		super(source)
 		return
+	if art.has_method("sync_view_facing"): art.sync_view_facing()
 	var view := get_parent().get_node_or_null("Map3DView")
 	if is_instance_valid(view) and view.has_method("spawn_painted_unit_death"):
 		view.spawn_painted_unit_death(self,art)

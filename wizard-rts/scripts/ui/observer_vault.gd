@@ -10,6 +10,7 @@ const RESEARCH := [
 	[&"observer_sight", "Observer Sight", "Extend Kon's observation."],
 	[&"observer_command", "Observer Command", "Deepen obedience."],
 	[&"observer_oversight", "Oversight", "Strengthen the Observer."],
+	[&"steel_conscription", "Steel Conscription", "Take one apart, and build your own. Each rank conscripts the next Steel Force unit -- but only once you have felled one to study."],
 	[&"thorned_vines", "Thorned Vines", "The walls knit themselves shut."],
 	[&"accelerated_evolution", "Accelerated Evolution", "New life arrives already changing."],
 	[&"hardened_horrors", "Hardened Horrors", "Thicker hide. Heavier limbs."],
@@ -39,6 +40,14 @@ var _fingerprint := ""
 var _seen: Dictionary = {}
 var _previous_focus: WeakRef
 
+# RESEARCH minus anything the game currently has switched off. Observer Command
+# only buys intelligence, so while the intelligence stat is disabled it would
+# cost Bio and do nothing.
+static func _research_items() -> Array:
+	if UnitCatalog.INTELLIGENCE_ENABLED:
+		return RESEARCH
+	return RESEARCH.filter(func(item): return item[0] != &"observer_command")
+
 func _ready() -> void:
 	layer = 90
 	session = get_node("/root/GameSession")
@@ -51,15 +60,10 @@ func _build_ui() -> void:
 	overlay.theme = Style.make()
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(overlay)
-	var bg := TextureRect.new()
-	bg.texture = BACKGROUND
-	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var bg := preload("res://scripts/ui/library_backdrop.gd").new()
 	overlay.add_child(bg)
 	var dim := ColorRect.new()
-	dim.color = Color(0.04, .075, .07, .80)
+	dim.color = Color(0.025, .04, .03, .72)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(dim)
@@ -104,6 +108,7 @@ func _build_ui() -> void:
 	scroll = ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
 	page.add_child(scroll)
 	content = VBoxContainer.new()
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -167,10 +172,6 @@ func _input(event: InputEvent) -> void:
 			elif absf(event.position.x-_swipe_origin.x)>70:
 				change_tier(-1 if event.position.x>_swipe_origin.x else 1)
 				get_viewport().set_input_as_handled()
-		if event is InputEventMouseButton and event.pressed and is_instance_valid(hand) and hand.get_global_rect().has_point(event.position):
-			if event.button_index in [MOUSE_BUTTON_WHEEL_DOWN,MOUSE_BUTTON_WHEEL_UP]:
-				change_tier(1 if event.button_index==MOUSE_BUTTON_WHEEL_DOWN else -1)
-				get_viewport().set_input_as_handled()
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		if selected_id != &"":
 			selected_id = &""
@@ -197,9 +198,14 @@ func _process(delta: float) -> void:
 		return
 	_elapsed = 0
 	var state := str(build_system.researched_upgrade_ranks) + str(session.felled_specimens)
+	# Research now takes time, and its progress is the one thing on this page
+	# that changes without any rank changing. Without it the "now studying" bar
+	# is painted once and then sits still until the study completes.
+	if build_system.has_method("is_researching") and bool(build_system.call("is_researching")):
+		state += "%.1f" % float(build_system.call("research_seconds_remaining"))
 	if section == "Research" and is_instance_valid(build_system.economy_manager):
 		balance.text = "%d Bio" % int(build_system.economy_manager.get_resources(1).get(&"bio", 0))
-		for item in RESEARCH:
+		for item in _research_items():
 			var cost: int = build_system._upgrade_cost(item[0], build_system.upgrade_rank(item[0])+1)
 			state += str(build_system.economy_manager.can_afford(1, {&"bio":cost}))
 	var records: Array = Records.entries(section, build_system, rts_world, session) if section != "Research" else []
@@ -221,6 +227,7 @@ func refresh() -> void:
 		content.remove_child(node)
 		node.queue_free()
 	grid = null
+	hand = null
 	for tab in tabs.get_children():
 		if tab is Button:
 			tab.button_pressed = tab.text == section
@@ -249,6 +256,8 @@ func _gallery() -> void:
 	previous.disabled = current_tier == 0
 	for tier in 5:
 		var locked: bool = section == "Creations" and tier > build_system.unlocked_tier(1)
+		for record in entries:
+			if int(record.tier) == tier and not record.sealed: locked = false
 		var label: String = ["Observer", "I", "II", "III", "IV"][tier]
 		var b := _button(nav, label, func(): choose_tier(tier))
 		b.name = "Tier_" + str(tier)
@@ -271,15 +280,15 @@ func _gallery() -> void:
 	hand.add_child(grid)
 	var shown := 0
 	var locked_tier: bool = section == "Creations" and current_tier > int(build_system.unlocked_tier(1))
-	if current_tier == 4:
-		for record in entries:
-			if int(record.tier) == 4 and not record.sealed: locked_tier = false
+	# Conscription is independent of hybrid research: never fog a usable recruit.
+	for record in entries:
+		if int(record.tier) == current_tier and not record.sealed: locked_tier = false
 	for record in entries:
 		if int(record.tier) != current_tier: continue
 		if not search.text.is_empty() and not str(record.name).to_lower().contains(search.text.to_lower()): continue
 		var card := Card.new()
 		card.setup(record)
-		card.size = Vector2(280,410)
+		card.size = Card.CARD_SIZE
 		card.disabled = record.sealed
 		grid.add_child(card)
 		card.pressed.connect(func():
@@ -336,15 +345,23 @@ func change_tier(direction: int) -> void:
 	choose_tier(current_tier + direction)
 
 func _resize_grid() -> void:
-	if not is_instance_valid(grid): return
+	if not is_instance_valid(grid) or not is_instance_valid(hand): return
 	var count := grid.get_child_count()
-	var spacing := minf(252, (grid.size.x-330)/maxi(1,count-1))
+	var gap := 24
+	var columns := maxi(1, int((grid.size.x-24+gap)/(Card.CARD_SIZE.x+gap)))
+	var rows := maxi(1, ceili(float(count)/columns))
+	hand.custom_minimum_size.y = 24 + rows * Card.CARD_SIZE.y + (rows-1)*gap
 	for i in count:
 		var card = grid.get_child(i)
-		var offset := float(i)-float(count-1)*.5
-		var angle := deg_to_rad(offset*5.0)
-		var at := Vector2(grid.size.x*.5-140+offset*spacing,16+absf(offset)*9)
-		card.arrange(at,angle,_deal_hand)
+		var row := int(i/columns)
+		var row_count := mini(columns,count-row*columns)
+		var row_width: float = row_count*Card.CARD_SIZE.x+(row_count-1)*gap
+		var at := Vector2(roundf((grid.size.x-row_width)*.5)+(i%columns)*(Card.CARD_SIZE.x+gap),12+row*(Card.CARD_SIZE.y+gap))
+		card.arrange(at,0.0,_deal_hand)
+		card.focus_neighbor_left = card.get_path_to(grid.get_child(maxi(0,i-1)))
+		card.focus_neighbor_right = card.get_path_to(grid.get_child(mini(count-1,i+1)))
+		card.focus_neighbor_top = card.get_path_to(grid.get_child(maxi(0,i-columns)))
+		card.focus_neighbor_bottom = card.get_path_to(grid.get_child(mini(count-1,i+columns)))
 	_deal_hand = false
 
 func _detail_page() -> void:
@@ -404,8 +421,12 @@ func _detail_page() -> void:
 			var live := Records.specimen_stats(r.instances[specimen_index])
 			if not live.is_empty():
 				stats = live
+	card.show_measurements(stats,"Recorded form" if r.enemy else ("Living specimen %d" % (specimen_index+1) if specimen_index >= 0 else "Run template"))
 	prose.add_child(Style.label("FIELD MEASUREMENTS" if specimen_index >= 0 and not r.enemy else "RECORDED ATTRIBUTES", 13, Style.CYAN))
-	for pair in [["max_health","Vitality"], ["attack_damage","Attack"], ["armor","Armour"], ["magic_armor","Magic armour"], ["attack_range_cells","Reach (cells)"], ["attack_speed_seconds","Attack interval (s)"], ["intelligence","Intelligence"]]:
+	var rows := [["max_health","Vitality"], ["attack_damage","Attack"], ["armor","Armour"], ["magic_armor","Magic armour"], ["attack_range_cells","Reach (cells)"], ["attack_speed_seconds","Attack interval (s)"]]
+	if UnitCatalog.INTELLIGENCE_ENABLED:
+		rows.append(["intelligence","Intelligence"])
+	for pair in rows:
 		var value := float(stats.get(pair[0], 0))
 		var baseline := float(r.base.get(pair[0], value))
 		var delta := value-baseline
@@ -431,7 +452,25 @@ func _detail_page() -> void:
 
 func _research_page() -> void:
 	content.add_child(Style.label("Break the seals. Shape what follows.", 24, Style.BRASS))
-	for item in RESEARCH:
+	# A study in progress, and who is speeding it up. Research used to complete
+	# the instant it was bought; it now takes time, and Oavens stationed inside
+	# the Vault shorten it -- neither of which the player can act on if the page
+	# does not say so.
+	if build_system.has_method("is_researching") and bool(build_system.call("is_researching")):
+		var studying: StringName = build_system.call("researching_upgrade")
+		var bar := ProgressBar.new()
+		bar.max_value = 1.0
+		bar.value = float(build_system.call("research_progress_ratio"))
+		bar.show_percentage = false
+		bar.custom_minimum_size.y = 10
+		content.add_child(Style.label("NOW STUDYING", 13, Style.BRASS))
+		content.add_child(Style.label("%s   %ds remaining%s" % [
+			_research_label(studying),
+			int(ceil(float(build_system.call("research_seconds_remaining")))),
+			_vault_crew_note()], 19, Style.CYAN))
+		content.add_child(bar)
+		content.add_child(HSeparator.new())
+	for item in _research_items():
 		var id: StringName = item[0]
 		var rank: int = build_system.upgrade_rank(id)
 		var maximum: int = build_system.upgrade_max_rank(id)
@@ -456,3 +495,44 @@ func _research_page() -> void:
 			line.add_child(Style.label("Requires Tier II Hybrids", 14, Style.RED))
 		content.add_child(HSeparator.new())
 	notice.text = "Research affects this expedition."
+
+func _research_label(id: StringName) -> String:
+	for item in RESEARCH:
+		if item[0] == id:
+			return str(item[1])
+	return str(id).replace("_", " ").capitalize()
+
+# Named rather than only implied by a faster bar, because a bonus the player
+# cannot see is a bonus they will not use.
+func _vault_crew_note() -> String:
+	# Walked up from here rather than hard-coded to /root/MainMap: this node is
+	# added as a child of the HUD, and the absolute path only happens to be right
+	# at runtime -- it is wrong under any harness that instances the map scene
+	# under a different name.
+	var garrison := _find_ancestor_sibling("StructureGarrisonEffects")
+	if garrison == null or not is_instance_valid(vault) or not is_instance_valid(vault.get_ref()):
+		return ""
+	var instance: StringName = _vault_block_instance()
+	if instance == &"":
+		return ""
+	var workers := int(garrison.call("workers_in", instance))
+	if workers <= 0:
+		return "   (no one is helping)"
+	return "   (+%d%% from %d stationed)" % [
+		int(round((float(garrison.call("rate_multiplier_for", instance)) - 1.0) * 100.0)), workers]
+
+func _find_ancestor_sibling(node_name: String) -> Node:
+	var parent := get_parent()
+	while parent != null:
+		var candidate := parent.get_node_or_null(node_name)
+		if candidate != null:
+			return candidate
+		parent = parent.get_parent()
+	return null
+
+func _vault_block_instance() -> StringName:
+	var source = vault.get_ref()
+	for structure in build_system.structures:
+		if structure.get("node", null) == source:
+			return StringName(structure.get("block_instance", &""))
+	return &""

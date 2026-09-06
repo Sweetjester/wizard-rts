@@ -229,7 +229,9 @@ func _spawn_death_fx(source: Node = null) -> void:
 	if art == null or art.texture == null:
 		super(source)
 		return
-	art.set_meta("foot_anchor_y", 330.0)
+	art.sync_view_facing()
+	art.offset.y = -92.0
+	art.set_meta("foot_anchor_y", 220.0)
 	var view := get_parent().get_node_or_null("Map3DView")
 	if is_instance_valid(view):
 		view.spawn_painted_unit_death(self, art)

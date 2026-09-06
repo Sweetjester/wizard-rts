@@ -14246,6 +14246,1060 @@
 				}
 			]
 		},
+		"steel_force_barracks_farm_01": {
+			"art": {
+				"bespoke_skin": "steel_barracks_hd_v1",
+				"cutaway": "selected_unit_inside",
+				"texture_density_px_per_cell": 418
+			},
+			"block_cell_count": 266,
+			"blocks": [
+				{
+					"id": "foundation",
+					"material": "DARK_STONE",
+					"region": {
+						"x": [
+							0,
+							8
+						],
+						"y": 0,
+						"z": [
+							0,
+							13
+						]
+					}
+				},
+				{
+					"id": "ramp_cut",
+					"material": "EMPTY",
+					"nav": "EMPTY",
+					"region": {
+						"x": [
+							3,
+							4
+						],
+						"y": 0,
+						"z": [
+							0,
+							1
+						]
+					}
+				},
+				{
+					"id": "fence_west",
+					"material": "TIMBER",
+					"region": {
+						"x": 0,
+						"y": 1,
+						"z": [
+							0,
+							6
+						]
+					}
+				},
+				{
+					"id": "fence_east",
+					"material": "TIMBER",
+					"region": {
+						"x": 8,
+						"y": 1,
+						"z": [
+							0,
+							6
+						]
+					}
+				},
+				{
+					"id": "fence_south_west",
+					"material": "TIMBER",
+					"region": {
+						"x": [
+							1,
+							2
+						],
+						"y": 1,
+						"z": 0
+					}
+				},
+				{
+					"id": "fence_south_east",
+					"material": "TIMBER",
+					"region": {
+						"x": [
+							5,
+							7
+						],
+						"y": 1,
+						"z": 0
+					}
+				},
+				{
+					"id": "farm_gate",
+					"material": "GATE",
+					"region": {
+						"x": [
+							3,
+							4
+						],
+						"y": [
+							0,
+							1
+						],
+						"z": 0
+					}
+				},
+				{
+					"id": "wheat_beds",
+					"material": "TIMBER",
+					"region": {
+						"x": [
+							1,
+							2
+						],
+						"y": 1,
+						"z": [
+							2,
+							4
+						]
+					}
+				},
+				{
+					"id": "livestock_pen",
+					"material": "TIMBER",
+					"region": {
+						"x": [
+							6,
+							7
+						],
+						"y": 1,
+						"z": [
+							2,
+							4
+						]
+					}
+				},
+				{
+					"id": "west_wall",
+					"material": "TOWER_STONE",
+					"region": {
+						"x": 0,
+						"y": [
+							1,
+							3
+						],
+						"z": [
+							7,
+							13
+						]
+					}
+				},
+				{
+					"id": "east_wall",
+					"material": "TOWER_STONE",
+					"region": {
+						"x": 8,
+						"y": [
+							1,
+							3
+						],
+						"z": [
+							7,
+							13
+						]
+					}
+				},
+				{
+					"id": "rear_wall",
+					"material": "TOWER_STONE",
+					"region": {
+						"x": [
+							1,
+							7
+						],
+						"y": [
+							1,
+							3
+						],
+						"z": 13
+					}
+				},
+				{
+					"id": "front_left",
+					"material": "TOWER_STONE",
+					"region": {
+						"x": [
+							1,
+							2
+						],
+						"y": [
+							1,
+							3
+						],
+						"z": 7
+					}
+				},
+				{
+					"id": "front_right",
+					"material": "TOWER_STONE",
+					"region": {
+						"x": [
+							5,
+							7
+						],
+						"y": [
+							1,
+							3
+						],
+						"z": 7
+					}
+				},
+				{
+					"id": "muster_door",
+					"material": "GATE",
+					"region": {
+						"x": [
+							3,
+							4
+						],
+						"y": [
+							1,
+							2
+						],
+						"z": 7
+					}
+				},
+				{
+					"id": "muster_lintel",
+					"material": "TIMBER",
+					"region": {
+						"x": [
+							3,
+							4
+						],
+						"y": 3,
+						"z": 7
+					}
+				},
+				{
+					"id": "service_door",
+					"material": "GATE",
+					"region": {
+						"x": 8,
+						"y": [
+							1,
+							2
+						],
+						"z": [
+							10,
+							11
+						]
+					}
+				},
+				{
+					"id": "west_bunks",
+					"material": "TIMBER",
+					"region": {
+						"x": 1,
+						"y": 1,
+						"z": [
+							10,
+							11
+						]
+					}
+				},
+				{
+					"id": "stair_reservation",
+					"material": "TIMBER",
+					"region": {
+						"x": 2,
+						"y": [
+							1,
+							2
+						],
+						"z": [
+							10,
+							11
+						]
+					}
+				},
+				{
+					"id": "loft_slab",
+					"material": "TIMBER",
+					"region": {
+						"x": [
+							1,
+							7
+						],
+						"y": 3,
+						"z": 12
+					}
+				}
+			],
+			"debug_expectations": {
+				"notes": [
+					"Farm occupies z=0..6; barracks occupies z=7..13. Neither is a scaled master.",
+					"Crop beds and livestock pen are decorative occupied cells, not traversable shortcuts.",
+					"Roof and upper front framing hide for selected units inside the hall; collision does not change.",
+					"Gate visuals follow the same state keys as navigation. Farm and muster gates are independent.",
+					"Heavy units can enter the hall but cannot use the loft staircase."
+				],
+				"show": [
+					"compound_bounds",
+					"farm_lane",
+					"loft_stair",
+					"gates",
+					"sockets"
+				]
+			},
+			"design_intent": {
+				"reserved_walkways": [
+					"central_farm_lane",
+					"farm_cross_lane",
+					"muster_hall",
+					"loft"
+				],
+				"summary": "Purpose-built compact barracks and fenced provision farm. Each zone is exactly the current laboratory footprint, 9 by 7 cells. The cream stone and timber hall, slate gables, lookout turret and amber lanterns identify the Steel Force. A straight two-cell-wide lane admits heavy cavalry. Room navigation is authored here and is never derived from the skin.\n",
+				"zones": {
+					"barracks": {
+						"dimensions": [
+							9,
+							5,
+							7
+						],
+						"origin": [
+							0,
+							0,
+							7
+						]
+					},
+					"farm": {
+						"dimensions": [
+							9,
+							5,
+							7
+						],
+						"origin": [
+							0,
+							0,
+							0
+						]
+					}
+				}
+			},
+			"dimensions": [
+				9,
+				5,
+				14
+			],
+			"display_name": "Steel Force Musterhouse & Croft",
+			"gate_defaults": {
+				"steel_farm_open": true,
+				"steel_muster_open": true,
+				"steel_service_open": false
+			},
+			"gates": [
+				{
+					"block_region": {
+						"x": [
+							3,
+							4
+						],
+						"y": [
+							0,
+							1
+						],
+						"z": 0
+					},
+					"default_state": "open",
+					"id": "farm_gate",
+					"passage_region": {
+						"x": [
+							3,
+							4
+						],
+						"y": 0,
+						"z": 0
+					},
+					"state_key": "steel_farm_open"
+				},
+				{
+					"block_region": {
+						"x": [
+							3,
+							4
+						],
+						"y": [
+							1,
+							2
+						],
+						"z": 7
+					},
+					"default_state": "open",
+					"id": "muster_gate",
+					"passage_region": {
+						"x": [
+							3,
+							4
+						],
+						"y": 1,
+						"z": 7
+					},
+					"state_key": "steel_muster_open"
+				},
+				{
+					"block_region": {
+						"x": 8,
+						"y": [
+							1,
+							2
+						],
+						"z": [
+							10,
+							11
+						]
+					},
+					"default_state": "closed",
+					"id": "service_gate",
+					"passage_region": {
+						"x": 8,
+						"y": 1,
+						"z": [
+							10,
+							11
+						]
+					},
+					"state_key": "steel_service_open"
+				}
+			],
+			"id": "steel_force_barracks_farm_01",
+			"links": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"from": [
+						3,
+						0,
+						0
+					],
+					"id": "farm_entry_ramp",
+					"to": [
+						3,
+						1,
+						2
+					],
+					"type": "RAMP",
+					"width": 2
+				},
+				{
+					"allowed": [
+						"heavy"
+					],
+					"from": [
+						4,
+						0,
+						0
+					],
+					"id": "farm_entry_heavy_east",
+					"to": [
+						4,
+						1,
+						2
+					],
+					"type": "RAMP",
+					"width": 2
+				},
+				{
+					"allowed": [
+						"heavy"
+					],
+					"from": [
+						3,
+						0,
+						1
+					],
+					"id": "farm_entry_heavy_north",
+					"to": [
+						3,
+						1,
+						3
+					],
+					"type": "RAMP",
+					"width": 2
+				},
+				{
+					"allowed": [
+						"heavy"
+					],
+					"from": [
+						4,
+						0,
+						1
+					],
+					"id": "farm_entry_heavy_north_east",
+					"to": [
+						4,
+						1,
+						3
+					],
+					"type": "RAMP",
+					"width": 2
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"from": [
+						2,
+						1,
+						9
+					],
+					"id": "loft_stair",
+					"to": [
+						2,
+						4,
+						12
+					],
+					"type": "STAIR",
+					"width": 1
+				}
+			],
+			"nav_cell_count": 77,
+			"nav_regions": [
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "farm_gate_lane",
+					"region": {
+						"x": [
+							3,
+							4
+						],
+						"y": 0,
+						"z": [
+							0,
+							1
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "central_farm_lane",
+					"region": {
+						"x": [
+							3,
+							5
+						],
+						"y": 1,
+						"z": [
+							2,
+							6
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "farm_cross_lane",
+					"region": {
+						"x": [
+							1,
+							7
+						],
+						"y": 1,
+						"z": [
+							5,
+							6
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "farm_south_left",
+					"region": {
+						"x": [
+							1,
+							2
+						],
+						"y": 1,
+						"z": 1
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "farm_south_right",
+					"region": {
+						"x": [
+							5,
+							7
+						],
+						"y": 1,
+						"z": 1
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "entrance",
+					"region": {
+						"x": [
+							3,
+							4
+						],
+						"y": 1,
+						"z": 7
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "muster_hall",
+					"region": {
+						"x": [
+							1,
+							7
+						],
+						"y": 1,
+						"z": [
+							8,
+							9
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "central_hall",
+					"region": {
+						"x": [
+							3,
+							6
+						],
+						"y": 1,
+						"z": [
+							10,
+							12
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber",
+						"heavy"
+					],
+					"id": "service_passage",
+					"region": {
+						"x": [
+							7,
+							8
+						],
+						"y": 1,
+						"z": [
+							10,
+							11
+						]
+					},
+					"type": "FLOOR"
+				},
+				{
+					"allowed": [
+						"infantry",
+						"archer",
+						"climber"
+					],
+					"id": "loft",
+					"region": {
+						"x": [
+							1,
+							7
+						],
+						"y": 4,
+						"z": 12
+					},
+					"type": "FLOOR"
+				}
+			],
+			"placement": {
+				"clearance_above": 1,
+				"note": "Place the entire 9x14 compound; never overlap the farm with another footprint.",
+				"preferred_pad": {
+					"x": [
+						0,
+						8
+					],
+					"z": [
+						0,
+						13
+					]
+				},
+				"rotation_y": [
+					0,
+					90,
+					180,
+					270
+				]
+			},
+			"procedural_generation": {
+				"connection_sockets": [
+					{
+						"facing": "south",
+						"id": "farm_road",
+						"position": [
+							3,
+							0,
+							0
+						],
+						"type": "ROAD_SOCKET",
+						"width": 2
+					},
+					{
+						"facing": "east",
+						"id": "service_road",
+						"position": [
+							8,
+							1,
+							10
+						],
+						"type": "PATH_SOCKET",
+						"width": 2
+					}
+				],
+				"placement": {
+					"allow_rotation_y": [
+						0,
+						90,
+						180,
+						270
+					],
+					"minimum_clearance": {
+						"x": 11,
+						"z": 16
+					},
+					"terrain_requirement": "flat"
+				}
+			},
+			"production_integration": {
+				"faction": "steel_force",
+				"muster_exit": [
+					4,
+					1,
+					6
+				],
+				"note": "Uses the existing block placement API. No player Steel Force economy or training rules are invented.",
+				"recruit_anchor": [
+					4,
+					1,
+					10
+				],
+				"role": "barracks",
+				"status": "physical_structure_only"
+			},
+			"sockets": [
+				{
+					"facing": "south",
+					"id": "farm_road",
+					"position": [
+						3,
+						0,
+						0
+					],
+					"type": "ROAD_SOCKET",
+					"width": 2
+				},
+				{
+					"facing": "east",
+					"id": "service_road",
+					"position": [
+						8,
+						1,
+						10
+					],
+					"type": "PATH_SOCKET",
+					"width": 2
+				}
+			],
+			"validation_tests": [
+				{
+					"destination": [
+						4,
+						1,
+						11
+					],
+					"expected": "PASS",
+					"id": "infantry_hall",
+					"start": [
+						3,
+						0,
+						0
+					],
+					"state": {
+						"steel_farm_open": true,
+						"steel_muster_open": true
+					},
+					"unit_class": "infantry"
+				},
+				{
+					"destination": [
+						4,
+						1,
+						10
+					],
+					"expected": "PASS",
+					"id": "heavy_hall",
+					"start": [
+						3,
+						0,
+						0
+					],
+					"state": {
+						"steel_farm_open": true,
+						"steel_muster_open": true
+					},
+					"unit_class": "heavy"
+				},
+				{
+					"destination": [
+						4,
+						4,
+						12
+					],
+					"expected": "PASS",
+					"id": "infantry_loft",
+					"start": [
+						3,
+						0,
+						0
+					],
+					"state": {
+						"steel_farm_open": true,
+						"steel_muster_open": true
+					},
+					"unit_class": "infantry"
+				},
+				{
+					"destination": [
+						6,
+						4,
+						12
+					],
+					"expected": "PASS",
+					"id": "archer_loft",
+					"start": [
+						3,
+						0,
+						0
+					],
+					"state": {
+						"steel_farm_open": true,
+						"steel_muster_open": true
+					},
+					"unit_class": "archer"
+				},
+				{
+					"destination": [
+						1,
+						4,
+						12
+					],
+					"expected": "PASS",
+					"id": "climber_loft",
+					"start": [
+						3,
+						0,
+						0
+					],
+					"state": {
+						"steel_farm_open": true,
+						"steel_muster_open": true
+					},
+					"unit_class": "climber"
+				},
+				{
+					"destination": [
+						4,
+						4,
+						12
+					],
+					"expected": "FAIL",
+					"id": "heavy_no_loft",
+					"start": [
+						3,
+						0,
+						0
+					],
+					"state": {
+						"steel_farm_open": true,
+						"steel_muster_open": true
+					},
+					"unit_class": "heavy"
+				},
+				{
+					"destination": [
+						4,
+						1,
+						5
+					],
+					"expected": "FAIL",
+					"id": "closed_farm",
+					"start": [
+						3,
+						0,
+						0
+					],
+					"state": {
+						"steel_farm_open": false,
+						"steel_muster_open": true
+					},
+					"unit_class": "infantry"
+				},
+				{
+					"destination": [
+						4,
+						1,
+						11
+					],
+					"expected": "FAIL",
+					"id": "closed_muster",
+					"start": [
+						3,
+						0,
+						0
+					],
+					"state": {
+						"steel_farm_open": true,
+						"steel_muster_open": false,
+						"steel_service_open": false
+					},
+					"unit_class": "infantry"
+				},
+				{
+					"destination": [
+						7,
+						1,
+						10
+					],
+					"expected": "PASS",
+					"id": "service_open",
+					"start": [
+						4,
+						1,
+						10
+					],
+					"state": {
+						"steel_service_open": true
+					},
+					"unit_class": "heavy"
+				},
+				{
+					"destination": [
+						8,
+						1,
+						10
+					],
+					"expected": "FAIL",
+					"id": "service_closed",
+					"start": [
+						4,
+						1,
+						10
+					],
+					"state": {
+						"steel_service_open": false
+					},
+					"unit_class": "infantry"
+				},
+				{
+					"destination": [
+						2,
+						1,
+						3
+					],
+					"expected": "FAIL",
+					"id": "wheat_not_walkable",
+					"start": [
+						3,
+						0,
+						0
+					],
+					"state": {
+						"steel_farm_open": true
+					},
+					"unit_class": "infantry"
+				},
+				{
+					"destination": [
+						4,
+						4,
+						12
+					],
+					"expected": "PASS",
+					"id": "flying_loft",
+					"start": [
+						3,
+						0,
+						0
+					],
+					"state": {
+						"steel_farm_open": false,
+						"steel_muster_open": false
+					},
+					"unit_class": "flying"
+				}
+			],
+			"world_rules": {
+				"block_size_m": 1.0,
+				"origin_rule": "south-west-bottom",
+				"ranges_are_inclusive": true
+			}
+		},
 		"sunken_temple_01": {
 			"block_cell_count": 528,
 			"blocks": [

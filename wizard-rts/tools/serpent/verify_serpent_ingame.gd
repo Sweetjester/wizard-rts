@@ -4,6 +4,7 @@ func _initialize() -> void: call_deferred("_run")
 func _run() -> void:
 	create_timer(120).timeout.connect(func() -> void: push_error("Serpent integration timeout"); quit(1))
 	root.size = Vector2i(1600,1000)
+	root.content_scale_size=root.size
 	root.get_node("GameSession").start_new_game("serpent-art-review","bad_kon_willow","seeded_grid_frontier","",true)
 	var stage: Node = load("res://scripts/map/main_map.tscn").instantiate()
 	root.add_child(stage)

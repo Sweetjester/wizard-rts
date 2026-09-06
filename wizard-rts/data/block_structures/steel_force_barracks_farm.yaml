@@ -1,0 +1,101 @@
+schema_version: "1.1"
+structure:
+  id: steel_force_barracks_farm_01
+  display_name: "Steel Force Musterhouse & Croft"
+  dimensions: {x: 9, y: 5, z: 14}
+  world_rules: {block_size_m: 1.0, ranges_are_inclusive: true, origin_rule: south-west-bottom}
+  art: {bespoke_skin: steel_barracks_hd_v1, cutaway: selected_unit_inside, texture_density_px_per_cell: 418}
+  design_intent:
+    summary: >
+      Purpose-built compact barracks and fenced provision farm. Each zone is
+      exactly the current laboratory footprint, 9 by 7 cells. The cream stone
+      and timber hall, slate gables, lookout turret and amber lanterns identify
+      the Steel Force. A straight two-cell-wide lane admits heavy cavalry.
+      Room navigation is authored here and is never derived from the skin.
+    zones:
+      barracks: {origin: [0, 0, 7], dimensions: [9, 5, 7]}
+      farm: {origin: [0, 0, 0], dimensions: [9, 5, 7]}
+    reserved_walkways: [central_farm_lane, farm_cross_lane, muster_hall, loft]
+  placement:
+    preferred_pad: {x: [0, 8], z: [0, 13]}
+    rotation_y: [0, 90, 180, 270]
+    clearance_above: 1
+    note: "Place the entire 9x14 compound; never overlap the farm with another footprint."
+  production_integration:
+    faction: steel_force
+    role: barracks
+    muster_exit: [4, 1, 6]
+    recruit_anchor: [4, 1, 10]
+    status: physical_structure_only
+    note: "Uses the existing block placement API. No player Steel Force economy or training rules are invented."
+  blocks:
+    - {id: foundation, region: {x: [0, 8], y: 0, z: [0, 13]}, material: DARK_STONE}
+    - {id: ramp_cut, region: {x: [3, 4], y: 0, z: [0, 1]}, material: EMPTY, navigation: EMPTY}
+    - {id: fence_west, region: {x: 0, y: 1, z: [0, 6]}, material: TIMBER}
+    - {id: fence_east, region: {x: 8, y: 1, z: [0, 6]}, material: TIMBER}
+    - {id: fence_south_west, region: {x: [1, 2], y: 1, z: 0}, material: TIMBER}
+    - {id: fence_south_east, region: {x: [5, 7], y: 1, z: 0}, material: TIMBER}
+    - {id: farm_gate, region: {x: [3, 4], y: [0, 1], z: 0}, material: GATE}
+    - {id: wheat_beds, region: {x: [1, 2], y: 1, z: [2, 4]}, material: TIMBER}
+    - {id: livestock_pen, region: {x: [6, 7], y: 1, z: [2, 4]}, material: TIMBER}
+    - {id: west_wall, region: {x: 0, y: [1, 3], z: [7, 13]}, material: TOWER_STONE}
+    - {id: east_wall, region: {x: 8, y: [1, 3], z: [7, 13]}, material: TOWER_STONE}
+    - {id: rear_wall, region: {x: [1, 7], y: [1, 3], z: 13}, material: TOWER_STONE}
+    - {id: front_left, region: {x: [1, 2], y: [1, 3], z: 7}, material: TOWER_STONE}
+    - {id: front_right, region: {x: [5, 7], y: [1, 3], z: 7}, material: TOWER_STONE}
+    - {id: muster_door, region: {x: [3, 4], y: [1, 2], z: 7}, material: GATE}
+    - {id: muster_lintel, region: {x: [3, 4], y: 3, z: 7}, material: TIMBER}
+    - {id: service_door, region: {x: 8, y: [1, 2], z: [10, 11]}, material: GATE}
+    - {id: west_bunks, region: {x: 1, y: 1, z: [10, 11]}, material: TIMBER}
+    - {id: stair_reservation, region: {x: 2, y: [1, 2], z: [10, 11]}, material: TIMBER}
+    - {id: loft_slab, region: {x: [1, 7], y: 3, z: 12}, material: TIMBER}
+  nav_regions:
+    - {id: farm_gate_lane, type: FLOOR, region: {x: [3, 4], y: 0, z: [0, 1]}, allowed: [infantry, archer, climber, heavy]}
+    - {id: central_farm_lane, type: FLOOR, region: {x: [3, 5], y: 1, z: [2, 6]}, allowed: [infantry, archer, climber, heavy]}
+    - {id: farm_cross_lane, type: FLOOR, region: {x: [1, 7], y: 1, z: [5, 6]}, allowed: [infantry, archer, climber, heavy]}
+    - {id: farm_south_left, type: FLOOR, region: {x: [1, 2], y: 1, z: 1}, allowed: [infantry, archer, climber]}
+    - {id: farm_south_right, type: FLOOR, region: {x: [5, 7], y: 1, z: 1}, allowed: [infantry, archer, climber]}
+    - {id: entrance, type: FLOOR, region: {x: [3, 4], y: 1, z: 7}, allowed: [infantry, archer, climber, heavy]}
+    - {id: muster_hall, type: FLOOR, region: {x: [1, 7], y: 1, z: [8, 9]}, allowed: [infantry, archer, climber, heavy]}
+    - {id: central_hall, type: FLOOR, region: {x: [3, 6], y: 1, z: [10, 12]}, allowed: [infantry, archer, climber, heavy]}
+    - {id: service_passage, type: FLOOR, region: {x: [7, 8], y: 1, z: [10, 11]}, allowed: [infantry, archer, climber, heavy]}
+    - {id: loft, type: FLOOR, region: {x: [1, 7], y: 4, z: 12}, allowed: [infantry, archer, climber]}
+  traversal_links:
+    - {id: farm_entry_ramp, type: RAMP, from: [3, 0, 0], to: [3, 1, 2], width: 2, allowed: [infantry, archer, climber, heavy]}
+    # All four corners of the 2x2 landings are explicit: rotating a cell does
+    # not rotate the heavy unit's minimum-corner footprint anchor. Only the
+    # corner with a legal 2x2 footprint is usable in any given orientation.
+    - {id: farm_entry_heavy_east, type: RAMP, from: [4, 0, 0], to: [4, 1, 2], width: 2, allowed: [heavy]}
+    - {id: farm_entry_heavy_north, type: RAMP, from: [3, 0, 1], to: [3, 1, 3], width: 2, allowed: [heavy]}
+    - {id: farm_entry_heavy_north_east, type: RAMP, from: [4, 0, 1], to: [4, 1, 3], width: 2, allowed: [heavy]}
+    - {id: loft_stair, type: STAIR, from: [2, 1, 9], to: [2, 4, 12], width: 1, allowed: [infantry, archer, climber]}
+  gates:
+    - {id: farm_gate, state_key: steel_farm_open, default_state: open, block_region: {x: [3, 4], y: [0, 1], z: 0}, passage_region: {x: [3, 4], y: 0, z: 0}}
+    - {id: muster_gate, state_key: steel_muster_open, default_state: open, block_region: {x: [3, 4], y: [1, 2], z: 7}, passage_region: {x: [3, 4], y: 1, z: 7}}
+    - {id: service_gate, state_key: steel_service_open, default_state: closed, block_region: {x: 8, y: [1, 2], z: [10, 11]}, passage_region: {x: 8, y: 1, z: [10, 11]}}
+  procedural_generation:
+    placement: {terrain_requirement: flat, minimum_clearance: {x: 11, z: 16}, allow_rotation_y: [0, 90, 180, 270]}
+    connection_sockets:
+      - {id: farm_road, type: ROAD_SOCKET, position: [3, 0, 0], facing: south, width: 2}
+      - {id: service_road, type: PATH_SOCKET, position: [8, 1, 10], facing: east, width: 2}
+  debug_expectations:
+    show: [compound_bounds, farm_lane, loft_stair, gates, sockets]
+    notes:
+      - "Farm occupies z=0..6; barracks occupies z=7..13. Neither is a scaled master."
+      - "Crop beds and livestock pen are decorative occupied cells, not traversable shortcuts."
+      - "Roof and upper front framing hide for selected units inside the hall; collision does not change."
+      - "Gate visuals follow the same state keys as navigation. Farm and muster gates are independent."
+      - "Heavy units can enter the hall but cannot use the loft staircase."
+  validation_tests:
+    - {id: infantry_hall, unit_class: infantry, start: [3, 0, 0], destination: [4, 1, 11], state: {steel_farm_open: true, steel_muster_open: true}, expected: PASS}
+    - {id: heavy_hall, unit_class: heavy, start: [3, 0, 0], destination: [4, 1, 10], state: {steel_farm_open: true, steel_muster_open: true}, expected: PASS}
+    - {id: infantry_loft, unit_class: infantry, start: [3, 0, 0], destination: [4, 4, 12], state: {steel_farm_open: true, steel_muster_open: true}, expected: PASS}
+    - {id: archer_loft, unit_class: archer, start: [3, 0, 0], destination: [6, 4, 12], state: {steel_farm_open: true, steel_muster_open: true}, expected: PASS}
+    - {id: climber_loft, unit_class: climber, start: [3, 0, 0], destination: [1, 4, 12], state: {steel_farm_open: true, steel_muster_open: true}, expected: PASS}
+    - {id: heavy_no_loft, unit_class: heavy, start: [3, 0, 0], destination: [4, 4, 12], state: {steel_farm_open: true, steel_muster_open: true}, expected: FAIL}
+    - {id: closed_farm, unit_class: infantry, start: [3, 0, 0], destination: [4, 1, 5], state: {steel_farm_open: false, steel_muster_open: true}, expected: FAIL}
+    - {id: closed_muster, unit_class: infantry, start: [3, 0, 0], destination: [4, 1, 11], state: {steel_farm_open: true, steel_muster_open: false, steel_service_open: false}, expected: FAIL}
+    - {id: service_open, unit_class: heavy, start: [4, 1, 10], destination: [7, 1, 10], state: {steel_service_open: true}, expected: PASS}
+    - {id: service_closed, unit_class: infantry, start: [4, 1, 10], destination: [8, 1, 10], state: {steel_service_open: false}, expected: FAIL}
+    - {id: wheat_not_walkable, unit_class: infantry, start: [3, 0, 0], destination: [2, 1, 3], state: {steel_farm_open: true}, expected: FAIL}
+    - {id: flying_loft, unit_class: flying, start: [3, 0, 0], destination: [4, 4, 12], state: {steel_farm_open: false, steel_muster_open: false}, expected: PASS}

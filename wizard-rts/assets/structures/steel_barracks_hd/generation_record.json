@@ -1,0 +1,40 @@
+{
+  "date": "2026-09-06",
+  "tool": "Built-in image_gen image generation",
+  "reference": "concept.png (user-provided)",
+  "note": "Prompts requested 2048 square; actual outputs are 1254 square. Native outputs retained, not enlarged. Generated textures support procedural meshes; no whole-building image billboard.",
+  "assets": [
+    {
+      "file": "masonry.png",
+      "native_dimensions": [
+        1254,
+        1254
+      ],
+      "prompt": "Use case: stylized-concept. Asset type: high resolution seamless game building material, NOT a building illustration. Generate a square 2048x2048 production texture showing a FLAT FRONT-ON wall of irregular pale chalk limestone and warm grey medieval plaster patches. Reference image is STYLE/MATERIAL ONLY: sinister hand-illustrated fantasy timber barracks. Big readable broad stone forms, confident dark ink seams, handpainted creamy grey highlights and muted charcoal shadows, occasional chips and fine short engraved hatching, crafted wood/clay/stone boardgame look. Uneven stones about 8-10 stones across, varied size, mortar dark but not huge. No timber beams, windows, doors, scenery, perspective, letters, border, vignette or cast shadows. Neutral baked diffuse lighting, no shiny PBR. Fill every pixel. Opposite edges should match for tiling. Crisp intentional linework, not photoreal noise or low-res pixel art."
+    },
+    {
+      "file": "slate.png",
+      "native_dimensions": [
+        1254,
+        1254
+      ],
+      "prompt": "Use case: stylized-concept. High resolution square 2048x2048 game texture. A flat orthographic material scan of handmade medieval charcoal-grey slate shingles, entirely filling canvas. 9 uneven shingle columns and 14 overlapping staggered horizontal courses, each slate broad readable shape with chipped edges, pale silver drybrush lip highlights, dark ink contours and sparse scratch hatching. Colour charcoal neutral grey, some subdued cool grey, weathered not dirty brown. Sinister fantasy hand-painted illustrated miniature, matching reference style. Material texture ONLY, NO house, NO roof perspective, NO scene, NO text/borders. Neutral diffuse lighting without shadows from other objects. Opposite edges tile. Exquisite crisp drawing, no photoreal gritty noise, no tiny pixel art. Reference image only provides material/style, do not recreate composition."
+    },
+    {
+      "file": "timber.png",
+      "native_dimensions": [
+        1254,
+        1254
+      ],
+      "prompt": "Use case: stylized-concept. High resolution 2048x2048 game material. FLAT FRONT-ON weathered broad vertical oak boards, six boards across, charcoal umber wood with pale grey drybrush edge wear and spare engraved dark grain lines, iron nail heads occasional. Hand-drawn sinister fantasy boardgame miniature surface, confident ink outlines, sculpted painted wood. Muted warm grey, deep sepia, NOT bright orange. Not photorealistic, not pixel art, not noise. No building or scene, no perspective, NO words/borders. Opposite edges tile. Fill entire image. Reference provides style only."
+    },
+    {
+      "file": "details.png",
+      "native_dimensions": [
+        1254,
+        1254
+      ],
+      "prompt": "Use case: stylized-concept. Asset type: production texture atlas for a hand-drawn dark fantasy RTS building. Create EXACT 2 by 2 quadrants, each fills its square edge to edge, perfectly flat FRONT ELEVATION, no perspective. TOP LEFT: medieval leaded window surface with dark old timber around warm honey amber glass, small uneven diamond panes, subtle golden interior light, crisp ink lines, bright but NOT flat solid yellow. TOP RIGHT: aged heavy plank door with black iron strap hinges and brass rivets, fine engraved wood grain, no surrounding wall. BOTTOM LEFT: worn ivory linen banner surface with an original simple black anvil-and-three-rays heraldic emblem, frayed ink marks and stitched fabric, muted gold borders, NO TEXT. BOTTOM RIGHT: worn straw and woven wicker material with warm grey beige fibers, broad inked strands and natural drybrush paint. Every quadrant is a texture patch, NOT isolated scene props. No labels, no grids or gutters, no background, no house scene. Entire atlas 2048x2048. Same illustrated sinister fantasy sculpted-boardgame style as reference, confident outlines, handmade but crisp. Not photoreal, no soft blur."
+    }
+  ]
+}

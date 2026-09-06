@@ -1,5 +1,16 @@
 # Stone-Faced Serpent overhaul
 
+## Current: eight-direction V3 (September 6, 2026)
+
+The runtime now uses `directional_v3`: eight painted views across all six
+growth stages, 48 pages and 3,456 procedurally baked playback frames. See
+[DIRECTIONAL_V3.md](DIRECTIONAL_V3.md) for the production process, exact prompts,
+head-anchor contract, compression, rebuild commands and verification.
+The V2 source, wall tiles and effects remain dependencies. Its two-facing
+mobile atlases are retained as historical assets, not the current runtime.
+
+## Historical V2 implementation
+
 Implemented September 5, 2026. This is an integrated 2D sprite character used
 by both the simulation's 2D view and the existing 3D billboard renderer. It is
 not a new rigged 3D creature or an eight-direction sculpt.

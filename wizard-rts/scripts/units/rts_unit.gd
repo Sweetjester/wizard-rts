@@ -1212,7 +1212,7 @@ func take_damage(amount: int, source: Node = null, damage_type: StringName = &"p
 	var mitigated_amount := maxi(1, amount - mitigation)
 	var actual_damage: int = mini(mitigated_amount, health)
 	if rts_world != null and is_instance_valid(rts_world):
-		rts_world.record_damage(source, self, actual_damage)
+		rts_world.record_damage(source, self, actual_damage, damage_type)
 	health = maxi(0, health - actual_damage)
 	_gain_evolution_xp(float(actual_damage) * 0.35)
 	if source != null and is_instance_valid(source) and _is_wizard_archetype(str(source.get("unit_archetype"))):
@@ -1682,8 +1682,7 @@ func _try_land_winged_spawner() -> void:
 
 func _update_winged_spawner_flight(delta: float) -> void:
 	if not _is_winged_spawner():
-		_flight_state = &"grounded"
-		_flight_cast_remaining = 0.0
+		# Other units own their flight lifecycle (for example the Oaven Jumper).
 		return
 	if _flight_cast_remaining <= 0.0:
 		return
@@ -2201,6 +2200,21 @@ func _overlap_neighbor_budget() -> int:
 	if count >= 900:
 		return 2
 	return 8
+
+# WHY THERE IS NO "ground any elevated unit" SAFETY NET HERE.
+#
+# One was written and removed. It grounded nav_level for any unit moving without
+# a lattice path, as insurance against some other code path handing an elevated
+# unit a plain 2D order. It worked, and it broke the citadel garrison: wall
+# archers are positioned by a 2D walkable-cell snap while their level is set to
+# the wall-walk, so their position and their level disagree by design, and the
+# net read that as flying and dropped twenty defenders into the courtyard.
+#
+# The real fix is in the ORDER path -- SelectionController routes a unit that is
+# inside a structure through the lattice, so it walks down and out rather than
+# being handed a 2D path at all. That is verified by leave_building_smoke_test,
+# which fails without it. Defence in depth that breaks working behaviour is not
+# defence, and the net could not be narrowed without becoming meaningless.
 
 # Every removal from `path` goes through here, so `path_levels` cannot drift out
 # of step with it. Two callers pop -- arrival and the lookahead shortcut -- and a

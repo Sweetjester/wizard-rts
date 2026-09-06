@@ -1,10 +1,12 @@
 class_name ObservationTowerSkin
 extends BlockGothicDetails
 
+const HD = preload("res://scripts/blocks/observation_tower_remaster.gd")
+
 static func material_for(family: int) -> ShaderMaterial:
-	var material:=BlockMaterialPalette.make_material(family)
-	material.set_shader_parameter("masonry",preload("res://assets/structures/observation_tower/masonry.png"))
-	return material
+	if family==3: return HD.material(7)
+	if family==4: return HD.material(8)
+	return HD.material(family)
 
 static func replaces_block(cell: Vector3i, material_name: StringName) -> bool:
 	# Visual replacements only. Authored collision and navigation remain untouched.
@@ -16,15 +18,76 @@ static func replaces_block(cell: Vector3i, material_name: StringName) -> bool:
 
 func build(definition: BlockStructureDefinition) -> Node3D:
 	var result:=super(definition)
+	var lights: Array[OmniLight3D]=[]
 	for child in result.get_children():
 		if child is GeometryInstance3D and child.material_override is ShaderMaterial:
 			var mat: ShaderMaterial=child.material_override
-			if mat.shader==preload("res://assets/structures/arcane_stone/painted_structure.gdshader") or mat.shader==preload("res://assets/structures/arcane_stone/gothic_window.gdshader"):
-				mat.set_shader_parameter("masonry",preload("res://assets/structures/observation_tower/masonry.png"))
-	_roof(Vector3(0.8,16.2,6.8),Vector3(6.1,17.4,11.2))
-	_roof(Vector3(11.9,21,7.8),Vector3(17.1,22.2,11.2))
-	result.set_meta("skin_id","observation_tower_painted_v2")
+			if mat.shader==preload("res://assets/structures/arcane_stone/painted_structure.gdshader"):
+				child.material_override=material_for(int(mat.get_shader_parameter("family")))
+		if child is OmniLight3D:
+			lights.append(child)
+			child.light_energy=minf(child.light_energy,1.8)
+			child.shadow_enabled=false
+			child.distance_fade_enabled=true
+			child.distance_fade_begin=60
+			child.distance_fade_length=25
+	var dome := result.get_node("ObservationDome") as MeshInstance3D
+	var glass := ShaderMaterial.new()
+	glass.shader=preload("res://assets/structures/observation_tower_hd/dome.gdshader")
+	glass.set_shader_parameter("surfaces",preload("res://assets/structures/observation_tower_hd/surfaces.png"))
+	dome.material_override=glass
+	result.add_child(HD.new().build(definition))
+	var leaf_mat := ShaderMaterial.new()
+	leaf_mat.shader=preload("res://assets/structures/observation_tower_hd/leaf.gdshader")
+	result.get_node("BurgundyLeaves").material_override=leaf_mat
+	# Six non-shadowing lights per tower; emission does the rest at RTS distance.
+	lights.sort_custom(func(a: OmniLight3D,b: OmniLight3D) -> bool: return _light_priority(a)<_light_priority(b))
+	for i in range(6,lights.size()):
+		result.remove_child(lights[i])
+		lights[i].free()
+	var lamp_mat: StandardMaterial3D=result.get_node("GateLanternGlass").material_override
+	lamp_mat.emission_energy_multiplier=.8
+	result.add_child(preload("res://scripts/blocks/observation_tower_effects.gd").new())
+	result.set_meta("skin_id","observation_tower_hd_v3")
 	return result
+
+func _light_priority(light: OmniLight3D) -> float:
+	if light.position.x>16: return 0
+	if light.position.y<7: return 1+light.position.z*.01
+	if light.position.y>25: return 2+light.position.z*.01
+	return 3+light.position.y*.01
+
+func _window(p: Dictionary) -> void:
+	var width: float=p.width
+	var height: float=p.height
+	var across: Vector3=p.across
+	var normal: Vector3=p.side
+	var centre: Vector3=p.centre
+	var bays := maxi(1,roundi(width/2.8))
+	for bay in bays:
+		var w := width/bays
+		var at := centre+across*(-width*.5+w*(bay+.5))+normal*.07
+		HD.plaque(_root,at,Vector2(w*.94,height),normal,0)
+		# Deep sill and outer jambs give the drawn atlas a physical edge.
+		var base := at-Vector3.UP*(height*.5-.08)+normal*.07
+		_rod(_stone,base-across*w*.46,base+across*w*.46,.14)
+		for sign_x: int in [-1,1]:
+			var start := base+across*w*.46*sign_x
+			var shoulder := start+Vector3.UP*height*.58
+			_rod(_stone,start,shoulder,.10)
+			_rod(_stone,shoulder,at+Vector3.UP*height*.49+normal*.07,.10)
+
+func _leaf_mesh() -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var edge := [Vector3(0,0,0),Vector3(-.4,.20,0),Vector3(-.23,.4,0),Vector3(-.52,.59,0),Vector3(-.14,.64,0),Vector3(0,1,0),Vector3(.17,.67,0),Vector3(.47,.57,0),Vector3(.25,.38,0),Vector3(.36,.18,0)]
+	var centre := Vector3(0,.43,.13)
+	for i in edge.size():
+		for p: Vector3 in [centre,edge[i],edge[(i+1)%edge.size()]]:
+			st.set_uv(Vector2(p.x+.5,p.y))
+			st.add_vertex(p)
+	st.generate_normals()
+	return st.commit()
 
 func _windows() -> void:
 	super()
@@ -66,7 +129,7 @@ func _vines() -> void:
 			for sign_value: float in [-1.0,1.0]:
 				var angle:=sign_value*_rng.randf_range(0.45,1.45)
 				var basis:=Basis(across,Vector3.UP,normal)*Basis(Vector3.FORWARD,angle)
-				var size:=_rng.randf_range(0.18,0.36)
+				var size:=_rng.randf_range(0.32,0.55)
 				var tip:=point+across*sign_value*_rng.randf_range(0.1,0.4)
 				_rod(_stems,point,tip,0.025)
 				_leaves.append(Transform3D(basis.scaled(Vector3.ONE*size),tip))
@@ -100,17 +163,3 @@ func _corbel_braces() -> void:
 	light.light_energy=3
 	light.omni_range=7
 	_root.add_child(light)
-
-func _roof(low: Vector3, high: Vector3) -> void:
-	var surface:=SurfaceTool.new()
-	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var corners=[Vector3(low.x,low.y,low.z),Vector3(high.x,high.y,low.z),Vector3(high.x,high.y,high.z),Vector3(low.x,low.y,high.z)]
-	for index in [0,2,1,0,3,2]: surface.add_vertex(corners[index])
-	surface.generate_normals()
-	var mesh:=MeshInstance3D.new()
-	mesh.name="TimberBalconyCanopy"
-	mesh.mesh=surface.commit()
-	var material:=material_for(BlockMaterialPalette.Family.ROOF)
-	material.set_shader_parameter("tint",Color(0.75,0.85,0.92))
-	mesh.material_override=material
-	_root.add_child(mesh)

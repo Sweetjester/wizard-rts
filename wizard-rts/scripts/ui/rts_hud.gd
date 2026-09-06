@@ -14,6 +14,13 @@ const BARRACKS_UNIT_BUTTONS := [
 	{"archetype": &"spawner", "label": "Spawner"},
 	{"archetype": &"stone_face_serpent", "label": "Serpent"},
 	{"archetype": &"mangler", "label": "Mangler"},
+	# Conscripted rather than spliced. Sealed until the matching rank of Steel
+	# Conscription, and shown sealed rather than hidden so the player can see
+	# the research exists at all.
+	{"archetype": &"poorper", "label": "Poorper"},
+	{"archetype": &"steel_knight", "label": "Knight"},
+	{"archetype": &"proper_blimp", "label": "Blimp"},
+	{"archetype": &"mounted_knight", "label": "Mounted"},
 ]
 
 @export var economy_manager_path: NodePath = NodePath("../EconomyManager")
@@ -46,9 +53,10 @@ var alert_label: Label
 var command_container: HFlowContainer
 var observer_vault: CanvasLayer
 var command_dock: PanelContainer
-var ai_test_container: HBoxContainer
-var map_tool_container: HBoxContainer
+var ai_test_container: HFlowContainer
+var map_tool_container: HFlowContainer
 var _fog_button: Button
+var _sandbox_spawn_index := 0
 var ai_telemetry_label: Label
 var ai_spawn_button: Button
 var control_group_label: Label
@@ -160,7 +168,9 @@ func _process(_delta: float) -> void:
 		selection_label.text = "Selected: %s" % selection_controller.selected_units.size()
 		_update_selection_panel(false)
 	if wave_director != null and wave_director.has_method("is_ai_testing_ground") and bool(wave_director.call("is_ai_testing_ground")):
-		phase_label.text = "Kon's Siege Arena" if wave_director.has_method("is_fortress_ai_arena") and bool(wave_director.call("is_fortress_ai_arena")) else "AI Testing Ground"
+		# The map names itself. This used to be a two-way guess between the only
+		# two arenas that existed, so Arena 2.0 was labelled "AI Testing Ground".
+		phase_label.text = str(map_generator.call("get_map_type_name")) if map_generator != null 			and map_generator.has_method("get_map_type_name") else "AI Testing Ground"
 		_update_ai_telemetry(_delta)
 	elif map_generator != null and str(map_generator.get("map_type_id")) == "plot_generator_test":
 		phase_label.text = "Plot Generator Test"
@@ -191,9 +201,12 @@ func _build_ui() -> void:
 	root.offset_left = 16
 	root.offset_top = 12
 	root.offset_right = -16
+	root.theme = preload("res://scripts/ui/observer_theme.gd").make()
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
 
-	var row := HBoxContainer.new()
+	var row := HFlowContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_PASS
 	row.add_theme_constant_override("separation", 18)
 	root.add_child(row)
 
@@ -201,6 +214,10 @@ func _build_ui() -> void:
 	phase_label = _make_label()
 	selection_label = _make_label()
 	control_group_label = _make_label()
+	resource_label.custom_minimum_size.x = 210
+	phase_label.custom_minimum_size.x = 300
+	selection_label.custom_minimum_size.x = 100
+	control_group_label.custom_minimum_size.x = 180
 	var commands := _make_label()
 	commands.text = "%s attack-move | %s patrol | %s hold | %s stop | %s wizard | %s army | %s idle barracks | %s idle unit | %s filter type | Ctrl+1-9 group | Alt+1-9 reinforce" % [
 		KeybindManager.get_key_label(KeybindManager.ACTION_ATTACK_MOVE),
@@ -221,8 +238,14 @@ func _build_ui() -> void:
 	row.add_child(selection_label)
 	row.add_child(control_group_label)
 	row.add_child(commands)
-	commands.visible = _is_testing_mode()
+	commands.visible = false
 	selection_label.visible = _is_testing_mode()
+	var menu_button := _add_button(row, "Menu", func():
+		var pause := get_node_or_null("../PauseMenu")
+		if pause != null: pause.show_menu()
+	)
+	menu_button.custom_minimum_size = Vector2(72,34)
+	menu_button.tooltip_text = "Pause expedition"
 
 	alert_label = _make_label()
 	alert_label.visible = false
@@ -249,7 +272,7 @@ func _build_ui() -> void:
 	bottom.add_child(bottom_row)
 
 	var details := VBoxContainer.new()
-	details.custom_minimum_size = Vector2(360, 112)
+	details.custom_minimum_size = Vector2(200, 112)
 	bottom_row.add_child(details)
 
 	detail_name_label = _make_label()
@@ -257,7 +280,7 @@ func _build_ui() -> void:
 	detail_body_label = _make_label()
 	detail_meta_label = _make_label()
 	evolution_bar = ProgressBar.new()
-	evolution_bar.custom_minimum_size = Vector2(320, 12)
+	evolution_bar.custom_minimum_size = Vector2(180, 12)
 	evolution_bar.visible = false
 	evolution_bar.show_percentage = false
 	evolution_label = _make_label()
@@ -277,15 +300,15 @@ func _build_ui() -> void:
 	command_column.add_child(command_container)
 
 	status_label = _make_label()
-	status_label.text = "Kon: build with Bio. Bio Absorbers must go on pale economy spaces."
+	status_label.text = ""
 	command_column.add_child(status_label)
 
-	ai_test_container = HBoxContainer.new()
+	ai_test_container = HFlowContainer.new()
 	ai_test_container.add_theme_constant_override("separation", 8)
 	ai_test_container.visible = false
 	command_column.add_child(ai_test_container)
 
-	map_tool_container = HBoxContainer.new()
+	map_tool_container = HFlowContainer.new()
 	map_tool_container.add_theme_constant_override("separation", 8)
 	map_tool_container.visible = false
 	command_column.add_child(map_tool_container)
@@ -301,6 +324,8 @@ func _make_label() -> Label:
 	label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
 	label.add_theme_constant_override("shadow_offset_x", 1)
 	label.add_theme_constant_override("shadow_offset_y", 1)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	return label
 
 func _add_button(parent: Control, text: String, callback: Callable) -> Button:
@@ -359,17 +384,120 @@ func _add_sandbox_tools() -> void:
 	map_tool_container.visible = true
 	var button := _add_button(map_tool_container, "Spawn Dummy", _spawn_target_dummy)
 	button.tooltip_text = "A stationary enemy that cannot die. For testing weapons, range and vantage buffs."
+	_add_conscription_button()
+	_add_enemy_spawn_buttons()
+
+# Grants Steel Conscription outright, for the sandbox only.
+#
+# The research gate is deliberately NOT lifted on benchmark maps: tier-locked
+# Kon units are sealed in the sandbox too, and making one research gate special
+# would be a rule that behaves differently depending on the map. So this is an
+# explicit debug action in the debug row instead -- the same place the fog toggle
+# and the enemy spawners live -- rather than a silent exemption. It is the
+# difference between "the sandbox ignores research" and "I pressed the button".
+func _add_conscription_button() -> void:
+	if build_system == null or not build_system.has_method("can_recruit"):
+		return
+	var granted := _add_button(map_tool_container, "Conscript All", func() -> void:
+		var order: Array = build_system.get("RECRUITMENT_ORDER") if build_system.get("RECRUITMENT_ORDER") != null 			else build_system.get_script().get_script_constant_map().get("RECRUITMENT_ORDER", [])
+		var ranks: Dictionary = build_system.get("researched_upgrade_ranks")
+		ranks[&"steel_conscription"] = order.size()
+		build_system.set("researched_upgrade_ranks", ranks)
+		status_label.text = "Steel Conscription granted -- the Musterhouse can train all %d" % order.size()
+		_update_selection_panel(true)
+	)
+	granted.tooltip_text = "Testing: grants every rank of Steel Conscription, so the Musterhouse can train the whole Steel Force."
+
+# One button per unit the current enemy faction fields. The list comes from the
+# WaveDirector rather than from a copy here, so it follows enemy_faction: change
+# the faction and these buttons change with it.
+func _add_enemy_spawn_buttons() -> void:
+	if wave_director == null or not wave_director.has_method("enemy_roster"):
+		return
+	for entry in wave_director.call("enemy_roster"):
+		var archetype: StringName = entry
+		var definition := UnitCatalog.get_definition(archetype)
+		var spawn := _add_button(map_tool_container,
+			str(definition.get("display_name", archetype)),
+			func() -> void: _spawn_sandbox_enemy(archetype))
+		spawn.tooltip_text = "Spawn a hostile %s near your wizard. %s" % [
+			definition.get("display_name", archetype), definition.get("role", "")]
+
+func _spawn_sandbox_enemy(archetype: StringName) -> void:
+	if wave_director == null or not wave_director.has_method("spawn_sandbox_enemy"):
+		return
+	var cell := _sandbox_spawn_cell()
+	var unit: Node = wave_director.call("spawn_sandbox_enemy", archetype, cell, get_parent())
+	var display := str(UnitCatalog.get_definition(archetype).get("display_name", archetype))
+	status_label.text = "%s spawned at %s -- it will come for you" % [display, cell] if unit != null \
+		else "Could not spawn a %s" % display
 
 func _spawn_target_dummy() -> void:
 	if wave_director == null or not wave_director.has_method("spawn_target_dummy"):
 		return
+	var cell := _sandbox_spawn_cell()
+	var dummy: Node = wave_director.call("spawn_target_dummy", cell, get_parent())
+	status_label.text = "Target dummy spawned at %s" % cell if dummy != null else "Could not spawn a target dummy"
+
+# Far enough from the wizard to walk to, close enough to see. Spread by the
+# number of things already spawned so a second click does not stack a unit on
+# top of the first one.
+func _sandbox_spawn_cell() -> Vector2i:
 	var wizard := _player_wizard()
 	var origin: Vector2i = Vector2i.ZERO
 	if wizard != null and map_generator != null:
 		origin = map_generator.call("world_to_cell", (wizard as Node2D).global_position) + Vector2i(6, 0)
-	var cell: Vector2i = map_generator.call("nearest_walkable_cell", origin, 12)
-	var dummy: Node = wave_director.call("spawn_target_dummy", cell, get_parent())
-	status_label.text = "Target dummy spawned at %s" % cell if dummy != null else "Could not spawn a target dummy"
+	_sandbox_spawn_index += 1
+	var ring := Vector2i(0, (_sandbox_spawn_index % 7) - 3)
+	return map_generator.call("nearest_walkable_cell", origin + ring, 12)
+
+# Who is stationed inside this building, and what it is worth.
+#
+# Without this the bonus is invisible: an Oaven standing in the lab looks
+# exactly like an Oaven standing anywhere else, and a player who cannot see the
+# effect will not station anyone. Says nothing at all when the building has no
+# interior to stand in, rather than reporting a permanent zero.
+func _crew_text_for(node: Node) -> String:
+	var garrison := _find_sibling("StructureGarrisonEffects")
+	if garrison == null or build_system == null:
+		return ""
+	var instance := _block_instance_for(node)
+	if instance == &"":
+		return ""
+	var workers := int(garrison.call("workers_in", instance))
+	if workers <= 0:
+		return " | Unstaffed"
+	return " | Staffed by %s (+%d%% work)" % [workers,
+		int(round((float(garrison.call("rate_multiplier_for", instance)) - 1.0) * 100.0))]
+
+func _block_instance_for(node: Node) -> StringName:
+	for structure in build_system.get("structures"):
+		if structure.get("node", null) == node:
+			return StringName(structure.get("block_instance", &""))
+	return &""
+
+func _find_sibling(node_name: String) -> Node:
+	var parent := get_parent()
+	while parent != null:
+		var candidate := parent.get_node_or_null(node_name)
+		if candidate != null:
+			return candidate
+		parent = parent.get_parent()
+	return null
+
+# The Steel Force Musterhouse, sealed until Kon has learned to conscript anyone.
+#
+# Shown sealed rather than hidden, the same as the recruits themselves: a button
+# the player can see is a button that tells them the research exists.
+func _add_musterhouse_build_button() -> void:
+	var locked := build_system != null and build_system.has_method("can_build_musterhouse") 		and not bool(build_system.call("can_build_musterhouse"))
+	var label := "Sealed (Steel)" if locked else "Musterhouse"
+	var button := _add_button(command_container, label, func() -> void: _start_build(&"steel_musterhouse"))
+	button.disabled = locked
+	if locked:
+		button.tooltip_text = str(build_system.call("musterhouse_locked_reason"))
+	else:
+		button.tooltip_text = "Where the Steel Force musters. Conscripts are trained here, not at the Biospawner."
 
 func _add_fog_toggle_button() -> void:
 	var fog: Node = get_node_or_null("/root/MainMap/FogOfWar")
@@ -548,6 +676,12 @@ func _build_tier_badge(archetype: StringName, definition: Dictionary) -> Control
 func _tier_is_locked(archetype: StringName) -> bool:
 	if build_system == null or not build_system.has_method("unlocked_tier"):
 		return false
+	# A conscripted unit is gated by Steel Conscription, not by the hybrid tier
+	# ladder. Reading its tier here would call an un-conscripted Poorper
+	# unlocked, because a Poorper is tier 1 -- and the button would be live with
+	# nothing behind it.
+	if UnitCatalog.is_foreign_recruit(archetype):
+		return build_system.has_method("can_recruit") and not bool(build_system.call("can_recruit", archetype))
 	var tier := UnitCatalog.tier_of(archetype)
 	if tier <= UnitCatalog.TIER_1 or tier > UnitCatalog.MAX_TRAINABLE_TIER:
 		return false
@@ -833,11 +967,12 @@ func _build_stat_card(archetype: StringName) -> Control:
 	# Intelligence and aggro range get their own line, above the flavour text.
 	# Design doc section 38: a control level is a cost, and costs must be legible
 	# before purchase.
-	var control := _make_label()
-	control.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	control.add_theme_color_override("font_color", _intelligence_color(UnitCatalog.intelligence_of(archetype)))
-	control.text = _control_text(archetype)
-	box.add_child(control)
+	if UnitCatalog.INTELLIGENCE_ENABLED:
+		var control := _make_label()
+		control.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		control.add_theme_color_override("font_color", _intelligence_color(UnitCatalog.intelligence_of(archetype)))
+		control.text = _control_text(archetype)
+		box.add_child(control)
 	var extra := _card_extra_text(archetype, definition)
 	if not extra.is_empty():
 		var extra_label := _make_label()
@@ -1141,13 +1276,34 @@ func _update_selection_panel(force_rebuild: bool) -> void:
 		evolution_bar.hide()
 		evolution_label.hide()
 		detail_name_label.get_parent().custom_minimum_size = Vector2(180, 0)
-		command_dock.visible = not selected.is_empty()
-		command_dock.offset_top = -maxf(78, command_dock.get_combined_minimum_size().y + 12)
 		control_group_label.visible = not control_group_label.text.begins_with("Groups: none")
-		map_tool_container.hide()
+		# The map-tool row is debug tooling -- fog reveal, seed regeneration,
+		# sandbox spawning. Kon's HUD is deliberately minimal and this used to hide
+		# the row unconditionally, every frame, which quietly took the tools with
+		# it: the buttons were built, sized and laid out, and were simply never on
+		# screen. So the row follows whether it HAS anything, and the dock opens
+		# for it -- otherwise a sandbox with nothing selected has no way to spawn
+		# the thing you would then select.
+		var has_map_tools: bool = map_tool_container.get_child_count() > 0
+		map_tool_container.visible = has_map_tools
+		# On a real run the dock still opens only for a selection -- that is the
+		# minimal HUD, and the tools ride along inside it. A testing map is the one
+		# place that would deadlock: with nothing selected there is no dock, and
+		# without the dock there is no button to spawn the thing you would select.
+		command_dock.visible = not selected.is_empty() or (has_map_tools and _is_tool_map())
 		ai_telemetry_label.hide()
+		# After the two above: the dock sizes itself to what it is actually
+		# showing, so this has to read a settled row rather than a stale one.
+		command_dock.offset_top = -maxf(78, command_dock.get_combined_minimum_size().y + 12)
 		if selected.is_empty():
 			detail_name_label.text = ""
+
+# Maps that exist to be tested on rather than played. Their tool row is the
+# point of the map, not a debug overlay on top of one.
+func _is_tool_map() -> bool:
+	if _is_testing_mode():
+		return true
+	return map_generator != null and str(map_generator.get("map_type_id")) == "build_sandbox"
 
 func _open_selected_vault() -> void:
 	if not is_instance_valid(observer_vault):
@@ -1213,7 +1369,15 @@ func _update_selection_details(selected: Array[Node]) -> void:
 		var build_time := float(node.get("build_time"))
 		var build_text := "Complete" if complete else "Building %.0f%%" % [100.0 * build_progress / maxf(build_time, 0.01)]
 		var train_text := _training_text_for(node)
-		detail_body_label.text = "HP %s/%s | %s | Footprint %sx%s%s" % [hp, max_hp, build_text, int(node.get("footprint").x), int(node.get("footprint").y), train_text]
+		detail_body_label.text = "HP %s/%s | %s | Footprint %sx%s%s%s" % [hp, max_hp, build_text,
+			int(node.get("footprint").x), int(node.get("footprint").y), train_text, _crew_text_for(node)]
+		# ...and onto the NAME line as well, which is the one line of the panel
+		# Kon's minimal HUD leaves visible. Putting it only in detail_body_label
+		# meant it was computed correctly every frame and never once drawn --
+		# the same failure as the health bars and the sandbox tool row.
+		var crew := _crew_text_for(node)
+		if crew != "":
+			detail_name_label.text += "   %s" % crew.trim_prefix(" | ")
 		_set_evolution_bar(null)
 	else:
 		var state := str(node.get("unit_state")).capitalize()
@@ -1222,9 +1386,10 @@ func _update_selection_details(selected: Array[Node]) -> void:
 		var weapon_text := ""
 		if node.has_method("has_weapon_modes") and bool(node.call("has_weapon_modes")):
 			weapon_text = " | %s" % str(node.call("weapon_mode_display_name"))
-		# Live value, not the catalog one -- research can have raised it.
-		var live_intelligence := int(_property_or(node, "intelligence", UnitCatalog.intelligence_of(archetype)))
-		weapon_text += " | Int %s (%s)" % [live_intelligence, UnitCatalog.intelligence_label(live_intelligence)]
+		if UnitCatalog.INTELLIGENCE_ENABLED:
+			# Live value, not the catalog one -- research can have raised it.
+			var live_intelligence := int(_property_or(node, "intelligence", UnitCatalog.intelligence_of(archetype)))
+			weapon_text += " | Int %s (%s)" % [live_intelligence, UnitCatalog.intelligence_label(live_intelligence)]
 		detail_body_label.text = "HP %s/%s | Armor %s | Magic %s | %s%s | Bio value %s" % [hp, max_hp, armor, magic_armor, state, weapon_text, _salvage_for(node)]
 		_set_evolution_bar(node)
 	var damage := int(definition.get("attack_damage", 0))
@@ -1305,6 +1470,7 @@ func _rebuild_context_commands(selected: Array[Node]) -> void:
 		_add_button(command_container, "Bio Absorber", func() -> void: _start_build(&"bio_absorber"))
 		_add_button(command_container, "Barracks", func() -> void: _start_build(&"barracks"))
 		_add_button(command_container, "Vault", func() -> void: _start_build(&"terrible_vault"))
+		_add_musterhouse_build_button()
 		_add_button(command_container, "Vinewall", func() -> void: _start_build(&"vinewall"))
 		_add_button(command_container, "Bio Launcher", func() -> void: _start_build(&"bio_launcher"))
 		_add_button(command_container, "Bio Mend", _bio_mend)
@@ -1318,7 +1484,9 @@ func _rebuild_context_commands(selected: Array[Node]) -> void:
 	elif _selection_has_archetype(selected, &"wizard_tower"):
 		_add_tower_module_buttons()
 	elif _selection_has_archetype(selected, &"barracks"):
-		_add_barracks_training_buttons()
+		_add_barracks_training_buttons(&"barracks")
+	elif _selection_has_archetype(selected, &"steel_musterhouse"):
+		_add_barracks_training_buttons(&"steel_musterhouse")
 	elif _selection_has_archetype(selected, &"bio_absorber"):
 		_add_button(command_container, "Heal Aura", func() -> void: _absorber_upgrade(&"heal_aura"))
 		_add_button(command_container, "Bio Turret", func() -> void: _absorber_upgrade(&"bio_launcher"))
@@ -1383,12 +1551,16 @@ func _add_tower_module_buttons() -> void:
 		elif role == &"research" or module == &"terrible_vault":
 			has_research = true
 	if has_production:
-		_add_barracks_training_buttons()
+		_add_barracks_training_buttons(&"")
 	if has_research:
 		_add_research_button(&"tier_two_hybrids", "Tier 2 Hybrids")
 		_add_research_button(&"tier_three_hybrids", "Tier 3 Hybrids")
 		_add_research_button(&"observer_sight", "Observer Sight")
-		_add_research_button(&"observer_command", "Observer Command")
+		# Buying obedience while obedience is switched off would be a straight
+		# waste of Bio, so the button goes with the stat.
+		if UnitCatalog.INTELLIGENCE_ENABLED:
+			_add_research_button(&"observer_command", "Observer Command")
+		_add_research_button(&"steel_conscription", "Steel Conscription")
 		_add_research_button(&"observer_oversight", "Oversight")
 		_add_research_button(&"thorned_vines", "Thorned Vines")
 		_add_research_button(&"accelerated_evolution", "Fast Evolution")
@@ -1408,9 +1580,20 @@ func _production_list_for_node(node: Node) -> Array:
 			return build_system.call("production_list_for", structure)
 	return []
 
-func _add_barracks_training_buttons() -> void:
+# The training buttons for ONE building.
+#
+# This used to show every unit in the table regardless of what was selected,
+# which was harmless while there was a single production building. It stopped
+# being harmless when the Steel Force got its own Musterhouse: the Biospawner
+# would offer Steel units it cannot make and the Musterhouse would offer
+# Horrors, and both would be rejected on click with "This building cannot train
+# that unit" -- a button that exists to be refused.
+func _add_barracks_training_buttons(producer_archetype: StringName = &"") -> void:
 	var session := get_node_or_null("/root/GameSession")
 	var wizard_class_id := str(session.get("wizard_class_id")) if session != null else ""
+	var produces: Array = []
+	if producer_archetype != &"":
+		produces = UnitCatalog.get_definition(producer_archetype).get("production", [])
 	# The Biospawner is where the player reads the roster, so its command panel
 	# opens the unit cards directly rather than burying them in a debug menu.
 	if _is_testing_mode():
@@ -1419,13 +1602,23 @@ func _add_barracks_training_buttons() -> void:
 		var archetype: StringName = entry["archetype"]
 		if not UnitCatalog.is_unit_allowed_for_class(archetype, wizard_class_id):
 			continue
+		if not produces.is_empty() and not produces.has(archetype):
+			continue
 		var label := str(entry["label"])
 		var locked := _tier_is_locked(archetype)
+		var conscript := UnitCatalog.is_foreign_recruit(archetype)
 		if locked:
-			label = "Sealed (T%s)" % UnitCatalog.tier_of(archetype)
+			# A recruit is not sealed behind a hybrid tier, so saying "Sealed
+			# (T2)" would send the player to the wrong research.
+			label = "Sealed (Steel)" if conscript else "Sealed (T%s)" % UnitCatalog.tier_of(archetype)
 		var button := _add_button(command_container, label, func() -> void: _produce_from_selected(archetype))
 		button.disabled = locked
-		button.tooltip_text = "Locked -- research Tier %s Hybrids at the Observer Vault" % UnitCatalog.tier_of(archetype) if locked else str(UnitCatalog.get_definition(archetype).get("role", ""))
+		if not locked:
+			button.tooltip_text = str(UnitCatalog.get_definition(archetype).get("role", ""))
+		elif conscript and build_system != null and build_system.has_method("recruitment_locked_reason"):
+			button.tooltip_text = str(build_system.call("recruitment_locked_reason", archetype))
+		else:
+			button.tooltip_text = "Locked -- research Tier %s Hybrids at the Observer Vault" % UnitCatalog.tier_of(archetype)
 
 func _archetype_for(node: Node) -> StringName:
 	if _has_property(node, "unit_archetype"):
@@ -1779,11 +1972,18 @@ func _add_research_button(upgrade_id: StringName, label: String) -> void:
 	button.disabled = rank >= max_rank
 
 func _research_upgrade(upgrade_id: StringName) -> void:
-	if build_system != null and build_system.has_method("research_upgrade") and bool(build_system.call("research_upgrade", 1, upgrade_id)):
-		var rank := int(build_system.call("upgrade_rank", upgrade_id))
-		var max_rank := int(build_system.call("upgrade_max_rank", upgrade_id))
-		status_label.text = "Researched %s (rank %s/%s)" % [_upgrade_name(upgrade_id), rank, max_rank]
-		_update_selection_panel(true)
+	if build_system == null or not build_system.has_method("research_upgrade"):
+		return
+	if not bool(build_system.call("research_upgrade", 1, upgrade_id)):
+		return
+	# Research takes time now, so this reports what the Vault has STARTED rather
+	# than claiming a rank the player does not have yet.
+	var seconds := float(build_system.call("research_seconds_remaining"))
+	var rank := int(build_system.call("upgrade_rank", upgrade_id)) + 1
+	var max_rank := int(build_system.call("upgrade_max_rank", upgrade_id))
+	status_label.text = "Studying %s (rank %s/%s) -- %ss" % [
+		_upgrade_name(upgrade_id), rank, max_rank, int(ceil(seconds))]
+	_update_selection_panel(true)
 
 func _upgrade_name(upgrade_id: StringName) -> String:
 	match upgrade_id:
@@ -1801,6 +2001,8 @@ func _upgrade_name(upgrade_id: StringName) -> String:
 			return "Observer Oversight"
 		&"observer_command":
 			return "Observer Command"
+		&"steel_conscription":
+			return "Steel Conscription"
 		&"tier_two_hybrids":
 			return "Tier 2 Hybrids"
 		&"tier_three_hybrids":

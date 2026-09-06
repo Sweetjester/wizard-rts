@@ -21,6 +21,10 @@ func _current_move_speed() -> float:
 	return 0.0 if embarked else super()
 
 func _snap_to_walkable_terrain() -> void:
+	# A dismounted rider inherits a valid mount position, possibly on an upper floor.
+	if bool(get_meta("dismounted_spawn",false)):
+		remove_meta("dismounted_spawn")
+		return
 	if not embarked: super()
 
 func rts_movement_tick(delta: float) -> void:
@@ -42,8 +46,11 @@ func _spawn_death_fx(source: Node = null) -> void:
 	if art == null or art.texture == null:
 		super(source)
 		return
-	art.offset.y = -138
-	art.set_meta("foot_anchor_y",330.0)
+	if not art.has_method("sync_view_facing"):
+		art.offset.y = -138
+		art.set_meta("foot_anchor_y",330.0)
+	if art.has_method("sync_view_facing"):
+		art.sync_view_facing()
 	var view := get_parent().get_node_or_null("Map3DView")
 	if is_instance_valid(view):
 		view.spawn_painted_unit_death(self,art)

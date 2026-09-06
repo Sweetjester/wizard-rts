@@ -326,6 +326,22 @@ func region_at(cell: Vector2i, level: int) -> StringName:
 		return &""
 	return StringName(node.get("region", &""))
 
+# WHICH placed structure owns this cell/level, or "" for open terrain.
+#
+# The nodes have carried this since structures were first stamped in -- it is
+# what the lattice uses to tell a building's floor from the ground under it. It
+# is exposed because gameplay needs to ask "which building is this unit standing
+# INSIDE", and the alternative (testing the unit's cell against every building's
+# footprint) would be a second, worse answer to a question the lattice already
+# knows: a footprint covers the walls and the tile the door opens onto, and a
+# unit in the doorway is not in the building.
+func owner_at(cell: Vector2i, level: int) -> StringName:
+	var node: Variant = _nodes.get(encode(cell, level))
+	if node == null:
+		return &""
+	var owner := StringName(node.get("owner", &"terrain"))
+	return &"" if owner == &"terrain" else owner
+
 # Whether this cell/level belongs to a placed structure rather than the ground.
 func is_structure_node(cell: Vector2i, level: int) -> bool:
 	var node: Variant = _nodes.get(encode(cell, level))

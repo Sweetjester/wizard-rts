@@ -1,4 +1,27 @@
-# Oaven Painted V2
+# Oaven Art
+
+## Current: Eight-Direction V4
+
+Both Oaven and Jumper now use eight separately illustrated direction pages,
+with all 15 animation rows preserved. See [DIRECTIONAL_V4.md](DIRECTIONAL_V4.md)
+for production, prompts, runtime contracts, costs, rebuild and verification.
+The standard `verify_oaven_art.gd` entry point runs the current v4 verifier.
+
+```text
+godot --path . --rendering-method gl_compatibility --script tools/oaven/bake_directional.gd
+godot --headless --path . --editor --quit
+godot --headless --path . --script tools/oaven/verify_oaven_art.gd
+godot --path . --rendering-method gl_compatibility --script tools/oaven/preview_directional.gd
+godot --path . --rendering-method gl_compatibility --script tools/oaven/verify_directional_ingame.gd
+```
+
+Set `ART_SHOT_DIR` to an existing writable folder for both rendered review scripts.
+The original art and tools remain available for reference/rollback, but the
+runtime Oaven script no longer loads the old mirrored atlases.
+
+## Historical: Painted V2
+
+The following notes describe the older asset set, not current runtime assets.
 
 Installed in the existing Oaven scene, without changing combat stats, pathing or
 ability rules. The original procedural drawing remains the stress-mode fallback.

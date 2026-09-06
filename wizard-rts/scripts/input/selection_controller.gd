@@ -29,6 +29,10 @@ var _dragging := false
 var _drag_start := Vector2.ZERO
 var _drag_end := Vector2.ZERO
 var _pending_target_command: StringName = &""
+# The last frame the attack cursor was re-evaluated on. Mouse motion fires many
+# times per frame and the hover test walks every unit and structure, so it is
+# answered once per frame at most -- and not at all with nothing selected.
+var _attack_hover_frame := -1
 var _ignore_next_left_release := false
 var _last_group_index := 0
 var _last_group_msec: int = -100000
@@ -92,6 +96,7 @@ func _cancel_kon_target() -> void:
 	if _pending_target_command in [&"seal_away",&"biostorm"]: _pending_target_command=&""
 
 func _process(_delta: float) -> void:
+	_update_attack_cursor()
 	if is_instance_valid(_mangler_preview):
 		if not is_instance_valid(_mangler_caster) or not selected_units.has(_mangler_caster) or not _mangler_caster.is_alive() or _pending_target_command != &"mangler_leap":
 			_cancel_mangler_target()
@@ -105,6 +110,42 @@ func _process(_delta: float) -> void:
 		else:
 			_kon_spell_preview.global_position=_world_mouse_position()
 			_kon_spell_preview.valid_target=_kon_spell_caster.global_position.distance_to(_kon_spell_preview.global_position)<=640.0 and not _kon_spell_caster.is_banished() and not _kon_spell_caster.is_observer_aura_enabled()
+
+func _exit_tree() -> void:
+	# The cursor is an OS-level setting, not a node. Leaving the map with a sword
+	# still installed would put a sword on the main menu.
+	AttackCursor.set_active(false)
+
+# A sword over anything the current selection could attack.
+#
+# Driven from _process rather than from mouse motion: motion events arrive
+# several times a frame and this walks the unit and structure groups, and the
+# cursor also has to change when the WORLD changes under a still mouse -- the
+# target dies, the selection changes, a unit walks under the pointer. Polling
+# covers all of those; reacting to motion covers only one of them.
+func _update_attack_cursor() -> void:
+	var frame := Engine.get_process_frames()
+	if frame == _attack_hover_frame:
+		return
+	_attack_hover_frame = frame
+	AttackCursor.set_active(attack_cursor_should_show(_world_mouse_position()))
+
+# Whether the sword belongs over this world position, given the current
+# selection. Split out from the mouse deliberately: the RULE is the thing worth
+# testing and the pointer is not available in a headless run, so keeping them
+# apart is the difference between a test of the feature and a test of warp_mouse.
+#
+# Reads _attackable_at_position(), which is also what the right-click handler
+# uses to find its target -- one function, so the cursor cannot promise an
+# attack the click will not deliver.
+func attack_cursor_should_show(world_position: Vector2) -> bool:
+	# Nothing selected, or nothing in the selection that could carry out the
+	# order, means the sword would be a promise the game will not keep.
+	if selected_units.is_empty() or _pending_target_command != &"" or _dragging:
+		return false
+	if _movable_selected_units().is_empty():
+		return false
+	return _attackable_at_position(world_position) != null
 
 func _ready() -> void:
 	z_index = 3500
@@ -713,13 +754,33 @@ func _try_block_move_order(target: Vector2, movable_units: Array) -> bool:
 	if terrain_node == null or not is_instance_valid(terrain_node):
 		return false
 	var cell: Vector2i = terrain_node.call("world_to_cell", target)
-	if not bool(bridge.call("needs_block_routing", cell)):
-		return false
+	# Routed if the DESTINATION needs the lattice, or if any unit is currently
+	# standing inside a structure and needs it to get OUT.
+	#
+	# Only the destination was checked before, so "walk down out of the building
+	# onto that grass" skipped the lattice entirely and became a 2D path at
+	# storey height -- the unit flew out of the wall. A unit inside a building
+	# has to leave it the way it came in, through the floors and the door, and
+	# the lattice is the only thing that knows where those are.
+	var destination_needs_lattice: bool = bool(bridge.call("needs_block_routing", cell))
 	var routed := 0
+	var stranded: Array[Node] = []
 	for unit in movable_units:
-		if is_instance_valid(unit) and bool(bridge.call("order_to_column", unit, cell)):
+		if not is_instance_valid(unit):
+			continue
+		var inside: bool = bool(bridge.call("unit_is_in_structure", unit))
+		if not destination_needs_lattice and not inside:
+			continue
+		if bool(bridge.call("order_to_column", unit, cell)):
 			routed += 1
-	return routed > 0
+		elif inside:
+			# No route down. Refusing silently would leave it standing there, and
+			# letting it fall through to a 2D order is the bug this fixes -- so
+			# it is walked to the nearest way out instead.
+			stranded.append(unit)
+	for unit in stranded:
+		bridge.call("order_out_of_structure", unit)
+	return routed + stranded.size() > 0
 
 func _block_nav_bridge() -> Node:
 	if _cached_block_bridge != null and is_instance_valid(_cached_block_bridge):

@@ -71,6 +71,17 @@ const MAP_TYPE_SEEDED_GRID_FRONTIER := "seeded_grid_frontier"
 const MAP_TYPE_GRID_TEST_CANVAS := "grid_test_canvas"
 const MAP_TYPE_AI_TESTING_GROUND := "ai_testing_ground"
 const MAP_TYPE_FORTRESS_AI_ARENA := "fortress_ai_arena"
+# Kon's Arena 2.0. The first arena is a MIRROR match -- the same Kon mix on both
+# sides -- which tests pathing and throughput but tells you nothing about whether
+# one faction beats another, because both sides are the same faction. This one is
+# Kon against the Steel Force, and both armies are ordered to the SAME central
+# point rather than at each other's staging ground, so they meet in the middle
+# every wave instead of trickling into each other along the whole map.
+const MAP_TYPE_KON_ARENA_2 := "kon_arena_2"
+# Bigger than the 96 the first arena uses. The wave sizes here reach several
+# hundred a side and a 96 map puts them shoulder to shoulder at the spawn, which
+# measures the spawn code rather than the movement, the flocking or the combat.
+const KON_ARENA_2_MAP_SIZE := 128
 const MAP_TYPE_PLOT_GENERATOR_TEST := "plot_generator_test"
 # A flat field and nothing else. Buildings are walkable block structures now and
 # the Splicing Laboratory alone is 34x28, so laying several out next to each
@@ -375,6 +386,8 @@ func get_map_type_name() -> String:
 			return "Kon's Observation Arena"
 		MAP_TYPE_FORTRESS_AI_ARENA:
 			return "Kon's Siege Arena"
+		MAP_TYPE_KON_ARENA_2:
+			return "Kon's Arena 2.0"
 		MAP_TYPE_PLOT_GENERATOR_TEST:
 			return "Plot Generator Test"
 	return map_type_id
@@ -397,6 +410,15 @@ func get_map_type_data() -> Dictionary:
 			"story_theme": "Kon observes two controlled factions assaulting fortified bases until one keep falls.",
 			"terrain_design": "Small symmetrical pathing test map with west and east forts, wall gaps, internal buildings, and open lanes.",
 			"plot_rule": "Two fort plots are stamped onto a clean arena; runtime structures create the actual impassible walls and keeps.",
+		}
+	if map_type_id == MAP_TYPE_KON_ARENA_2:
+		return {
+			"id": MAP_TYPE_KON_ARENA_2,
+			"name": "Kon's Arena 2.0",
+			"art_style": "Flat mirrored proving ground with a bare killing field down the middle and matched cover either side of it.",
+			"story_theme": "Kon sets his own creations against the Steel Force and watches, wave after wave, to see which holds.",
+			"terrain_design": "Two staging camps at opposite ends, symmetric pillar cover flanking an open centre, and no divider -- both armies march to the same middle.",
+			"plot_rule": "Two staging plots and a central killing field are stamped straight onto the grid, mirrored about the centre line so neither faction gets better ground.",
 		}
 	if map_type_id == MAP_TYPE_AI_TESTING_GROUND:
 		return {
@@ -476,6 +498,8 @@ func _map_size_for_type() -> int:
 			return BUILD_SANDBOX_MAP_SIZE
 		MAP_TYPE_LANTERN_TREE:
 			return LANTERN_TREE_MAP_SIZE
+		MAP_TYPE_KON_ARENA_2:
+			return KON_ARENA_2_MAP_SIZE
 	return DEFAULT_MAP_SIZE
 
 func _configure_map_type() -> void:
@@ -703,6 +727,13 @@ func _build_grid() -> void:
 				else:
 					grid[x].append(E_LOW)
 					feature_grid[x].append("ai_arena")
+			elif map_type_id == MAP_TYPE_KON_ARENA_2:
+				if _kon_arena_2_is_blocked(cell):
+					grid[x].append(E_BLOCKED)
+					feature_grid[x].append("ai_wall")
+				else:
+					grid[x].append(E_LOW)
+					feature_grid[x].append("ai_arena")
 			elif map_type_id == MAP_TYPE_FORTRESS_AI_ARENA:
 				var siege_bounds := Rect2i(5, 20, 86, 40)
 				var center_rock := (cell.x >= 45 and cell.x <= 50 and (cell.y <= 31 or cell.y >= 49))
@@ -735,8 +766,42 @@ func _build_grid() -> void:
 func _uses_frontier_rules() -> bool:
 	return map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER or map_type_id == MAP_TYPE_CITADEL_MARCH
 
+# Map types that exist to be MEASURED on rather than played.
+#
+# Fog is off on all of them, and it has to be: they are watched by a neutral
+# observer who owns nothing, so fog hides the entire map and the benchmark shows
+# a black screen. That was a hardcoded string list inside fog_of_war.gd, which is
+# how Arena 2.0 shipped its first screenshot completely black -- the list is a
+# fact about map types and belongs with the map types.
+func is_benchmark_map() -> bool:
+	return map_type_id in [
+		MAP_TYPE_AI_TESTING_GROUND,
+		MAP_TYPE_FORTRESS_AI_ARENA,
+		MAP_TYPE_KON_ARENA_2,
+		MAP_TYPE_PLOT_GENERATOR_TEST,
+		MAP_TYPE_BUILD_SANDBOX,
+	]
+
+# Maps where the player is a NEUTRAL OBSERVER and owns nothing at all.
+#
+# No hero, no starting HQ, no economy: two AI armies fight and you watch. This
+# is separate from is_benchmark_map() -- the sandbox and the plot test are also
+# measured on, but you play them as yourself and want your wizard.
+#
+# It is a fact about map types, so it lives here rather than as a string list in
+# MapBootstrap and another in WaveDirector. Arena 2.0 was missing from
+# MapBootstrap's copy, so it spawned Kon and a free Observation Tower into the
+# west camp -- an invisible 700 HP building that both armies stopped to fight
+# over, in the middle of a map whose whole purpose is a clean measurement.
+func is_observer_arena() -> bool:
+	return map_type_id in [
+		MAP_TYPE_AI_TESTING_GROUND,
+		MAP_TYPE_FORTRESS_AI_ARENA,
+		MAP_TYPE_KON_ARENA_2,
+	]
+
 func _uses_square_grid_map() -> bool:
-	return map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER or map_type_id == MAP_TYPE_GRID_TEST_CANVAS or map_type_id == MAP_TYPE_AI_TESTING_GROUND or map_type_id == MAP_TYPE_FORTRESS_AI_ARENA or map_type_id == MAP_TYPE_PLOT_GENERATOR_TEST or map_type_id == MAP_TYPE_CITADEL_MARCH or map_type_id == MAP_TYPE_BUILD_SANDBOX or map_type_id == MAP_TYPE_LANTERN_TREE
+	return map_type_id == MAP_TYPE_SEEDED_GRID_FRONTIER or map_type_id == MAP_TYPE_GRID_TEST_CANVAS or map_type_id == MAP_TYPE_AI_TESTING_GROUND or map_type_id == MAP_TYPE_FORTRESS_AI_ARENA or map_type_id == MAP_TYPE_PLOT_GENERATOR_TEST or map_type_id == MAP_TYPE_CITADEL_MARCH or map_type_id == MAP_TYPE_BUILD_SANDBOX or map_type_id == MAP_TYPE_LANTERN_TREE or map_type_id == MAP_TYPE_KON_ARENA_2
 
 func _build_plot_generator_test_map() -> void:
 	layer_low.clear()
@@ -1615,6 +1680,9 @@ func _build_plots() -> void:
 	if map_type_id == MAP_TYPE_AI_TESTING_GROUND:
 		_build_ai_testing_ground_plots()
 		return
+	if map_type_id == MAP_TYPE_KON_ARENA_2:
+		_build_kon_arena_2_plots()
+		return
 	if map_type_id == MAP_TYPE_GRID_TEST_CANVAS:
 		_build_grid_test_plots()
 		return
@@ -2349,6 +2417,76 @@ func _build_ai_testing_ground_plots() -> void:
 		"difficulty": 0.5,
 		"defensibility": 0.0,
 		"story": "Open center lane for two automated armies to find, hunt, path, and fight.",
+	})
+
+# Kon's Arena 2.0: two camps, an open middle, and matched cover.
+#
+# EVERY DECISION HERE IS ABOUT SYMMETRY. The map is a measuring instrument: if
+# one side has better ground, the result tells you about the terrain instead of
+# about the units, and the whole point is to find out whether Kon's roster or the
+# Steel Force wins. So the layout is generated by mirroring one half about the
+# centre line rather than by placing two halves that look the same -- the second
+# kind drifts the moment anyone edits it.
+#
+# The cover exists so this is not a bare field. An empty rectangle measures
+# throughput and nothing else; pillars either side of the centre give the flow
+# field something to solve, give ranged units something to break line of sight
+# on, and make the Mounted Knight's momentum charge run into something.
+func kon_arena_2_bounds() -> Rect2i:
+	var margin := 6
+	return Rect2i(margin, margin + 10, MAP_W - margin * 2, MAP_H - (margin + 10) * 2)
+
+func kon_arena_2_centre() -> Vector2i:
+	var bounds := kon_arena_2_bounds()
+	return bounds.position + Vector2i(bounds.size.x / 2, bounds.size.y / 2)
+
+func _kon_arena_2_is_blocked(cell: Vector2i) -> bool:
+	var bounds := kon_arena_2_bounds()
+	if not bounds.has_point(cell):
+		return true
+	# Mirrored: a cell is tested at its distance from the centre line, so the two
+	# halves cannot disagree even if this rule is rewritten.
+	var centre := kon_arena_2_centre()
+	var dx: int = absi(cell.x - centre.x)
+	var dy: int = absi(cell.y - centre.y)
+	# The killing field. Nothing stands in the middle -- this is where the two
+	# armies are sent, and cover there would decide the fight before the units do.
+	if dx <= 10:
+		return false
+	# Two ranks of pillars flanking the centre, and a pair further out that
+	# narrow the approach without closing it.
+	for column in [18, 30]:
+		if dx >= column and dx <= column + 2:
+			if dy >= 6 and dy <= 11:
+				return true
+			if dy >= 18 and dy <= 23:
+				return true
+	return false
+
+func _build_kon_arena_2_plots() -> void:
+	var bounds := kon_arena_2_bounds()
+	var centre := kon_arena_2_centre()
+	var camp_size := Vector2i(14, 20)
+	var kon_rect := Rect2i(Vector2i(bounds.position.x + 2, centre.y - camp_size.y / 2), camp_size)
+	var steel_rect := Rect2i(Vector2i(bounds.end.x - 2 - camp_size.x, centre.y - camp_size.y / 2), camp_size)
+	for plot in [
+		_make_base_plot("arena2_kon_camp", "Kon's staging camp", kon_rect, [], 0.3, 0.5,
+			"West camp. Kon's own creations muster here."),
+		_make_base_plot("arena2_steel_camp", "Steel Force staging camp", steel_rect, [], 0.3, 0.5,
+			"East camp. The Steel Force musters here."),
+	]:
+		_register_plot(plot)
+	var field_rect := Rect2i(centre.x - 12, bounds.position.y + 2, 24, bounds.size.y - 4)
+	_register_plot({
+		"id": "arena2_killing_field",
+		"name": "The killing field",
+		"kind": "combat_arena",
+		"rect": field_rect,
+		"anchor": centre,
+		"economy_spaces": [],
+		"difficulty": 0.5,
+		"defensibility": 0.0,
+		"story": "Both armies are ordered here and nowhere else, so every wave collides in the same place.",
 	})
 
 func _build_fortress_ai_arena_plots() -> void:
@@ -3199,7 +3337,8 @@ func _stamp_objective_plot(plot: Dictionary) -> void:
 func _build_roads() -> void:
 	road_cells.clear()
 	_frontier_road_debug.clear()
-	if map_type_id == MAP_TYPE_AI_TESTING_GROUND or map_type_id == MAP_TYPE_FORTRESS_AI_ARENA:
+	if map_type_id == MAP_TYPE_AI_TESTING_GROUND or map_type_id == MAP_TYPE_FORTRESS_AI_ARENA \
+			or map_type_id == MAP_TYPE_KON_ARENA_2:
 		return
 	if plots.is_empty():
 		return
@@ -4814,6 +4953,10 @@ func _square_grid_ground_modulate() -> Color:
 			return Color("#244E34")
 		MAP_TYPE_FORTRESS_AI_ARENA:
 			return Color("#1E4A34")
+		MAP_TYPE_KON_ARENA_2:
+			# Colder than the other two arenas on purpose: this is the one where
+			# Kon is watching something that is not his.
+			return Color("#22404A")
 		MAP_TYPE_SEEDED_GRID_FRONTIER:
 			return Color.WHITE
 	return Color("#2D6A3F")
@@ -5092,6 +5235,18 @@ func _register_zones() -> void:
 			if str(plot.get("kind", "")) != "base":
 				enemy_spawns.append(nearest_walkable_cell(anchor, 8))
 		chokepoints.append_array(_frontier_chokepoints())
+		return
+	if map_type_id == MAP_TYPE_KON_ARENA_2:
+		for plot in base_plots:
+			var arena_rect: Rect2i = plot["rect"]
+			for x in range(arena_rect.position.x, arena_rect.end.x):
+				for y in range(arena_rect.position.y, arena_rect.end.y):
+					if not is_walkable_cell(Vector2i(x, y)):
+						continue
+					if str(plot["id"]) == "arena2_kon_camp":
+						spawn_positions.append(Vector2i(x, y))
+					else:
+						enemy_spawns.append(Vector2i(x, y))
 		return
 	if map_type_id == MAP_TYPE_AI_TESTING_GROUND:
 		for plot in base_plots:

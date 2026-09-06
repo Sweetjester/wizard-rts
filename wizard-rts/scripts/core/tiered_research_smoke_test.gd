@@ -55,6 +55,8 @@ func _run() -> void:
 		if not bool(build_system.call("research_upgrade", 1, &"hardened_horrors")):
 			_fail("Expected hardened_horrors research to succeed for rank %s" % expected_rank)
 			return
+		if not await _await_research(build_system):
+			return
 		if int(build_system.call("upgrade_rank", &"hardened_horrors")) != expected_rank:
 			_fail("Expected hardened_horrors rank to be %s after researching" % expected_rank)
 			return
@@ -74,6 +76,8 @@ func _run() -> void:
 		return
 	if not bool(build_system.call("research_upgrade", 1, &"accelerated_evolution")):
 		_fail("Expected accelerated_evolution research to succeed once")
+		return
+	if not await _await_research(build_system):
 		return
 	if bool(build_system.call("research_upgrade", 1, &"accelerated_evolution")):
 		_fail("Expected accelerated_evolution research to be rejected on a second attempt")
@@ -100,3 +104,15 @@ func _run() -> void:
 func _fail(message: String) -> void:
 	push_error(message)
 	quit(1)
+
+# Research is no longer instant (2026-09-06): the Vault studies one upgrade at a
+# time, over a duration derived from its cost, and Oavens stationed inside it
+# make that faster. Ordering a study is still a single call that returns whether
+# it was accepted -- this waits for the study to land before the rank is checked.
+func _await_research(build_system: Node) -> bool:
+	for _i in 2000:
+		if not bool(build_system.call("is_researching")):
+			return true
+		await process_frame
+	_fail("A study never finished")
+	return false

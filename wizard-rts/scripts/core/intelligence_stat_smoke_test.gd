@@ -22,6 +22,16 @@ func _initialize() -> void:
 	call_deferred("_run")
 
 func _run() -> void:
+	# The mechanic can be switched off (UnitCatalog.INTELLIGENCE_ENABLED) while
+	# other systems are being tested, because a stat whose job is to refuse
+	# orders makes every pathing bug ambiguous. Rather than delete this test or
+	# let it fail, it asserts the OTHER thing that has to be true: that the
+	# switch is total. A half-disabled obedience gate -- some units still
+	# refusing, the research still charging for a no-op -- would be worse than
+	# either state, and is exactly what a red suite would stop telling you about.
+	if not UnitCatalog.INTELLIGENCE_ENABLED:
+		_check_disabled()
+		return
 	if not _check_catalog():
 		return
 
@@ -209,6 +219,47 @@ func _check_catalog() -> bool:
 		_fail("An unauthored unit should fall back to a sane aggro range")
 		return false
 	return true
+
+# With the switch off, EVERY unit must be Bound and EVERY player order must be
+# accepted -- including the two archetypes the mechanic exists for. This runs
+# without a map, because a stat that is off should not need a world to prove it.
+func _check_disabled() -> void:
+	for archetype in [&"the_forbidden", &"spawner", &"oaven_spear", &"life_wizard", &"poorper", &"steel_knight"]:
+		if UnitCatalog.intelligence_of(archetype) != UnitCatalog.INTELLIGENCE_BOUND:
+			_fail("Intelligence is disabled, so %s must read as Bound, got %s" % [
+				archetype, UnitCatalog.intelligence_of(archetype)])
+			return
+	# The authored numbers must survive the switch, or turning it back on would
+	# find a catalog that had quietly forgotten what every unit used to be.
+	if UnitCatalog.authored_intelligence_of(&"the_forbidden") != UnitCatalog.INTELLIGENCE_FERAL:
+		_fail("The Forbidden's authored Intelligence was lost while the stat was disabled")
+		return
+	if UnitCatalog.authored_intelligence_of(&"spawner") != UnitCatalog.INTELLIGENCE_LEASHED:
+		_fail("The Spawner's authored Intelligence was lost while the stat was disabled")
+		return
+	# The gate itself, on a real unit rather than on the catalog: a Forbidden is
+	# the one thing that would still refuse if the switch had not reached
+	# accepts_player_order().
+	var feral: Node = _spawn_bare("res://scenes/units/the_forbidden.tscn")
+	if feral == null:
+		_fail("Could not spawn a Forbidden to check the obedience gate")
+		return
+	feral.set("unit_archetype", &"the_forbidden")
+	feral.call("_apply_catalog_definition")
+	for kind in [&"move", &"attack_move", &"patrol", &"hold", &"stop"]:
+		if not bool(feral.call("accepts_player_order", kind)):
+			_fail("Intelligence is disabled and a Forbidden still refused a %s order" % kind)
+			return
+	feral.queue_free()
+	print("[IntelligenceStatSmokeTest] the intelligence stat is switched off: every unit is Bound, every order is accepted, and the authored ranks are intact for when it comes back")
+	quit(0)
+
+func _spawn_bare(scene_path: String) -> Node:
+	if not ResourceLoader.exists(scene_path):
+		return null
+	var unit: Node = (load(scene_path) as PackedScene).instantiate()
+	root.add_child(unit)
+	return unit
 
 func _cell_world(map_generator: Node, cell: Vector2i) -> Vector2:
 	return map_generator.call("cell_to_world", map_generator.call("nearest_walkable_cell", cell, 24))

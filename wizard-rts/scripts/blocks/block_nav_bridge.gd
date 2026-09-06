@@ -159,6 +159,51 @@ func level_of(unit: Node2D) -> int:
 		return int(stored)
 	return int(terrain.call("get_height", terrain.call("world_to_cell", unit.global_position)))
 
+# Whether a unit is standing on a structure's own floor rather than on terrain.
+#
+# This is the question the ORDER path has to ask. Routing used to be decided by
+# the destination alone: order a unit standing on a gallery to walk to open
+# grass, the destination had one level, so the lattice was skipped and the unit
+# was handed an ordinary 2D path -- which knows nothing about floors. It kept
+# the storey height it was standing at and walked out of the building through
+# the air, and nothing ever brought it down.
+func unit_is_in_structure(unit: Node2D) -> bool:
+	if world == null or terrain == null or unit == null or not is_instance_valid(unit):
+		return false
+	if bool(unit.get("ignores_terrain")):
+		return false
+	var cell: Vector2i = terrain.call("world_to_cell", unit.global_position)
+	return world.is_structure_node(cell, level_of(unit))
+
+# Sends a unit in a structure to the nearest ground it can actually reach.
+#
+# The fallback for "ordered somewhere it cannot path to while standing on a
+# third floor". Without it the choice is between refusing the order -- the unit
+# stands in the building forever with no explanation -- and letting it walk out
+# through the air, which is the bug. Getting it to the ground is the honest
+# third answer, and from there its next order behaves normally.
+func order_out_of_structure(unit: Node2D) -> bool:
+	if world == null or terrain == null or not unit_is_in_structure(unit):
+		return false
+	var unit_class := class_for(unit)
+	var from_cell: Vector2i = terrain.call("world_to_cell", unit.global_position)
+	for radius in range(1, 24):
+		for dx in range(-radius, radius + 1):
+			for dz in range(-radius, radius + 1):
+				if maxi(absi(dx), absi(dz)) != radius:
+					continue
+				var cell := from_cell + Vector2i(dx, dz)
+				if not bool(terrain.call("is_in_bounds", cell)):
+					continue
+				var ground: int = int(terrain.call("get_height", cell))
+				if world.is_structure_node(cell, ground):
+					continue
+				if not world.has_node(cell, ground):
+					continue
+				if order_to(unit, cell, ground, unit_class):
+					return true
+	return false
+
 # Routes a unit to a goal cell and level, and hands it the path. Returns false
 # when no route exists -- a heavy asked to reach a wall-walk, or anything asked
 # to cross a closed gate -- so the caller can say so rather than watching a unit
@@ -237,18 +282,26 @@ func vantage_at(cell: Vector2i, level: int) -> Dictionary:
 		"height": maxi(0, level - ground),
 	}
 
+# The placed structure a unit at this cell/level is standing inside, or "" if it
+# is on open ground. For player-built buildings this is the instance id
+# BuildSystem stamped in, so it maps straight back to the building.
+func structure_instance_at(cell: Vector2i, level: int) -> StringName:
+	if world == null:
+		return &""
+	return world.owner_at(cell, level)
+
 func is_multi_level(cell: Vector2i) -> bool:
 	return levels_at(cell).size() > 1
 
 # Which block class a game unit moves as.
 #
-# Deliberately crude: the game's units have no block class of their own, and
-# inventing a full mapping before anything depends on it would be guessing. A
-# unit that ignores terrain flies; everything else walks as infantry. When the
-# roster needs heavies and climbers this is the one function to extend.
+# Mounted knights require the authored heavy clearances and ramp-only access.
+# Other ground units retain the existing infantry mapping.
 func class_for(unit: Node2D) -> StringName:
 	if bool(unit.get("ignores_terrain")):
 		return &"flying"
+	if str(unit.get("unit_archetype")) == "mounted_knight":
+		return &"heavy"
 	return &"infantry"
 
 # Right-click behaviour for a multi-level column: send the unit to the HIGHEST

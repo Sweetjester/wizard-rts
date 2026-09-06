@@ -1,4 +1,4 @@
-[gd_scene load_steps=38 format=4 uid="uid://cadog5s2ne74q"]
+[gd_scene load_steps=40 format=4 uid="uid://cadog5s2ne74q"]
 
 [ext_resource type="Script" uid="uid://c55e5b81k5mcw" path="res://scripts/map/map_manager.gd" id="1_yq3ld"]
 [ext_resource type="Script" uid="uid://co8oyntpicxw5" path="res://scripts/camera/camera_controller.gd" id="2_v4mqy"]
@@ -22,6 +22,8 @@
 [ext_resource type="Script" path="res://scripts/ui/rts_hud.gd" id="24_hud"]
 [ext_resource type="Script" path="res://scripts/ui/map_loading_screen.gd" id="37_loading"]
 [ext_resource type="Script" path="res://scripts/blocks/vantage_effects.gd" id="38_vantage"]
+[ext_resource type="Script" path="res://scripts/fx/combat_feedback.gd" id="39_feedback"]
+[ext_resource type="Script" path="res://scripts/blocks/structure_garrison_effects.gd" id="40_garrison_fx"]
 [ext_resource type="Script" path="res://scripts/map/terrain_relief_layer.gd" id="25_relief"]
 [ext_resource type="Script" path="res://scripts/map/day_night_cycle.gd" id="26_daynight"]
 [ext_resource type="Script" path="res://scripts/core/rts_world.gd" id="27_world"]
@@ -132,6 +134,9 @@ script = ExtResource("35_blocknav")
 [node name="VantageEffects" type="Node" parent="."]
 script = ExtResource("38_vantage")
 
+[node name="StructureGarrisonEffects" type="Node" parent="."]
+script = ExtResource("40_garrison_fx")
+
 [node name="CitadelGarrison" type="Node" parent="."]
 script = ExtResource("36_garrison")
 
@@ -140,6 +145,9 @@ script = ExtResource("33_map3d")
 
 [node name="MapLoadingScreen" type="CanvasLayer" parent="."]
 script = ExtResource("37_loading")
+
+[node name="CombatFeedback" type="CanvasLayer" parent="."]
+script = ExtResource("39_feedback")
 
 [node name="RTSHud" type="CanvasLayer" parent="."]
 script = ExtResource("24_hud")

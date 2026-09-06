@@ -37,9 +37,13 @@ func _spawn_if_ready() -> void:
 		_spawned = true
 		print("[MapBootstrap] Siege arena: spawned mirrored AI forts, no player wizard")
 		return
-	if map_type_id == "ai_testing_ground":
+	# Every observer arena, not a list of the ones that existed when this was
+	# written. Kon's Arena 2.0 fell through this check and was handed a wizard
+	# and a free Observation Tower, which then sat invisibly in the west camp
+	# absorbing both armies.
+	if map_generator.has_method("is_observer_arena") and bool(map_generator.call("is_observer_arena")):
 		_spawned = true
-		print("[MapBootstrap] Observation arena: no player wizard or HQ spawned")
+		print("[MapBootstrap] Observer arena (%s): no player wizard or HQ spawned" % map_type_id)
 		return
 	if map_type_id == "plot_generator_test":
 		var spawn_cell: Vector2i = map_generator.get_spawn_position()

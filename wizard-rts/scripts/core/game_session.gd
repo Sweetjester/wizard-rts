@@ -13,7 +13,7 @@ var new_game_requested: bool = false
 # Renders the same game mode with a 3D map instead of the 2D tilemap. This is a
 # PRESENTATION choice only -- the simulation, the map data, the units and every
 # system are identical either way. See scripts/map/map_3d_view.gd.
-var render_3d: bool = false
+var render_3d: bool = true
 var _rng := RandomNumberGenerator.new()
 signal specimen_discovered(archetype: StringName)
 # Run-local discoveries survive scene reloads, but never a new expedition.
@@ -32,7 +32,7 @@ func record_felled(archetype: StringName, victim_owner: int, killer_owner: int) 
 func _ready() -> void:
 	_rng.randomize()
 
-func start_new_game(seed_text: String = "", selected_wizard_class_id: String = "bad_kon_willow", selected_map_type_id: String = DEFAULT_MAP_TYPE, selected_objective_id: String = "", use_3d_view: bool = false) -> void:
+func start_new_game(seed_text: String = "", selected_wizard_class_id: String = "bad_kon_willow", selected_map_type_id: String = DEFAULT_MAP_TYPE, selected_objective_id: String = "", use_3d_view: bool = true) -> void:
 	felled_specimens.clear()
 	render_3d = use_3d_view
 	map_type_id = selected_map_type_id

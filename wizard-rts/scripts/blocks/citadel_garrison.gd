@@ -23,16 +23,21 @@ signal citadel_captured(plot_id: String)
 # Which nav region each post type draws from, and what stands there. Regions
 # come from the authored structure, so this survives the citadel being re-authored
 # as long as it still has walls, a gate and a keep.
+#
+# Posts name a WEIGHT rather than a unit. Which unit stands there is the current
+# enemy faction's answer to "a body" or "a heavy", asked of the WaveDirector, so
+# switching the faction re-garrisons the citadel instead of leaving the previous
+# enemy holding the walls of a map whose waves have already changed.
 const POSTS := [
-	{"region": &"wall_walk_outer_ring_nav", "archetype": &"deom_blade", "count": 8,
-		"role": "wall archers -- the reason taking this from outside is expensive"},
-	{"region": &"main_gate_tunnel_nav", "archetype": &"deom_crosshirran", "count": 3,
+	{"region": &"wall_walk_outer_ring_nav", "weight": &"light", "count": 8,
+		"role": "wall line -- the reason taking this from outside is expensive"},
+	{"region": &"main_gate_tunnel_nav", "weight": &"heavy", "count": 3,
 		"role": "gate holders, in the one place the player must come through"},
-	{"region": &"south_courtyard_nav", "archetype": &"deom_blade", "count": 4,
+	{"region": &"south_courtyard_nav", "weight": &"light", "count": 4,
 		"role": "courtyard reserve"},
-	{"region": &"keep_plinth_ring_nav", "archetype": &"deom_crosshirran", "count": 3,
+	{"region": &"keep_plinth_ring_nav", "weight": &"heavy", "count": 3,
 		"role": "plinth guard"},
-	{"region": &"keep_ground_floor_nav", "archetype": &"deom_crosshirran", "count": 2,
+	{"region": &"keep_ground_floor_nav", "weight": &"heavy", "count": 2,
 		"role": "keep core -- the last thing standing"},
 ]
 
@@ -62,6 +67,13 @@ func _on_structures_placed(placements: Array) -> void:
 			_spawn_garrison(placement)
 			return
 
+# The unit that stands at a post, resolved from the current enemy faction.
+func _archetype_for(post: Dictionary) -> StringName:
+	var method := "enemy_heavy_archetype" if StringName(post["weight"]) == &"heavy" else "enemy_light_archetype"
+	if wave_director == null or not wave_director.has_method(method):
+		return &"deom_blade"
+	return StringName(wave_director.call(method))
+
 # Posts are drawn from the placed structure's nav cells, spread out rather than
 # clustered: a defence bunched on one wall is a defence with a free side.
 func _spawn_garrison(placement: Dictionary) -> void:
@@ -79,7 +91,7 @@ func _spawn_garrison(placement: Dictionary) -> void:
 		for cell in cells:
 			var world_cell: Vector2i = origin + Vector2i(cell.x, cell.z)
 			var spawned: Node = wave_director.call(
-				"_spawn_enemy", post["archetype"], world_cell, get_parent(), target)
+				"_spawn_enemy", _archetype_for(post), world_cell, get_parent(), target)
 			if spawned == null or not is_instance_valid(spawned):
 				continue
 			# A garrison HOLDS. Without this they walk out to the player's base

@@ -36,6 +36,8 @@ func run() -> void:
 	var economy: Node = scene.get_node("EconomyManager")
 	economy.add_resource(1, &"bio", 2000)
 	check(build.research_upgrade(1, &"tier_two_hybrids"), "Real tier research failed")
+	check(build.is_researching(), "Research must enter the timed study state")
+	build._update_research(build.research_seconds_remaining()+.1)
 	hud.observer_vault.section = "Research"
 	hud.observer_vault.refresh()
 	check(build.unlocked_tier(1) == 2, "Real research did not unlock tier")
@@ -57,6 +59,18 @@ func run() -> void:
 	hud.observer_vault.search.text = "nonsensequery"
 	hud.observer_vault.refresh()
 	check(hud.observer_vault.grid.get_child_count() == 0, "Empty search did not clear cards")
+	# Display the real game's mixed roster after both independent research ladders.
+	for id in [&"poorper", &"steel_knight", &"proper_blimp", &"mounted_knight"]:
+		session.record_felled(id, 2, 1)
+	build.researched_upgrade_ranks[&"steel_conscription"] = 4
+	hud.observer_vault.choose_tier(2)
+	await create_timer(1.0).timeout
+	check(hud.observer_vault.grid.get_child_count() == 4, "In-game Tier II roster is incomplete")
+	for card in hud.observer_vault.grid.get_children():
+		check(is_zero_approx(card.rotation), "In-game card is angled")
+	if DisplayServer.get_name() != "headless":
+		await RenderingServer.frame_post_draw
+		root.get_texture().get_image().save_png(OS.get_environment("ART_SHOT_DIR").path_join("vault_v4_ingame.png"))
 	hud.observer_vault.close_archive()
 	await create_timer(2.0).timeout
 	for i in 4:

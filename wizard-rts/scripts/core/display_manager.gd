@@ -1,5 +1,7 @@
 extends Node
 
+signal settings_changed
+
 const CONFIG_PATH := "user://display_settings.cfg"
 const CONFIG_SECTION := "display"
 const RESOLUTIONS := [
@@ -12,6 +14,12 @@ const RESOLUTIONS := [
 var resolution_index: int = 2
 var fullscreen: bool = false
 var performance_mode: bool = false
+var atmospheric_effects: bool = true
+
+func set_atmospheric_effects(enabled: bool) -> void:
+	atmospheric_effects = enabled
+	_save_settings()
+	settings_changed.emit()
 
 func _ready() -> void:
 	_load_settings()
@@ -40,6 +48,7 @@ func set_performance_mode(enabled: bool) -> void:
 	_save_settings()
 
 func _apply_settings() -> void:
+	settings_changed.emit()
 	Engine.max_fps = 60
 	var resolution: Vector2i = RESOLUTIONS[resolution_index]
 	if fullscreen:
@@ -57,6 +66,7 @@ func _load_settings() -> void:
 	resolution_index = int(config.get_value(CONFIG_SECTION, "resolution_index", resolution_index))
 	fullscreen = bool(config.get_value(CONFIG_SECTION, "fullscreen", fullscreen))
 	performance_mode = bool(config.get_value(CONFIG_SECTION, "performance_mode", performance_mode))
+	atmospheric_effects = bool(config.get_value(CONFIG_SECTION, "atmospheric_effects", atmospheric_effects))
 	resolution_index = clampi(resolution_index, 0, RESOLUTIONS.size() - 1)
 
 func _save_settings() -> void:
@@ -64,4 +74,5 @@ func _save_settings() -> void:
 	config.set_value(CONFIG_SECTION, "resolution_index", resolution_index)
 	config.set_value(CONFIG_SECTION, "fullscreen", fullscreen)
 	config.set_value(CONFIG_SECTION, "performance_mode", performance_mode)
+	config.set_value(CONFIG_SECTION, "atmospheric_effects", atmospheric_effects)
 	config.save(CONFIG_PATH)

@@ -1,0 +1,43 @@
+{
+  "version": "observation_tower_hd_v3",
+  "date": "2026-09-06",
+  "generator": "Built-in image_gen",
+  "source_dimensions": [
+    1254,
+    1254
+  ],
+  "requested_dimensions": [
+    2048,
+    2048
+  ],
+  "note": "The tool returned 1254px native sources despite the 2048px prompt. Assets retain native pixels, with no artificial enlargement. Material density and separate detail atlases provide the increased on-mesh detail.",
+  "assets": [
+    {
+      "file": "masonry.png",
+      "source": "exec-eb9d648d-b11b-4b2d-9f5a-ab35c8c3193c.png",
+      "prompt": "Use case: stylized-concept. Asset type: production game material, a single seamless square stone masonry albedo texture, requested 2048x2048. Full bleed straight-on orthographic surface ONLY, no scene or building, no text, no border. Kon's sinister hand-painted fantasy board-game observation tower. Large irregular rectangular pale blue-grey limestone blocks in staggered courses, deliberately hand-sculpted slightly chipped corners and broad clean painted bevels, bold charcoal ink mortar, sparse fine drawn hairline cracks. Color mostly readable neutral silver grey with muted cool blue shadows, occasional desaturated olive-grey block, NOT all cyan. Flat diffuse evenly lit, subtle painted top-edge highlights, no cast shadows, no ambient spotlight/vignette. About 7 stones wide by 10 courses tall, clean medium-scale shape language, delicate brushwork inside broad surfaces, sharp outlined fantasy illustration, NOT realistic gritty photo/noise. Seamless opposite edges. No vines, windows, plants, bricks or symbols. Crisp final game-ready high resolution artwork."
+    },
+    {
+      "file": "surfaces.png",
+      "source": "exec-45297f50-4a11-4e72-99fc-d6b46f4fb4f1.png",
+      "prompt": "Use case: stylized-concept. Production game material atlas, square 2048x2048 requested, exactly FOUR equally sized full-bleed square quadrants divided at exact midpoint, no gutters or labels. These are flat orthographic seamless material swatches, NOT a building or illustration scene. TOP LEFT: weathered dark charcoal oak vertical planks with silver grey hand-painted grain, a few knots, inked seams, no nails, no orange hue. TOP RIGHT: layered crooked slate roof shingles, blue-black with worn pale grey-blue edges, staggered 6 columns and 8 courses. BOTTOM LEFT: magical cyan blue window glass with large irregular translucent-looking brushstroke patches, broad blue-grey refraction and cyan highlights, NO leading, NO frame, NO vignette. BOTTOM RIGHT: aged dark desaturated bronze sheet with restrained warm olive-brass drybrushed bevel scratches, medium muted value, no bolts or objects. Every quadrant tiles itself. Style is chunky drawn hand-painted sinister fantasy boardgame, sculpted wood clay and stone with charcoal outlines and clean broad brush strokes. High quality crisp illustrated material paintings with no photoreal noise. Flat diffuse light. No writing, no background, no perspective.",
+      "layout": [
+        "timber",
+        "slate",
+        "glass",
+        "bronze"
+      ]
+    },
+    {
+      "file": "details.png",
+      "source": "exec-d2b8288b-68ed-4516-9979-ae06836e0644.png",
+      "prompt": "Use case: stylized-concept. A production 2048x2048 square game detail atlas requested. EXACT 2x2 grid, four equal square cells, fully opaque dark charcoal backgrounds in every cell. Each item isolated centered with generous 6% padding and fully visible, orthographic front view. TOP LEFT: one tall pointed gothic lancet window with blue-grey carved stone border, dark iron branching tracery dividing 5 cyan magical glass panes, subtle glow INSIDE glass only, about 50% cell width and 88% height. TOP RIGHT: a circular antique astronomical astrolabe seal, dull bronze concentric circles, central open eye symbol and fine celestial markings, on charcoal disc, 85% width; no readable writing. BOTTOM LEFT: one long fork-tailed burgundy cloth pennant embroidered with simple pale blue observing eye, old frayed hem, aged muted red cloth, subtle folds, full height, narrow width. BOTTOM RIGHT: one tall pointed heavy charcoal oak door, dark forged iron diagonal hinges and large ring handle, pale stone pointed arch surround, no window; 55% cell width 88% height. Style: CLEAN DRAWN fantasy painted miniature, bold dark ink contours, sculpted chunky edges, readable broad painted forms, pale blue-grey limestone, cyan glass, restrained old brass and wine red; NOT photoreal, not excessive tiny noise, no elaborate overdesigned baroque decoration, no labels, no grid lines, no white, no transparency or checkerboard, no scenes. This texture will be used on real game meshes.",
+      "layout": [
+        "lancet",
+        "astrolabe",
+        "pennant",
+        "door"
+      ]
+    }
+  ]
+}

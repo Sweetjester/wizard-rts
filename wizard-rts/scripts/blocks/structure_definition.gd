@@ -267,6 +267,16 @@ func rotated(steps: int) -> BlockStructureDefinition:
 		})
 	return out
 
+# Rotates a LOCAL cell the same way the geometry is rotated.
+#
+# Public because gameplay authors positions inside a structure -- the Steel Force
+# Musterhouse declares where recruits muster -- and a building placed facing east
+# has to muster them on its east side. Sharing _turn_cell rather than repeating
+# the arithmetic is the point: an authored anchor that rotated differently from
+# the walls would put units inside them.
+func turn_local_cell(cell: Vector3i, steps: int) -> Vector3i:
+	return _turn_cell(cell, ((steps % 4) + 4) % 4)
+
 func _turn_cell(cell: Vector3i, turns: int) -> Vector3i:
 	var width := dimensions.x
 	var depth := dimensions.z

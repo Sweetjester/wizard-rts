@@ -2,6 +2,18 @@ class_name UnitCatalog
 extends RefCounted
 
 const DEFINITIONS := {
+	&"mounted_knight": {
+		"display_name":"Mounted Knight", "faction":&"steel_force", "unit_family":&"mounted_knight", "tier":3,
+		"intelligence":3,"aggro_range_cells":6,"max_hp":620,"armor":14,"magic_armor":2,
+		"attack_damage":54,"attack_range_cells":1.2,"attack_speed_seconds":1.25,"attack_type":&"melee",
+		"move_speed_cells":3.2,"sight_radius_cells":7,"population":5,"cost_bio":300,"train_time_seconds":26.0,
+		"momentum_max_stacks":5,"momentum_distance_per_stack":64.0,"momentum_speed_per_stack":0.08,
+		"flame_duration_seconds":12.0,"flame_damage_multiplier":1.5,
+		"card_portrait":"res://assets_game/units/steel_force/mounted_knight/directional_v1/portrait.png",
+		"card_blurb":"An armoured bull carries a relentless rider. Five running stacks kindle the axe; even a fallen mount cannot end the advance.",
+		"role":"Fast heavy melee. Each cell run adds a momentum stack and 8% speed (max 5). Five stacks ignite the axe: +50% damage for 12 seconds. Stops/collisions reset momentum, not fire. Slain mounts leave a half-health Steel Knight.",
+		"passives":["Momentum","Kindled Axe: 12 seconds","Unseated: half-health Tier 2 Knight"],"actives":[],
+	},
 	&"poorper": {
 		"display_name":"Poorper", "faction":&"steel_force", "unit_family":&"poorper", "tier":1,
 		"intelligence":3,"aggro_range_cells":5,"max_hp":100,"armor":2,"magic_armor":0,
@@ -533,6 +545,7 @@ const DEFINITIONS := {
 	},
 	&"oaven_spear": {
 		"intelligence": 3,
+		"garrison_work": 1.0,
 		"aggro_range_cells": 6,
 		"display_name": "Oaven",
 		"unit_family": &"oaven",
@@ -611,6 +624,7 @@ const DEFINITIONS := {
 	},
 	&"oaven_jumper": {
 		"intelligence": 3,
+		"garrison_work": 1.0,
 		"aggro_range_cells": 6,
 		"display_name": "Oaven Jumper",
 		"unit_family": &"oaven",
@@ -1009,7 +1023,29 @@ const DEFINITIONS := {
 		# through a wall.
 		"footprint": Vector2i(9, 7),
 		"block_structure": &"kons_splicing_laboratory_01",
+		# Kon's own creations only. The Steel Force is not spliced here -- it
+		# musters at its own Musterhouse, which is a different building with a
+		# barracks hall, bunks and a farm to feed them.
 		"production": [&"terrible_thing", &"oaven_spear", &"horror", &"apex", &"spawner", &"stone_face_serpent", &"mangler"],
+	},
+	&"steel_musterhouse": {
+		"sight_radius_cells": 7,
+		"display_name": "Steel Force Musterhouse",
+		"kon_theme": &"crossover",
+		"card_blurb": "Production. A Steel Force muster hall and its croft, raised on Kon's ground. Conscripts are quartered, fed and armed here rather than grown -- the one building in Kon's town that was not made out of something.",
+		"max_hp": 420,
+		"cost_bio": 200,
+		"build_time_seconds": 9.0,
+		# Matches the authored structure exactly (9 x 5 x 14, so 9 by 14 on the
+		# ground). A footprint that disagreed with the geometry would give the
+		# building 2D blockers and 3D walls in different places.
+		"footprint": Vector2i(9, 14),
+		"block_structure": &"steel_force_barracks_farm_01",
+		# From the structure's own production_integration contract: recruits
+		# appear at the muster anchor inside the hall and walk out through the
+		# muster door, rather than materialising on the grass outside.
+		"muster_anchor": Vector3i(4, 1, 10),
+		"production": [&"poorper", &"steel_knight", &"proper_blimp", &"mounted_knight"],
 	},
 	&"terrible_vault": {
 		"sight_radius_cells": 7,
@@ -1071,6 +1107,10 @@ const CLASS_UNIT_ROSTERS := {
 		&"stone_face_serpent",
 		&"spawner", &"winged_spawner", &"spawner_drone",
 		&"the_forbidden",
+		# Not spliced -- conscripted. Kon can field the Steel Force only after
+		# studying it (BuildSystem.RECRUITMENT_ORDER), so these being on the
+		# roster means "he could learn to", not "he can".
+		&"poorper", &"steel_knight", &"proper_blimp", &"mounted_knight",
 	],
 	"hellfire_baby": [&"terrible_thing", &"gripper", &"spawner", &"winged_spawner", &"spawner_drone"],
 	"evangalion": [&"horror", &"hunter", &"stone_face_serpent"],
@@ -1116,7 +1156,37 @@ const INTELLIGENCE_LEASHED := 2
 const INTELLIGENCE_BOUND := 3
 const DEFAULT_INTELLIGENCE := INTELLIGENCE_BOUND
 
+# TEMPORARILY OFF while the buildings, pathing and the Steel Force are being
+# tested. A mechanic whose whole job is to refuse orders makes every other bug
+# ambiguous: a unit that will not walk somewhere might be a broken lattice, or
+# might be a Feral unit doing exactly what it was told to do.
+#
+# The switch lives HERE, on the one function every consumer reads, rather than
+# in each of them. With it false every unit is Bound, so accepts_player_order()
+# always says yes, _update_autonomy_override() returns early, and the Observer
+# Command research finds nothing left to raise -- the mechanic disables itself
+# by arithmetic instead of by a flag threaded through six files. The UI hides
+# its readouts off the same constant. Set it back to true to restore section 38.
+const INTELLIGENCE_ENABLED := false
+
+# How much work a unit does for a building it is stationed inside, per unit.
+#
+# Authored on the archetype rather than listed in the effect script, because
+# "an Oaven can crew a building" is a fact about Oavens: the roster doc has them
+# as the faction's hands, they are the tier-1 unit you always have, and giving
+# an idle one a job is the point. Anything without this key contributes nothing,
+# so a Horror parked in the lab is just a Horror standing in a lab.
+static func garrison_work_of(archetype: StringName) -> float:
+	return float(DEFINITIONS.get(archetype, {}).get("garrison_work", 0.0))
+
 static func intelligence_of(archetype: StringName) -> int:
+	if not INTELLIGENCE_ENABLED:
+		return INTELLIGENCE_BOUND
+	return int(DEFINITIONS.get(archetype, {}).get("intelligence", DEFAULT_INTELLIGENCE))
+
+# The authored value, ignoring the off switch. Only the smoke test and anything
+# restoring the mechanic should need this; gameplay reads intelligence_of().
+static func authored_intelligence_of(archetype: StringName) -> int:
 	return int(DEFINITIONS.get(archetype, {}).get("intelligence", DEFAULT_INTELLIGENCE))
 
 static func intelligence_label(level: int) -> String:
@@ -1177,6 +1247,53 @@ static func fielded_attack_damage(archetype: StringName) -> int:
 static func salvage_value_for(archetype: StringName, unit_max_health: int = -1) -> int:
 	var health_basis := unit_max_health if unit_max_health >= 0 else fielded_max_hp(archetype)
 	return int(float(cost_bio(archetype)) * 0.6) + int(float(health_basis) * 0.12)
+
+# Which faction a unit belongs to. Kon's own creations declare none, so anything
+# that DOES name one is foreign -- something recruited rather than spliced, and
+# gated by its own research instead of by Kon's hybrid tiers.
+# A unit you actually field: one that can be trained, and that fights for you.
+#
+# This is what separates a roster from a list of archetypes. It excludes the
+# EVOLVED forms (oaven_jumper, winged_mangler, winged_spawner have no train time
+# -- they are what a unit becomes, and in a fight they appear by evolving, which
+# is the behaviour worth watching rather than one to fake by spawning them), the
+# summoned ones (spawner_drone comes out of a Spawner), and The Forbidden, which
+# is uncontrollable and attacks everyone -- dropping that into a measured fight
+# would make the measurement about it.
+static func is_fieldable_unit(archetype: StringName) -> bool:
+	var definition: Dictionary = DEFINITIONS.get(archetype, {})
+	if definition.is_empty():
+		return false
+	if bool(definition.get("uncontrollable", false)):
+		return false
+	return float(definition.get("train_time_seconds", 0.0)) > 0.0
+
+# Every unit a wizard class can field, in tier order.
+static func fieldable_units_for_class(wizard_class_id: String) -> Array[StringName]:
+	var roster: Array[StringName] = []
+	for archetype in CLASS_UNIT_ROSTERS.get(wizard_class_id, []):
+		if is_fieldable_unit(archetype) and not is_foreign_recruit(archetype):
+			roster.append(archetype)
+	roster.sort_custom(func(a: StringName, b: StringName) -> bool:
+		return tier_of(a) < tier_of(b))
+	return roster
+
+# Every unit a faction fields, in tier order.
+static func fieldable_units_for_faction(faction: StringName) -> Array[StringName]:
+	var roster: Array[StringName] = []
+	for archetype in DEFINITIONS:
+		if faction_of(archetype) == faction and is_fieldable_unit(archetype):
+			roster.append(StringName(archetype))
+	roster.sort_custom(func(a: StringName, b: StringName) -> bool:
+		return tier_of(a) < tier_of(b))
+	return roster
+
+static func faction_of(archetype: StringName) -> StringName:
+	return StringName(DEFINITIONS.get(archetype, {}).get("faction", &""))
+
+static func is_foreign_recruit(archetype: StringName) -> bool:
+	var faction := faction_of(archetype)
+	return faction != &"" and faction != &"kon"
 
 static func tier_of(archetype: StringName) -> int:
 	return int(DEFINITIONS.get(archetype, {}).get("tier", TIER_1))

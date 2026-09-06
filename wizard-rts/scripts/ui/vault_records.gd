@@ -43,13 +43,26 @@ static func record_for(id: StringName, section: String, build: Node, world: Node
 	if enemy and not session.felled_specimens.has(id):
 		return {}
 	var tier := UnitCatalog.tier_of(id)
+	var foreign := UnitCatalog.is_foreign_recruit(id)
+	# Typed explicitly: build is an untyped Node, so can_recruit() comes back as
+	# Variant and := cannot infer a type from it. This is a compile error, not a
+	# warning, and it takes rts_hud.gd and the whole suite down with it.
+	var recruited: bool = foreign and is_instance_valid(build) and bool(build.can_recruit(id))
+	if foreign and not enemy:
+		# Undiscovered opponents do not become a preview of the enemy roster.
+		if not recruited and not session.felled_specimens.has(id):
+			return {}
+		if not recruited:
+			var rank := BuildSystem.RECRUITMENT_ORDER.find(id)+1
+			return {"id":id,"sealed":true,"tier":tier,"name":"Sealed specimen",
+				"requirement":"Research Steel Conscription %s\nin the Vault" % ["I","II","III","IV"][clampi(rank-1,0,3)]}
 	var living: Array[WeakRef] = []
 	if not enemy and is_instance_valid(world):
 		for unit in world.all_units():
 			if unit is RTSUnit and is_instance_valid(unit) and not unit.is_queued_for_deletion() and unit.is_alive() and unit.owner_player_id == 1 and unit.unit_archetype == id:
 				living.append(weakref(unit))
 	var unlocked := int(build.unlocked_tier(1)) if is_instance_valid(build) else 1
-	if not enemy and tier > unlocked and (tier <= 3 or living.is_empty()):
+	if not enemy and not recruited and tier > unlocked and (tier <= 3 or living.is_empty()):
 		# No portrait, name, blurb, lineage or stats ever reach the sealed view.
 		return {"id": id, "sealed": true, "tier": tier, "name": "Sealed specimen",
 			"requirement": "Research Tier %d Hybrids\nin the Vault" % tier if tier <= 3 else "Unleash at the\nObservation Tower"}
@@ -80,7 +93,8 @@ static func specimen_stats(ref: WeakRef) -> Dictionary:
 	var unit = ref.get_ref()
 	if not is_instance_valid(unit) or not unit.is_alive():
 		return {}
-	return {"max_health": unit.max_health, "health": unit.health, "attack_damage": unit.attack_damage,
+	var damage: int = unit.current_attack_damage_for_display() if unit.has_method("current_attack_damage_for_display") else unit.attack_damage
+	return {"max_health": unit.max_health, "health": unit.health, "attack_damage": damage,
 		"armor": unit.armor, "magic_armor": unit.magic_armor,
 		"attack_range_cells": unit.attack_range / 64.0, "attack_speed_seconds": unit._current_attack_cooldown(),
 		"move_speed": unit._current_move_speed(), "intelligence": unit.intelligence}

@@ -9,6 +9,7 @@ func fail(message: String) -> void:
 func _run() -> void:
 	create_timer(120).timeout.connect(func() -> void: fail("Mangler integration timeout"))
 	root.size = Vector2i(1600,1000)
+	root.content_scale_size = root.size
 	root.get_node("GameSession").start_new_game("serpent-art-review","bad_kon_willow","seeded_grid_frontier","",true)
 	var stage: Node = load("res://scripts/map/main_map.tscn").instantiate()
 	root.add_child(stage)
@@ -74,6 +75,32 @@ func _run() -> void:
 	capture.save_png(OS.get_environment("ART_SHOT_DIR")+"/mangler_ingame_leap.png")
 	await create_timer(1.0).timeout
 	if winged.leap_age>=0 or winged.global_position.distance_to(destination)>2: fail("Leap failed to land and recover"); return
+	# Exercise the real Sprite3D bridge, including a stationary unit and rotated camera.
+	view.set_process(false)
+	runner.set_physics_process(false)
+	winged.set_physics_process(false)
+	runner.velocity = Vector2.RIGHT*100
+	winged.velocity = Vector2.RIGHT*100
+	var actors: Array[Node2D] = [runner,winged]
+	view._sync_unit_sprites(actors)
+	runner.velocity = Vector2.ZERO
+	winged.velocity = Vector2.ZERO
+	for yaw in 8:
+		view.camera.global_basis = Basis(Vector3.UP,yaw*PI/4)*Basis(Vector3.RIGHT,-PI/4)
+		view._sync_unit_sprites(actors)
+		for actor_index in 2:
+			var art: Sprite2D = actors[actor_index].get_node("ArtSprite")
+			var billboard: Sprite3D = view._sprite_at(actor_index)
+			if art.facing_index!=yaw or billboard.texture!=art.texture or billboard.frame!=art.frame or billboard.flip_h:
+				fail("Camera-relative Sprite3D direction mismatch at "+str(yaw)); return
+	print("[ManglerInGame] PASS: both forms resolve all eight stationary camera-relative Sprite3D pages")
+	view._apply_camera_transform()
+	root.size = Vector2i(1024,720)
+	root.content_scale_size = root.size
+	view._sync_unit_sprites(actors)
+	await process_frame
+	await RenderingServer.frame_post_draw
+	root.get_texture().get_image().save_png(OS.get_environment("ART_SHOT_DIR")+"/mangler_ingame_small.png")
 	print("[ManglerInGame] PASS: factory, real running, five stacks, stop, selection, manual targeting, airborne art, landing")
 	stage.queue_free()
 	for i in 5: await process_frame

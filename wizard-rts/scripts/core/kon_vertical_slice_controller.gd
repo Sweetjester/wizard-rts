@@ -290,7 +290,9 @@ func _spawn_outpost_defender(outpost_index: int) -> void:
 	var spawn_cell: Vector2i = map_generator.nearest_walkable_cell(outpost_cell + Vector2i(outpost_index + 1, 2), outpost_spawn_radius)
 	var target := _player_target_world()
 	var spawn_count := int(_outposts[outpost_index].get("spawned", 0))
-	var archetype := &"deom_crosshirran" if randf() < heavy_defender_chance() else &"deom_blade"
+	# Asked of the director rather than named here, so outpost defenders belong to
+	# whichever faction is currently attacking the player.
+	var archetype: StringName = wave_director.call("enemy_heavy_archetype") if randf() < heavy_defender_chance() 		else wave_director.call("enemy_light_archetype")
 	var enemy: Node = wave_director.call("_spawn_enemy", archetype, spawn_cell, get_parent(), target)
 	_outposts[outpost_index]["spawned"] = spawn_count + 1
 	_log_combat_entity("outpost_defender_spawned", enemy)

@@ -13,6 +13,10 @@ var keybind_rows: Dictionary = {}
 var waiting_for_action := ""
 var hint_label: Label
 var telemetry_logger: Node
+var atmosphere_check: CheckBox
+var menu_panel: PanelContainer
+var resume_button: Button
+var confirmation: ConfirmationDialog
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -30,6 +34,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			_refresh_keybind_rows()
 			hint_label.text = "Key binding updated."
 			get_viewport().set_input_as_handled()
+		else:
+			waiting_for_action = ""
+			_refresh_keybind_rows()
+			hint_label.text = ""
+			get_viewport().set_input_as_handled()
 		return
 	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_ESCAPE:
 		if overlay.visible:
@@ -43,38 +52,42 @@ func show_menu() -> void:
 	_sync_controls()
 	overlay.show()
 	get_tree().paused = true
+	resume_button.grab_focus()
 
 func hide_menu() -> void:
 	waiting_for_action = ""
 	overlay.hide()
+	if confirmation != null: confirmation.hide()
 	get_tree().paused = false
 
 func _build_ui() -> void:
 	overlay = Control.new()
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	overlay.theme = preload("res://scripts/ui/observer_theme.gd").make()
 	add_child(overlay)
 
 	var dim := ColorRect.new()
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.color = Color(0.02, 0.04, 0.035, 0.78)
+	dim.color = Color(0.015, 0.023, 0.02, 0.72)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(dim)
 
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(760, 680)
+	menu_panel = panel
 	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.offset_left = -380
-	panel.offset_top = -340
-	panel.offset_right = 380
-	panel.offset_bottom = 340
 	overlay.add_child(panel)
+	overlay.resized.connect(_layout_panel)
+	_layout_panel()
 
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
 	panel.add_child(box)
 
-	var title := _label("Game Menu", 34)
+	var title := _label("A Moment of Stillness", 32)
+	title.add_theme_font_override("font", preload("res://scripts/ui/observer_theme.gd").display_font())
 	box.add_child(title)
+	box.add_child(HSeparator.new())
 
 	var tabs := TabContainer.new()
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -85,17 +98,32 @@ func _build_ui() -> void:
 	tabs.add_child(_build_keybind_tab())
 	tabs.add_child(_build_quit_tab())
 
-	hint_label = _label("Escape resumes the game.", 15)
+	hint_label = _label("", 15)
 	box.add_child(hint_label)
 
 	var bottom := HBoxContainer.new()
 	bottom.add_theme_constant_override("separation", 10)
 	box.add_child(bottom)
-	_add_button(bottom, "Resume", hide_menu)
-	_add_button(bottom, "Export Data", _export_telemetry_now)
-	_add_button(bottom, "Restart", _restart_run)
-	_add_button(bottom, "Main Menu", _quit_to_main_menu)
-	_add_button(bottom, "Quit Desktop", _quit_desktop)
+	resume_button = _add_button(bottom, "Return to the world", hide_menu)
+	resume_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	confirmation = ConfirmationDialog.new()
+	confirmation.title = "Leave this expedition?"
+	confirmation.dialog_text = "Current progress will be lost."
+	overlay.add_child(confirmation)
+
+func _layout_panel() -> void:
+	if menu_panel == null: return
+	var extent := Vector2(minf(720,overlay.size.x-40),minf(640,overlay.size.y-40))
+	menu_panel.offset_left = -extent.x/2
+	menu_panel.offset_right = extent.x/2
+	menu_panel.offset_top = -extent.y/2
+	menu_panel.offset_bottom = extent.y/2
+
+func _confirm(action: Callable) -> void:
+	for connection in confirmation.confirmed.get_connections():
+		confirmation.confirmed.disconnect(connection.callable)
+	confirmation.confirmed.connect(action, CONNECT_ONE_SHOT)
+	confirmation.popup_centered(Vector2i(420,160))
 
 func _build_audio_tab() -> Control:
 	var tab := VBoxContainer.new()
@@ -144,6 +172,10 @@ func _build_display_tab() -> Control:
 		DisplayManager.set_performance_mode(value)
 	)
 	tab.add_child(performance_check)
+	atmosphere_check = CheckBox.new()
+	atmosphere_check.text = "Atmospheric lighting"
+	atmosphere_check.toggled.connect(DisplayManager.set_atmospheric_effects)
+	tab.add_child(atmosphere_check)
 	return tab
 
 func _build_keybind_tab() -> Control:
@@ -186,14 +218,13 @@ func _build_keybind_tab() -> Control:
 
 func _build_quit_tab() -> Control:
 	var tab := VBoxContainer.new()
-	tab.name = "Quit"
+	tab.name = "Expedition"
 	tab.add_theme_constant_override("separation", 12)
 	tab.add_child(_label("Run Options", 20))
-	tab.add_child(_label("Restart reloads the current run. Main Menu leaves the current game.", 16))
 	_add_button(tab, "Export Test Data Now", _export_telemetry_now)
-	_add_button(tab, "Restart Current Run", _restart_run)
-	_add_button(tab, "Return to Main Menu", _quit_to_main_menu)
-	_add_button(tab, "Quit to Desktop", _quit_desktop)
+	_add_button(tab, "Restart Current Run", func(): _confirm(_restart_run))
+	_add_button(tab, "Return to Main Menu", func(): _confirm(_quit_to_main_menu))
+	_add_button(tab, "Quit to Desktop", func(): _confirm(_quit_desktop))
 	return tab
 
 func _sync_controls() -> void:
@@ -208,6 +239,8 @@ func _sync_controls() -> void:
 		fullscreen_check.button_pressed = DisplayManager.fullscreen
 	if performance_check != null:
 		performance_check.button_pressed = DisplayManager.performance_mode
+	if atmosphere_check != null:
+		atmosphere_check.set_pressed_no_signal(DisplayManager.atmospheric_effects)
 	_refresh_keybind_rows()
 
 func _refresh_keybind_rows() -> void:
@@ -251,6 +284,7 @@ func _label(text: String, size: int) -> Label:
 	label.text = text
 	label.add_theme_font_size_override("font_size", size)
 	label.add_theme_color_override("font_color", Color("#D6C7AE"))
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	return label
 
 func _add_button(parent: Control, text: String, callback: Callable) -> Button:

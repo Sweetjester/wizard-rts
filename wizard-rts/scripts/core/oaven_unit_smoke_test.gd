@@ -41,6 +41,8 @@ func _run() -> void:
 	ok = _expect(oaven.unit_archetype == &"oaven_jumper", "Evolution becomes oaven_jumper") and ok
 	ok = _expect(oaven.activate_flight(), "Oaven Jumper temporary flight activates") and ok
 	ok = _expect(bool(oaven.ignores_terrain), "Temporary flight ignores terrain") and ok
+	oaven.call("_update_winged_spawner_flight", 0.1)
+	ok = _expect(oaven._flight_state == &"flying", "Spawner flight updater does not ground the Jumper") and ok
 	ok = _expect(oaven.activate_charge(), "Oaven Jumper can arm aerial charge") and ok
 
 	var enemy_2 := DEOM_SCENE.instantiate()

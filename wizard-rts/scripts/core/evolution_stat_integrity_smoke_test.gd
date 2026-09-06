@@ -60,6 +60,8 @@ func _run() -> void:
 	if not bool(build_system.call("research_upgrade", 1, &"hardened_horrors")):
 		_fail("Expected Hardened Horrors rank 1 to be researchable")
 		return
+	if not await _await_research(build_system):
+		return
 
 	# --- a researched Horror keeps its bonus through evolution -------------
 	var horror := _spawn(scene, "res://scenes/units/horror.tscn", Vector2(3000, 3000))
@@ -154,3 +156,15 @@ func _spawn(scene: Node, scene_path: String, position: Vector2) -> Node:
 func _fail(message: String) -> void:
 	push_error(message)
 	quit(1)
+
+# Research is no longer instant (2026-09-06): the Vault studies one upgrade at a
+# time, over a duration derived from its cost, and Oavens stationed inside it
+# make that faster. Ordering a study is still a single call that returns whether
+# it was accepted -- this waits for the study to land before the rank is checked.
+func _await_research(build_system: Node) -> bool:
+	for _i in 2000:
+		if not bool(build_system.call("is_researching")):
+			return true
+		await process_frame
+	_fail("A study never finished")
+	return false

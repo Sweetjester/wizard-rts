@@ -1,5 +1,17 @@
 # Steel Force: First Playable Unit Set
 
+Steel Knight now uses [eight-direction v2](KNIGHT_DIRECTIONAL_V2.md), including
+the half-health rider spawned by the Mounted Knight. Its original mirrored
+sheet is retained as authoring history, not the live infantry presentation.
+
+Poorper now uses [eight-direction v2](POORPER_DIRECTIONAL_V2.md). The original
+two-direction art description below remains historical; Knight and Blimp are
+unchanged by the Poorper upgrade.
+
+Tier 3 addition: see [Mounted Knight](MOUNTED_KNIGHT.md) for the eight-direction
+armoured bull rider, momentum/12-second flaming axe, half-health dismount,
+reproducible art pipeline and tests. It joins the sandbox roster and waves from 7.
+
 September 6, 2026. Three new enemy-faction units using generated painted poses,
 offline Godot baking and the existing Sprite2D/Sprite3D presentation. Kon units,
 buildings, tech trees and the existing Deom roster are not replaced.
@@ -27,10 +39,26 @@ godot --path . --script tools/steel_force/play_steel.gd
 
 This opens a fresh normal map with the Steel Force wave option. The existing
 grace period and wave schedule remain: Poorpers first, Knights from wave 2,
-crewed blimps from wave 4. The normal game's default enemy faction remains Deom.
-Alternatively set WaveDirector.enemy_faction to steel_force in an authorized
-map configuration. Steel units are also registered with the existing testing
-ground unit browser/spawn factory. They are not added to Kon's barracks roster.
+crewed blimps from wave 4. Steel units are also registered with the existing
+testing ground unit browser/spawn factory. They are not added to Kon's barracks
+roster.
+
+**Since 2026-09-06 the Steel Force is the game's default enemy faction**
+(`WaveDirector.enemy_faction`, at Andrew's request). Waves, the build sandbox's
+target dummy, the Kon vertical slice's outpost defenders and the Arcane
+Citadel's garrison all field it. The Deom Legion is untouched and still
+spawnable by archetype -- set `enemy_faction` back to `deom` to restore it
+everywhere at once.
+
+Two things follow from the switch and are worth knowing before balancing:
+
+- The Steel Force has **no ranged infantry**. The Proper Blimp is its only
+  ranged unit and it flies. Anywhere the Deom Legion held a position with
+  Crosshirrans -- the citadel gate, the keep, the outposts -- now holds it with
+  Steel Knights instead: much tougher, no ability to shoot down off a wall.
+- The build sandbox has a spawn button per unit, built from
+  `WaveDirector.enemy_roster()`, so it follows the faction rather than naming
+  units of its own.
 
 Player-owned test blimps expose Land, Take Off, Board Poorpers and Unload Poorpers
 in the existing selection panel, with a crew count. Move near friendly Poorpers,

@@ -1,6 +1,20 @@
 class_name RTSWorld
 extends Node
 
+# Every point of damage that lands, on a unit or on a structure.
+#
+# Emitted from record_damage(), which both RTSUnit.take_damage() and
+# KonStructure.take_damage() already call with the MITIGATED figure clamped to
+# the target's remaining health -- so a listener sees the number the player
+# should be shown, not the raw weapon damage. It fires BEFORE the health is
+# written, so a listener that wants to know whether the hit was lethal must ask
+# whether `target.health - amount <= 0` rather than reading health after.
+#
+# Presentation only. Nothing in the simulation listens to this, and nothing may:
+# the moment a game rule depends on it, damage becomes order-dependent on who
+# connected first.
+signal damage_applied(target: Node, amount: int, damage_type: StringName)
+
 # Above this many selected units, a selection counts as "bulk" (an army-wide
 # hotkey, not a hand-managed squad) and stops granting its members the
 # full-fidelity exemptions from the mass-LOD system -- see RTSUnit's
@@ -296,9 +310,10 @@ func _prune_invalid(items: Array[Node2D]) -> void:
 		if not is_instance_valid(items[i]):
 			items.remove_at(i)
 
-func record_damage(source: Node, _target: Node, amount: int) -> void:
+func record_damage(source: Node, target: Node, amount: int, damage_type: StringName = &"physical") -> void:
 	if amount <= 0:
 		return
+	damage_applied.emit(target, amount, damage_type)
 	var owner := _owner_for(source)
 	if not _damage_by_owner.has(owner):
 		_damage_by_owner[owner] = 0

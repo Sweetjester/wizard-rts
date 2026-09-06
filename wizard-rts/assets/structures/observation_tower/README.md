@@ -1,5 +1,9 @@
 # Kon's Observation Tower: Painted 3D Skin
 
+The live tower now uses the [HD V3 remaster](../observation_tower_hd/README.md).
+The images and notes below document the previous painted V2 baseline and are
+retained for comparison. They are not screenshots of the current remaster.
+
 The live BlockStructureBuilder applies ObservationTowerSkin to
 kons_observation_wizard_tower_01. This is real, orbitable 3D surface dressing,
 not a billboard or an AI paintover displayed in front of the building.

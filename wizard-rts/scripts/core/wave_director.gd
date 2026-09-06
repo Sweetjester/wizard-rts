@@ -17,7 +17,10 @@ signal boss_defeated()
 @export var stone_face_serpent_scene: PackedScene = preload("res://scenes/units/stone_face_serpent.tscn")
 @export var deom_legion_scene: PackedScene = preload("res://scenes/units/deom_legion_unit.tscn")
 @export var enabled: bool = true
-@export_enum("deom", "steel_force") var enemy_faction: String = "deom"
+# Who attacks you. The Deom Legion is still here, still spawnable by archetype
+# and still covered by its own smoke test -- it is just no longer what a normal
+# run fields. Switch this back to "deom" to restore the old waves.
+@export_enum("deom", "steel_force") var enemy_faction: String = "steel_force"
 # A settling period at the start of a run before the wave clock starts at all.
 # Everything downstream -- phases, waves and the boss -- is measured from the end
 # of it, so raising this pushes the whole schedule back rather than compressing
@@ -41,6 +44,10 @@ signal boss_defeated()
 @export var ai_test_spawn_pause_fps: float = 28.0
 @export var ai_test_spawn_slow_fps: float = 45.0
 @export var combat_debug_logging: bool = false
+# Strips Arena 2.0's units back to the original arena's lightweight form. Off in
+# normal use -- the whole point of this map is the real units -- and switched on
+# by the profiling tool to separate presentation cost from simulation cost.
+@export var arena_2_force_lightweight: bool = false
 
 var map_generator: Node
 var rts_world: RTSWorld
@@ -168,8 +175,16 @@ func trigger_boss_now(reason: String = "manual") -> bool:
 func is_build_sandbox() -> bool:
 	return map_generator != null and str(map_generator.get("map_type_id")) == "build_sandbox"
 
+# Kon's Arena 2.0 counts as a testing ground, which is what gives it the whole
+# existing harness for free: the neutral observer, the Spawn Wave and Target N
+# buttons, the spawn-queue budgeting, the telemetry readout and the unit browser
+# all key off this one predicate. Building a parallel set for the new map would
+# have been a second implementation of the thing being tested.
 func is_ai_testing_ground() -> bool:
-	return map_generator != null and str(map_generator.get("map_type_id")) in ["ai_testing_ground", "fortress_ai_arena"]
+	return map_generator != null and map_generator.has_method("is_observer_arena") 		and bool(map_generator.call("is_observer_arena"))
+
+func is_kon_arena_2() -> bool:
+	return map_generator != null and str(map_generator.get("map_type_id")) == "kon_arena_2"
 
 func is_fortress_ai_arena() -> bool:
 	return map_generator != null and str(map_generator.get("map_type_id")) == "fortress_ai_arena"
@@ -361,25 +376,67 @@ func _ai_test_lane_target(anchor: Vector2i, index: int) -> Vector2:
 	var target_cell: Vector2i = map_generator.nearest_walkable_cell(anchor + Vector2i(depth, lane), 10)
 	return map_generator.cell_to_world(target_cell)
 
+# Anchors are asked of the MAP on Arena 2.0 rather than hardcoded here.
+#
+# The other two arenas carry literal cell numbers, which is why they are pinned
+# to a 96 map: change the size and the armies spawn in a wall. Arena 2.0 reads
+# its camps and its centre from the generator that drew them, so the layout and
+# the spawns cannot disagree.
+func _arena_2_cell(plot_id: String, fallback: Vector2i) -> Vector2i:
+	if map_generator == null:
+		return fallback
+	for plot in map_generator.get("plots"):
+		if str(plot.get("id", "")) == plot_id:
+			return plot.get("anchor", fallback)
+	return fallback
+
 func _ai_test_west_spawn_anchor() -> Vector2i:
+	if is_kon_arena_2():
+		return _arena_2_cell("arena2_kon_camp", Vector2i(14, 64))
 	return Vector2i(29, 38) if is_fortress_ai_arena() else Vector2i(18, 37)
 
 func _ai_test_east_spawn_anchor() -> Vector2i:
+	if is_kon_arena_2():
+		return _arena_2_cell("arena2_steel_camp", Vector2i(114, 64))
 	return Vector2i(66, 38) if is_fortress_ai_arena() else Vector2i(78, 37)
 
+# BOTH sides are sent to the same place on Arena 2.0.
+#
+# The other arenas send each army at the other's staging ground, so they pass
+# through each other's flanks and the fight smears across the whole map -- fine
+# for a pathing stress test, useless for watching two rosters trade. Sending both
+# to the killing field means every wave meets in the same place, at the same
+# time, on ground neither side owns.
 func _ai_test_west_target_anchor() -> Vector2i:
+	if is_kon_arena_2():
+		return _arena_2_cell("arena2_killing_field", Vector2i(64, 64))
 	return Vector2i(81, 38) if is_fortress_ai_arena() else Vector2i(66, 37)
 
 func _ai_test_east_target_anchor() -> Vector2i:
+	if is_kon_arena_2():
+		return _arena_2_cell("arena2_killing_field", Vector2i(64, 64))
 	return Vector2i(14, 38) if is_fortress_ai_arena() else Vector2i(30, 37)
 
 func _spawn_ai_test_west_unit(index: int, spawn_cell: Vector2i, parent: Node, target: Vector2) -> Node:
+	if is_kon_arena_2():
+		var kon := _arena_2_kon_mix()
+		var kon_archetype: StringName = kon[index % kon.size()]
+		return _spawn_ai_test_unit(_scene_for_test_unit(kon_archetype), kon_archetype, 2, spawn_cell, parent, target)
 	var archetypes := _ai_test_kon_mix()
 	var scenes := _ai_test_kon_mix_scenes()
 	var slot := index % archetypes.size()
 	return _spawn_ai_test_unit(scenes[slot], archetypes[slot], 2, spawn_cell, parent, target)
 
+# East is the Steel Force on Arena 2.0, and Kon's own mix everywhere else.
+#
+# The first arena runs the same mix on both sides. That is a real test of pathing
+# and of how many units the frame can carry, and it is no test at all of whether
+# one roster beats another -- a mirror match always ends 50/50 given enough runs.
 func _spawn_ai_test_east_unit(index: int, spawn_cell: Vector2i, parent: Node, target: Vector2) -> Node:
+	if is_kon_arena_2():
+		var steel := _arena_2_steel_mix()
+		var steel_archetype: StringName = steel[index % steel.size()]
+		return _spawn_ai_test_unit(_steel_scene(steel_archetype), steel_archetype, 3, spawn_cell, parent, target)
 	var archetypes := _ai_test_kon_mix()
 	var scenes := _ai_test_kon_mix_scenes()
 	var slot := index % archetypes.size()
@@ -416,8 +473,50 @@ func _ai_test_deom_mix_scenes() -> Array[PackedScene]:
 		scenes.append(deom_legion_scene)
 	return scenes
 
+# The two arena rosters, and when each unit joins the fight.
+#
+# READ FROM THE CATALOG, NOT LISTED HERE. The first version of this hand-listed
+# eight archetypes per side and got Kon's wrong: terrible_thing, horror and apex
+# are not Kon's units at all, they belong to the other two wizard classes, so
+# "Kon versus the Steel Force" was really "somebody else's units versus the
+# Steel Force". A list in a function cannot notice that. A roster read from the
+# class definition cannot get it wrong, and a unit added to either faction
+# tomorrow joins the arena with no code change -- the same lesson the Mounted
+# Knight taught the conscription ladder.
+#
+# WAVE THRESHOLD IS THE UNIT'S OWN TIER. A tier 3 unit joins at wave 3. That is
+# one rule rather than two hand-tuned schedules, and it is symmetric for free:
+# the two rosters happen to have the same tier spread (one T1, two T2, one T3),
+# so neither side thickens ahead of the other. If that ever stops being true the
+# arena tells you honestly rather than hiding it behind matched hand-lists.
+func _arena_2_roster(archetypes: Array[StringName]) -> Array[StringName]:
+	var mix: Array[StringName] = []
+	for archetype in archetypes:
+		if ai_test_wave_index + 1 < UnitCatalog.tier_of(archetype):
+			continue
+		# Weighted by tier: the cheap unit is the bulk of the army and the heavy
+		# one is the spike, which is what an army looks like. Without this a
+		# Spawner would be a quarter of every wave.
+		var copies: int = maxi(1, 4 - UnitCatalog.tier_of(archetype))
+		for _i in copies:
+			mix.append(archetype)
+	if mix.is_empty():
+		mix.append(archetypes[0] if not archetypes.is_empty() else &"oaven_spear")
+	return mix
+
+func _arena_2_kon_mix() -> Array[StringName]:
+	return _arena_2_roster(UnitCatalog.fieldable_units_for_class("bad_kon_willow"))
+
+func _arena_2_steel_mix() -> Array[StringName]:
+	return _arena_2_roster(UnitCatalog.fieldable_units_for_faction(&"steel_force"))
+
 func _spawn_ai_test_unit(scene: PackedScene, archetype: StringName, owner: int, spawn_cell: Vector2i, parent: Node, target: Vector2) -> Node:
 	if scene == null:
+		# Silently returning null is how a whole unit type went missing from the
+		# arena without anyone noticing: the roster asked for Manglers, the scene
+		# factory had none, and the army just came up short. An arena that drops
+		# part of an army is measuring the wrong fight.
+		push_error("[WaveDirector] No scene for arena unit '%s'; it is on a roster but cannot be spawned" % archetype)
 		return null
 	var unit := scene.instantiate()
 	unit.set("owner_player_id", owner)
@@ -428,12 +527,35 @@ func _spawn_ai_test_unit(scene: PackedScene, archetype: StringName, owner: int, 
 		unit.call("configure_enemy", archetype)
 	parent.add_child(unit)
 	unit.set("owner_player_id", owner)
-	if owner != 1 and unit.has_method("prepare_lightweight_arena_unit"):
+	# Arena 2.0 keeps its units WHOLE.
+	#
+	# prepare_lightweight_arena_unit() deletes the ArtSprite and switches off
+	# _process and _physics_process, which is right for the original arena --
+	# that one exists to answer "how many bodies fit in a frame" and the art is
+	# not part of the question. It is wrong here: Arena 2.0 exists to watch the
+	# real roster fight, so a Mounted Knight has to charge with its momentum
+	# animation and an Oaven has to swap to its blowpipe on a wall. Stripping
+	# that leaves coloured capsules sliding at each other, which is what this
+	# map looked like before.
+	#
+	# The cost is real and it is the point: measuring frame time with the art ON
+	# is the measurement worth having.
+	if owner != 1 and (not is_kon_arena_2() or arena_2_force_lightweight) and unit.has_method("prepare_lightweight_arena_unit"):
 		unit.call("prepare_lightweight_arena_unit")
 	unit.global_position = map_generator.cell_to_world(map_generator.nearest_walkable_cell(spawn_cell, 10))
 	if unit.has_method("set_arena_leash"):
-		var min_world: Vector2 = map_generator.cell_to_world(Vector2i(6, 21) if is_fortress_ai_arena() else Vector2i(8, 20))
-		var max_world: Vector2 = map_generator.cell_to_world(Vector2i(90, 59) if is_fortress_ai_arena() else Vector2i(88, 58))
+		# The other two arenas carry literal cell numbers, which only work
+		# because they are both 96 maps. Arena 2.0 is 128 and asks the generator
+		# for its own bounds -- hardcoding them here would have penned every unit
+		# into the corner of a map twice the size, with nothing to say why.
+		var min_cell := Vector2i(6, 21) if is_fortress_ai_arena() else Vector2i(8, 20)
+		var max_cell := Vector2i(90, 59) if is_fortress_ai_arena() else Vector2i(88, 58)
+		if is_kon_arena_2() and map_generator.has_method("kon_arena_2_bounds"):
+			var bounds: Rect2i = map_generator.call("kon_arena_2_bounds")
+			min_cell = bounds.position
+			max_cell = bounds.end - Vector2i.ONE
+		var min_world: Vector2 = map_generator.cell_to_world(min_cell)
+		var max_world: Vector2 = map_generator.cell_to_world(max_cell)
 		var arena_rect := Rect2(min_world, max_world - min_world)
 		unit.call("set_arena_leash", arena_rect, target)
 	if owner != 1:
@@ -457,6 +579,12 @@ func _scene_for_kon_unit(archetype: StringName) -> PackedScene:
 			return spawner_scene
 		&"stone_face_serpent":
 			return stone_face_serpent_scene
+		# The Mangler was missing here while being on Kon's roster, so Arena 2.0
+		# quietly spawned nothing for every Mangler slot in every wave -- a
+		# seventh of Kon's army simply absent, with no error. _spawn_ai_test_unit
+		# returns null on a null scene, and nothing above it was looking.
+		&"mangler", &"winged_mangler":
+			return preload("res://scenes/units/mangler.tscn")
 	return null
 
 func _scene_for_test_unit(archetype: StringName) -> PackedScene:
@@ -471,6 +599,36 @@ func _scene_for_test_unit(archetype: StringName) -> PackedScene:
 
 func _deom_archetypes() -> Array[StringName]:
 	return [&"deom_scout", &"deom_blade", &"deom_crosshirran", &"deom_hammer", &"deom_glaive", &"deom_odden"]
+
+func _steel_archetypes() -> Array[StringName]:
+	return [&"poorper", &"steel_knight", &"proper_blimp", &"mounted_knight"]
+
+# Everything the CURRENT enemy faction fields, in the order the waves introduce
+# it. The sandbox spawn buttons are built from this rather than from a list of
+# their own, so switching enemy_faction switches what you can spawn by hand too
+# -- one place to change, and no menu quietly offering last month's enemies.
+func enemy_roster() -> Array[StringName]:
+	return _steel_archetypes() if enemy_faction == "steel_force" else _deom_archetypes()
+
+# The faction's plain body and its heavy one.
+#
+# Authored content -- the citadel garrison, the vertical slice's outposts --
+# wants "a defender" and "a heavy defender", not a named unit. Asking here means
+# a faction switch reaches the garrisons as well as the waves, instead of
+# leaving last month's enemies standing on the walls of a map whose waves have
+# already changed.
+func enemy_light_archetype() -> StringName:
+	return &"poorper" if enemy_faction == "steel_force" else &"deom_blade"
+
+func enemy_heavy_archetype() -> StringName:
+	return &"steel_knight" if enemy_faction == "steel_force" else &"deom_crosshirran"
+
+# Spawn one enemy by hand, for the sandbox. Deliberately the same call the wave
+# spawner uses, aggression and all: a unit you placed yourself behaves exactly
+# like one that walked in, which is the only way testing against it means
+# anything.
+func spawn_sandbox_enemy(archetype: StringName, cell: Vector2i, parent: Node) -> Node:
+	return _spawn_enemy(archetype, cell, parent, Vector2.ZERO)
 
 func _has_property(node: Node, property_name: String) -> bool:
 	for property in node.get_property_list():
@@ -487,7 +645,12 @@ func _has_property(node: Node, property_name: String) -> bool:
 # damage numbers, still draws aggro and still behaves like a target in every way
 # that matters -- it simply never falls over.
 func spawn_target_dummy(cell: Vector2i, parent: Node) -> Node:
-	var dummy := _spawn_enemy(&"terrible_thing", cell, parent, Vector2.ZERO)
+	# A punchbag from whatever faction is currently attacking you, so the thing
+	# you are shooting has the armour you will actually meet. A Steel Knight's
+	# 10 armour is most of what makes it feel different to shoot at, and a
+	# dummy that did not have it would quietly test the wrong weapon.
+	var archetype: StringName = &"steel_knight" if enemy_faction == "steel_force" else &"terrible_thing"
+	var dummy := _spawn_enemy(archetype, cell, parent, Vector2.ZERO)
 	if dummy == null or not is_instance_valid(dummy):
 		return null
 	dummy.set_meta("sandbox_dummy", true)
@@ -573,6 +736,7 @@ func get_boss_seconds_remaining() -> int:
 
 func _enemy_archetype_for_wave(index: int) -> StringName:
 	if enemy_faction == "steel_force":
+		if wave_index >= 7 and index%9 == 0: return &"mounted_knight"
 		if wave_index >= 4 and index%7 == 0: return &"proper_blimp"
 		if wave_index >= 2 and index%3 == 0: return &"steel_knight"
 		return &"poorper"
@@ -594,6 +758,7 @@ func _steel_scene(archetype: StringName) -> PackedScene:
 	match archetype:
 		&"poorper": return preload("res://scenes/units/poorper.tscn")
 		&"steel_knight": return preload("res://scenes/units/steel_knight.tscn")
+		&"mounted_knight": return preload("res://scenes/units/mounted_knight.tscn")
 		&"proper_blimp": return preload("res://scenes/units/proper_blimp.tscn")
 	return null
 

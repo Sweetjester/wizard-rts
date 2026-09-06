@@ -20,6 +20,8 @@ signal unit_produced(player_id: int, archetype: StringName, cell: Vector2i)
 # left exactly as-is so existing HUD/telemetry listeners are untouched; the
 # control-group "reinforce group" needs the actual unit, not just its cell.
 signal unit_trained(player_id: int, archetype: StringName, unit: Node)
+signal research_started(player_id: int, upgrade_id: StringName, seconds: float)
+signal research_cancelled(player_id: int, upgrade_id: StringName)
 signal upgrade_researched(player_id: int, upgrade_id: StringName)
 signal tier_unlocked(player_id: int, tier: int)
 signal forbidden_unleashed(player_id: int, unit: Node)
@@ -62,9 +64,38 @@ const UPGRADE_MAX_RANK := {
 	# obedience is the thematically right research to sit in this building.
 	&"observer_command": 2,
 	&"observer_oversight": 3,
+	# Kon learns to field the Steel Force, one unit per rank. See
+	# RECRUITMENT_ORDER: Poorper, Steel Knight, Proper Blimp, Mounted Knight.
+	&"steel_conscription": 4,
 	&"tier_two_hybrids": 1,
 	&"tier_three_hybrids": 1,
 }
+
+# What each rank of Steel Conscription lets Kon build, in order.
+#
+# WHY A LADDER RATHER THAN ONE UNLOCK: handing over a whole faction for one
+# purchase is a single decision made once. Three ranks make it a thread the
+# player pulls on across a run, each rank costing more than the last through the
+# existing cost curve, and it maps onto the three units without inventing a
+# second progression to explain.
+# Ordered by weight rather than by the order the units were built: the Mounted
+# Knight is tier 3 and the faction's heaviest thing, so it is the last rank.
+# Adding a Steel unit later means adding it here and to Kon's class roster and
+# the lab's production list -- the max rank is read from this array's length by
+# the test, so a unit added to one and not the others is caught.
+const RECRUITMENT_UPGRADE := &"steel_conscription"
+const RECRUITMENT_ORDER: Array[StringName] = [&"poorper", &"steel_knight", &"proper_blimp", &"mounted_knight"]
+
+# Kon is an OBSERVER. He does not invent a Steel Knight; he takes one apart.
+#
+# So each rank is gated on having felled the thing it lets you build -- which
+# uses the specimen record the Vault already keeps (GameSession.felled_specimens,
+# the same state that reveals enemy cards) rather than a new counter. It also
+# means the research cannot be rushed before meeting the faction, and it reads
+# as the character rather than as a tech tree.
+#
+# Set to false to make Conscription a plain purchase.
+const RECRUITMENT_REQUIRES_SPECIMEN := true
 
 # Tier 2 and 3 of the KoN roster sit behind these. Tier 1 (Oaven) is free from
 # the first minute; tier 4 (The Forbidden) is never trained, it is unleashed.
@@ -77,18 +108,24 @@ var researched_upgrade_ranks: Dictionary = {}
 var _launcher_elapsed := 0.0
 var _map_3d_view: Node
 var _heal_aura_elapsed := 0.0
+var _garrison: Node
+# What the Observer Vault is currently studying, and how far through it is.
+# Empty when nothing is being researched.
+var _research: Dictionary = {}
 
 func _ready() -> void:
 	economy_manager = get_node_or_null(economy_manager_path)
 	map_generator = get_node_or_null(map_generator_path)
 	simulation_runner = get_node_or_null(simulation_runner_path)
 	rts_world = get_node_or_null(rts_world_path)
+	_garrison = get_parent().get_node_or_null("StructureGarrisonEffects") if get_parent() != null else null
 	z_index = 120
 
 func _process(delta: float) -> void:
 	_sync_structure_damage_and_cleanup()
 	_update_construction(delta)
 	_update_production(delta)
+	_update_research(delta)
 	_update_structure_evolution(delta)
 	_update_structure_regeneration(delta)
 	_update_bio_launchers(delta)
@@ -395,6 +432,10 @@ func try_place_structure(player_id: int, archetype: StringName, cell: Vector2i) 
 		economy_manager.add_resource(player_id, &"bio", int(costs[&"bio"]))
 		build_rejected.emit("Bio Absorber must be placed on an economy space")
 		return false
+	if archetype == &"steel_musterhouse" and not can_build_musterhouse():
+		economy_manager.add_resource(player_id, &"bio", int(costs[&"bio"]))
+		build_rejected.emit(musterhouse_locked_reason())
+		return false
 	var structure := _make_structure_data(player_id, archetype, cell, plot_id, definition)
 	structure["rotation_steps"] = pending_rotation
 	structure["footprint"] = rotated_footprint(archetype, pending_rotation)
@@ -423,18 +464,104 @@ func research_upgrade(player_id: int, upgrade_id: StringName) -> bool:
 	if upgrade_id == &"tier_three_hybrids" and upgrade_rank(&"tier_two_hybrids") <= 0:
 		build_rejected.emit("Requires Tier 2 Hybrids first")
 		return false
+	if upgrade_id == RECRUITMENT_UPGRADE:
+		var subject := next_recruit()
+		if subject != &"" and not has_specimen(subject):
+			build_rejected.emit("Fell a %s before the Vault can study one" %
+				UnitCatalog.get_definition(subject).get("display_name", str(subject)))
+			return false
+	# One study at a time. A Vault working on three things at once would make the
+	# stationed-Oaven bonus meaningless -- you would simply start everything and
+	# wait -- and the queue would need a UI nobody asked for.
+	if is_researching():
+		build_rejected.emit("The Vault is already studying something else")
+		return false
 	var next_rank := current_rank + 1
 	var cost := _upgrade_cost(upgrade_id, next_rank)
 	if economy_manager == null or not economy_manager.spend(player_id, {&"bio": cost}):
 		build_rejected.emit("Not enough Bio")
 		return false
-	researched_upgrade_ranks[upgrade_id] = next_rank
+	_research = {
+		"player_id": player_id,
+		"upgrade_id": upgrade_id,
+		"rank": next_rank,
+		"progress": 0.0,
+		"seconds": research_seconds(upgrade_id, next_rank),
+	}
+	research_started.emit(player_id, upgrade_id, float(_research["seconds"]))
+	return true
+
+# How long an upgrade takes to study, before any crew.
+#
+# Derived from its cost rather than authored per upgrade, so the expensive
+# research is also the slow research and a new upgrade cannot be added with a
+# price but no duration. Tier unlocks get a floor on top, because they are the
+# decisions the run turns on and buying one should be a commitment rather than a
+# button press.
+const RESEARCH_SECONDS_PER_BIO := 0.05
+const RESEARCH_MINIMUM_SECONDS := 4.0
+const TIER_RESEARCH_MINIMUM_SECONDS := 12.0
+
+func research_seconds(upgrade_id: StringName, rank: int) -> float:
+	var minimum := RESEARCH_MINIMUM_SECONDS
+	if TIER_UNLOCK_UPGRADES.values().has(upgrade_id):
+		minimum = TIER_RESEARCH_MINIMUM_SECONDS
+	return maxf(minimum, float(_upgrade_cost(upgrade_id, rank)) * RESEARCH_SECONDS_PER_BIO)
+
+# --- research in progress ---------------------------------------------------
+
+func is_researching() -> bool:
+	return not _research.is_empty()
+
+func researching_upgrade() -> StringName:
+	return StringName(_research.get("upgrade_id", &""))
+
+func research_progress_ratio() -> float:
+	if _research.is_empty():
+		return 0.0
+	var seconds := float(_research.get("seconds", 0.0))
+	if seconds <= 0.0:
+		return 1.0
+	return clampf(float(_research.get("progress", 0.0)) / seconds, 0.0, 1.0)
+
+func research_seconds_remaining() -> float:
+	if _research.is_empty():
+		return 0.0
+	return maxf(0.0, float(_research.get("seconds", 0.0)) - float(_research.get("progress", 0.0)))
+
+# Advances the Vault's current study, at whatever rate its crew is working.
+#
+# The Bio was taken when the study was ORDERED, not when it finishes. Charging
+# on completion would let a player queue research they cannot afford and would
+# make a half-finished study free to abandon; taking it up front means the
+# decision is made once, at the moment the player makes it.
+func _update_research(delta: float) -> void:
+	if _research.is_empty():
+		return
+	var player_id := int(_research.get("player_id", 1))
+	var vault := _research_structure(player_id)
+	# The Vault being destroyed mid-study stops the study. It does not refund it:
+	# losing the building you were researching in is supposed to hurt.
+	if vault.is_empty():
+		var lost := StringName(_research.get("upgrade_id", &""))
+		_research = {}
+		research_cancelled.emit(player_id, lost)
+		return
+	_research["progress"] = float(_research["progress"]) + delta * garrison_rate_for(vault)
+	if float(_research["progress"]) < float(_research["seconds"]):
+		return
+	var upgrade_id := StringName(_research["upgrade_id"])
+	var rank := int(_research["rank"])
+	_research = {}
+	_complete_research(player_id, upgrade_id, rank)
+
+func _complete_research(player_id: int, upgrade_id: StringName, rank: int) -> void:
+	researched_upgrade_ranks[upgrade_id] = rank
 	_apply_upgrade_to_existing_units(upgrade_id)
 	upgrade_researched.emit(player_id, upgrade_id)
 	for tier in TIER_UNLOCK_UPGRADES.keys():
 		if TIER_UNLOCK_UPGRADES[tier] == upgrade_id:
 			tier_unlocked.emit(player_id, int(tier))
-	return true
 
 # Highest roster tier this player may currently train. Map-discovered upgrades
 # can grant a tier directly (see grant_tier_unlock) without paying research.
@@ -573,19 +700,69 @@ func produce_unit(player_id: int, archetype: StringName) -> bool:
 	return _enqueue_unit_at_structure(player_id, archetype, producer)
 
 func _tier_available(player_id: int, archetype: StringName) -> bool:
+	# A conscripted unit answers to Conscription, not to Kon's hybrid tiers. Two
+	# gates on the same button -- "Tier 2 Hybrids AND Conscription III" -- would
+	# be twice the explaining for no extra decision, and a Steel Knight's tier is
+	# a fact about the Steel Force's own roster, not about Kon's splicing.
+	if UnitCatalog.is_foreign_recruit(archetype):
+		return can_recruit(archetype)
 	var tier := UnitCatalog.tier_of(archetype)
 	if tier > UnitCatalog.MAX_TRAINABLE_TIER:
 		return false
 	return tier <= unlocked_tier(player_id)
 
 func _tier_locked_reason(archetype: StringName) -> String:
+	if UnitCatalog.is_foreign_recruit(archetype):
+		return recruitment_locked_reason(archetype)
 	var tier := UnitCatalog.tier_of(archetype)
 	if tier > UnitCatalog.MAX_TRAINABLE_TIER:
 		return "The Forbidden cannot be trained -- it is unleashed from the Observation Tower"
 	return "Requires Tier %s Hybrids research at the Observer Vault" % tier
 
+# --- Steel Conscription -----------------------------------------------------
+
+# Whether Kon may currently field this recruit.
+func can_recruit(archetype: StringName) -> bool:
+	var index := RECRUITMENT_ORDER.find(archetype)
+	if index < 0:
+		return false
+	return upgrade_rank(RECRUITMENT_UPGRADE) > index
+
+# What the next rank of Conscription would unlock, or "" at full rank.
+func next_recruit() -> StringName:
+	var rank := upgrade_rank(RECRUITMENT_UPGRADE)
+	if rank >= RECRUITMENT_ORDER.size():
+		return &""
+	return RECRUITMENT_ORDER[rank]
+
+# Whether a specimen has been felled, and so may be studied.
+func has_specimen(archetype: StringName) -> bool:
+	if not RECRUITMENT_REQUIRES_SPECIMEN:
+		return true
+	var tree := Engine.get_main_loop() as SceneTree
+	var session: Node = tree.root.get_node_or_null("GameSession") if tree != null else null
+	if session == null:
+		return false
+	return int((session.get("felled_specimens") as Dictionary).get(archetype, 0)) > 0
+
+func recruitment_locked_reason(archetype: StringName) -> String:
+	var index := RECRUITMENT_ORDER.find(archetype)
+	if index < 0:
+		return "Not available for this class"
+	var display := str(UnitCatalog.get_definition(archetype).get("display_name", str(archetype)))
+	return "Requires Steel Conscription %s at the Observer Vault (unlocks the %s)" % [
+		_roman(index + 1), display]
+
+func _roman(rank: int) -> String:
+	match rank:
+		1: return "I"
+		2: return "II"
+		3: return "III"
+		4: return "IV"
+	return str(rank)
+
 func _spawn_trained_unit(player_id: int, archetype: StringName, producer: Dictionary) -> bool:
-	var spawn_cell: Vector2i = map_generator.nearest_walkable_cell(producer["cell"] + Vector2i(2, 2), 8)
+	var spawn_cell: Vector2i = map_generator.nearest_walkable_cell(_muster_cell(producer), 8)
 	var scene := _scene_for_unit(archetype)
 	var spawned: Node = null
 	if scene != null:
@@ -858,6 +1035,94 @@ func _raise_block_structure(structure: Dictionary) -> void:
 		push_warning("[BuildSystem] could not raise %s at %s" % [structure_id, structure["cell"]])
 		return
 	structure["block_instance"] = instance_id
+
+# Where a building's recruits appear.
+#
+# Most buildings use the old fixed corner offset, which lands inside their
+# footprint and lets the unit walk out through whatever door the structure has.
+# A building that AUTHORS a muster point uses that instead -- rotated by the
+# same function the walls are rotated by, because a Musterhouse placed facing
+# east has to muster on its east side or it puts recruits inside its own wall.
+func _muster_cell(producer: Dictionary) -> Vector2i:
+	var origin: Vector2i = producer.get("cell", Vector2i.ZERO)
+	var definition := UnitCatalog.get_definition(StringName(producer.get("archetype", &"")))
+	if not definition.has("muster_anchor"):
+		return origin + Vector2i(2, 2)
+	var anchor: Vector3i = definition["muster_anchor"]
+	var steps := int(producer.get("rotation_steps", 0))
+	if steps != 0 and bridge_definition_for(producer) != null:
+		anchor = bridge_definition_for(producer).call("turn_local_cell", anchor, steps)
+	return origin + Vector2i(anchor.x, anchor.z)
+
+# The authored block definition behind a placed building, or null.
+func bridge_definition_for(producer: Dictionary):
+	var structure_id := StringName(producer.get("block_structure", &""))
+	if structure_id == &"":
+		return null
+	var bridge: Node = get_parent().get_node_or_null("BlockNavBridge") if get_parent() != null else null
+	if bridge == null or bridge.get("library") == null:
+		return null
+	return bridge.get("library").get_definition(structure_id)
+
+# Whether Kon may raise a Steel Force Musterhouse.
+#
+# You do not get to build their barracks before you have learned to build any of
+# them -- Conscription I is the gate. Benchmark maps are exempt: the sandbox has
+# no felled specimens to study, so gating it there would make the building
+# unreachable on the one map that exists for putting buildings down and looking
+# at them.
+func can_build_musterhouse() -> bool:
+	if map_generator != null and map_generator.has_method("is_benchmark_map") 			and bool(map_generator.call("is_benchmark_map")):
+		return true
+	return upgrade_rank(RECRUITMENT_UPGRADE) > 0
+
+func musterhouse_locked_reason() -> String:
+	return "Requires Steel Conscription I at the Observer Vault"
+
+# How fast this building's timed work runs, given who is stationed inside it.
+#
+# Applied to the CLOCK rather than to the stored duration, so a crew that
+# arrives halfway through a job speeds up the rest of it and a crew that leaves
+# slows it down again -- without rewriting the training_time the UI is drawing
+# its progress bar against. Scaling the duration instead would make the bar jump
+# backwards the moment an Oaven walked in, which reads as a bug.
+func garrison_rate_for(structure: Dictionary) -> float:
+	var instance: StringName = structure.get("block_instance", &"")
+	if instance == &"":
+		return 1.0
+	if _garrison == null or not is_instance_valid(_garrison):
+		return 1.0
+	return float(_garrison.call("rate_multiplier_for", instance))
+
+# The building doing this player's research: the completed Vault with the most
+# stationed workers.
+#
+# With one Vault this is just "the Vault". With two it decides which crew the
+# study benefits from, and "the one you staffed" is the answer the player means
+# -- picking whichever happened to be built first would make staffing the second
+# Vault do nothing, with no way to tell why. Re-read every tick rather than
+# captured when the study starts, so crewing a Vault mid-study takes effect and
+# the study only dies when the player has no Vault left at all.
+func _research_structure(player_id: int) -> Dictionary:
+	var best := {}
+	var best_workers := -1
+	for structure in structures:
+		if int(structure.get("player_id", 1)) != player_id:
+			continue
+		if StringName(structure.get("archetype", &"")) != &"terrible_vault":
+			continue
+		if not bool(structure.get("complete", false)):
+			continue
+		var node = structure.get("node", null)
+		if node == null or not is_instance_valid(node):
+			continue
+		var workers := 0
+		if _garrison != null and is_instance_valid(_garrison):
+			workers = int(_garrison.call("workers_in", StringName(structure.get("block_instance", &""))))
+		if workers > best_workers:
+			best_workers = workers
+			best = structure
+	return best
 
 func _register_blockers(structure: Dictionary) -> void:
 	if map_generator != null and map_generator.has_method("add_dynamic_blockers"):
@@ -1202,7 +1467,7 @@ func _update_production(delta: float) -> void:
 			current = structure.get("training_archetype", &"")
 			if str(current).is_empty():
 				continue
-		var progress := float(structure.get("training_progress", 0.0)) + delta
+		var progress := float(structure.get("training_progress", 0.0)) + delta * garrison_rate_for(structure)
 		var train_time := float(structure.get("training_time", UnitCatalog.train_time(current)))
 		structure["training_progress"] = minf(progress, train_time)
 		structures[i] = structure
@@ -1311,6 +1576,8 @@ func _upgrade_cost(upgrade_id: StringName, rank: int) -> int:
 			base_cost = 240
 		&"observer_oversight":
 			base_cost = 130
+		&"steel_conscription":
+			base_cost = 180
 		&"tier_two_hybrids":
 			base_cost = 200
 		&"tier_three_hybrids":
@@ -1384,6 +1651,7 @@ func _scene_for_unit(archetype: StringName) -> PackedScene:
 	match archetype:
 		&"poorper": return preload("res://scenes/units/poorper.tscn")
 		&"steel_knight": return preload("res://scenes/units/steel_knight.tscn")
+		&"mounted_knight": return preload("res://scenes/units/mounted_knight.tscn")
 		&"proper_blimp": return preload("res://scenes/units/proper_blimp.tscn")
 		&"mangler", &"winged_mangler":
 			return preload("res://scenes/units/mangler.tscn")

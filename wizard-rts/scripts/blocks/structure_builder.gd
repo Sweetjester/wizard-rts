@@ -60,6 +60,19 @@ func build(structure: BlockStructureDefinition) -> void:
 	_clear()
 	if definition == null:
 		return
+	if definition.art.get("bespoke_skin", "") == "steel_barracks_hd_v1":
+		_gothic_details = preload("res://scripts/blocks/steel_barracks_skin.gd").new().build()
+		add_child(_gothic_details)
+		_gothic_details.rotation.y = -definition.rotation_steps * PI * 0.5
+		match definition.rotation_steps:
+			1: _gothic_details.position.x = 14.0
+			2: _gothic_details.position = Vector3(9,0,14)
+			3: _gothic_details.position.z = 9.0
+		_gate_meshes[&"steel_farm_open"] = _gothic_details.get_node("FarmGate")
+		_gate_meshes[&"steel_muster_open"] = _gothic_details.get_node("MusterGate")
+		_gate_meshes[&"steel_service_open"] = _gothic_details.get_node("ServiceGate")
+		_build_collision()
+		return
 	if definition.art.get("bespoke_skin", "") == "observer_vault_v1":
 		_gothic_details = preload("res://scripts/blocks/compact_observer_vault.gd").new().build()
 		add_child(_gothic_details)
@@ -99,10 +112,13 @@ func build(structure: BlockStructureDefinition) -> void:
 	if bool(definition.art.get("compact_skin", false)):
 		_gothic_details = preload("res://scripts/blocks/compact_kon_skin.gd").new().build(definition)
 	elif definition.id==&"kons_observation_wizard_tower_01":
-		_gothic_details = ObservationTowerSkin.new().build(definition)
+		var canonical := definition if definition.rotation_steps==0 else definition.rotated(4-definition.rotation_steps)
+		_gothic_details = ObservationTowerSkin.new().build(canonical)
+		_gothic_details.transform = _tower_art_transform()
 		for instance in _family_meshes:
 			if instance.material_override is ShaderMaterial:
-				instance.material_override.set_shader_parameter("masonry",preload("res://assets/structures/observation_tower/masonry.png"))
+				var family := int(instance.material_override.get_shader_parameter("family"))
+				instance.material_override=ObservationTowerSkin.material_for(family)
 	elif definition.id==&"kons_splicing_laboratory_01":
 		_gothic_details = SplicingLaboratorySkin.new().build(definition)
 	else:
@@ -110,7 +126,22 @@ func build(structure: BlockStructureDefinition) -> void:
 	add_child(_gothic_details)
 	_build_stairs()
 	_build_gates()
+	if definition.id==&"kons_observation_wizard_tower_01" and not definition.art.get("compact_skin",false):
+		if has_node("Stairs"):
+			get_node("Stairs").material_override=ObservationTowerSkin.material_for(BlockMaterialPalette.Family.PALE_STONE)
+		for key in _gate_meshes:
+			_gate_meshes[key].material_override=ObservationTowerSkin.material_for(BlockMaterialPalette.Family.TIMBER)
+			var door := preload("res://scripts/blocks/observation_tower_remaster.gd").plaque(_gate_meshes[key],Vector3(9,3,3.98),Vector2(1.96,3.98),Vector3.FORWARD,3)
+			door.transform=_tower_art_transform()*door.transform
 	_build_collision()
+
+func _tower_art_transform() -> Transform3D:
+	var transform := Transform3D(Basis(Vector3.UP,-definition.rotation_steps*PI*.5),Vector3.ZERO)
+	match definition.rotation_steps:
+		1: transform.origin.x=18
+		2: transform.origin=Vector3(18,0,18)
+		3: transform.origin.z=18
+	return transform
 
 func _build_compact_visual() -> void:
 	# Subdivide the compact architecture for painted masonry and fine tracery.
@@ -207,8 +238,9 @@ func _build_blocks() -> void:
 	for cell in definition.solid_cells:
 		if gated.has(cell):
 			continue
-		if not definition.art.get("compact_skin", false) and definition.id==&"kons_observation_wizard_tower_01" and ObservationTowerSkin.replaces_block(cell,definition.solid_cells[cell]):
-			continue
+		if not definition.art.get("compact_skin", false) and definition.id==&"kons_observation_wizard_tower_01":
+			var canonical_cell := definition._turn_cell(cell,(4-definition.rotation_steps)%4)
+			if ObservationTowerSkin.replaces_block(canonical_cell,definition.solid_cells[cell]): continue
 		if not definition.art.get("compact_skin", false) and definition.id==&"kons_splicing_laboratory_01" and cell.y>=2 and cell.y<=5 and cell.x>=9 and cell.x<=22 and cell.z>=9 and cell.z<=15 and definition.solid_cells[cell] in [&"GLASS",&"METAL"]:
 			continue
 		var family := BlockMaterialPalette.family_for(definition.solid_cells[cell])
@@ -382,6 +414,12 @@ func set_blocks_visible(value: bool) -> void:
 	for instance in _family_meshes:
 		if is_instance_valid(instance):
 			instance.visible = value
+
+func set_interior_view(enabled: bool) -> void:
+	if definition == null or definition.art.get("bespoke_skin", "") != "steel_barracks_hd_v1": return
+	if not is_instance_valid(_gothic_details): return
+	_gothic_details.get_node("Roof").visible = not enabled
+	_gothic_details.get_node("FrontCutaway").visible = not enabled
 
 # A cell's centre in local space. Cell (0,0,0) occupies the unit cube from the
 # origin, so its centre is half a block along each axis.

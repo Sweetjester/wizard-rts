@@ -104,15 +104,7 @@ func _run() -> void:
 	var art: Sprite2D = unit.get_node("ArtSprite")
 	art._process(0.1)
 	check(art.texture!=null and art.texture.resource_path.contains("winged_mangler"),"Evolution switches the painted atlas")
-	for form in ["mangler", "winged_mangler"]:
-		var img := Image.load_from_file("res://assets_game/units/kon/mangler/painted_v1/"+form+".png")
-		check(img.get_size()==Vector2i(4608,3456),form+" atlas has 108 frames")
-		var valid := true
-		for row in 9:
-			for frame in 12:
-				var bounds := img.get_region(Rect2i(frame*384,row*384,384,384)).get_used_rect()
-				if bounds.size.x<50 or bounds.size.y<40 or bounds.position.x<2 or bounds.end.x>382 or bounds.position.y<2 or bounds.end.y>382: valid=false
-		check(valid,form+" frames contain visible, unclipped art")
+	check(art.hframes==8 and art.vframes==9 and not art.flip_h,"Eight-direction layout uses 72 frames per page without mirroring")
 	var before_count := stage.get_child_count()
 	unit._spawn_death_fx()
 	check(stage.get_child_count()==before_count+1,"Painted death sequence spawns a corpse")

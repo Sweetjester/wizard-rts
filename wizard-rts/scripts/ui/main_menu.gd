@@ -28,7 +28,7 @@ var _starting_game := false
 var selected_map_type_id := ""
 # Presentation only. The map, the systems and the rules are identical either
 # way -- see scripts/map/map_3d_view.gd.
-var use_3d_view := false
+var use_3d_view := true
 
 func _ready() -> void:
 	AudioManager.play_map_music()
@@ -42,6 +42,7 @@ func _ready() -> void:
 	_add_build_sandbox_button()
 	_add_lantern_tree_button()
 	_add_fortress_map_button()
+	_add_kon_arena_2_button()
 	_prepare_map_card_click_targets()
 	_show_main()
 	MenuSkin.install(self)
@@ -102,6 +103,9 @@ func _on_ai_testing_ground_pressed() -> void:
 
 func _on_fortress_ai_arena_pressed() -> void:
 	_select_map_and_begin("fortress_ai_arena")
+
+func _on_kon_arena_2_pressed() -> void:
+	_select_map_and_begin("kon_arena_2")
 
 func _on_plot_generator_test_pressed() -> void:
 	_select_map_and_begin("plot_generator_test")
@@ -245,6 +249,51 @@ func _sync_display_controls() -> void:
 	performance_check.button_pressed = DisplayManager.performance_mode
 	resolution_option.disabled = DisplayManager.fullscreen
 
+# Kon's Arena 2.0.
+func _add_kon_arena_2_button() -> void:
+	if map_panel == null:
+		return
+	_ensure_map_scroll()
+	if _map_container().has_node("KonArena2Button"):
+		return
+	var button := Button.new()
+	button.name = "KonArena2Button"
+	button.custom_minimum_size = Vector2(680, 150)
+	button.focus_mode = Control.FOCUS_NONE
+	button.text = ""
+	button.pressed.connect(_on_kon_arena_2_pressed)
+
+	var layout := VBoxContainer.new()
+	layout.name = "KonArena2Layout"
+	layout.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layout.offset_left = 18.0
+	layout.offset_top = 12.0
+	layout.offset_right = -18.0
+	layout.offset_bottom = -12.0
+	layout.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(layout)
+
+	var name_label := Label.new()
+	name_label.text = "Kon's Arena 2.0"
+	name_label.add_theme_font_size_override("font_size", 26)
+	layout.add_child(name_label)
+
+	var subtitle := Label.new()
+	subtitle.text = "Kon's creations against the Steel Force. Waves collide in the middle."
+	subtitle.add_theme_font_size_override("font_size", 16)
+	subtitle.add_theme_color_override("font_color", Color("#E0C36A"))
+	layout.add_child(subtitle)
+
+	var description := RichTextLabel.new()
+	description.custom_minimum_size = Vector2(620, 52)
+	description.fit_content = true
+	description.bbcode_enabled = false
+	description.text = "You watch; neither army is yours. Both sides are ordered to the same central killing field, so every wave meets in the same place -- and the compositions thicken together, so wave five has a Mounted Knight in it and a Serpent facing it. For testing the AI, the roster and how many units a frame can carry."
+	description.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layout.add_child(description)
+
+	_map_container().add_child(button)
+
 func _add_fortress_map_button() -> void:
 	if map_panel == null:
 		return
@@ -351,9 +400,9 @@ func _add_view_mode_toggle() -> void:
 		return
 	var toggle := CheckBox.new()
 	toggle.name = "ViewModeToggle"
-	toggle.text = "3D map view (same game, 3D terrain)"
+	toggle.text = "3D world"
 	toggle.button_pressed = use_3d_view
-	toggle.focus_mode = Control.FOCUS_NONE
+	toggle.focus_mode = Control.FOCUS_ALL
 	toggle.add_theme_font_size_override("font_size", 18)
 	toggle.toggled.connect(func(pressed: bool) -> void:
 		use_3d_view = pressed

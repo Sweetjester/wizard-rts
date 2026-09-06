@@ -82,6 +82,12 @@ const FOG_PLANE_HEIGHT := 6.0
 # map edge to parallax, which showed as a bright unfogged band along the border.
 const FOG_PLANE_OVERSIZE := 3.0
 const OVERLAY_SCRIPT := preload("res://scripts/map/map_3d_overlay.gd")
+# How far above the ground a damage number starts, in world units. Roughly the
+# chest of a standing unit -- numbers that start at the feet read as belonging
+# to the ground rather than to the thing that was hit.
+const DAMAGE_NUMBER_LIFT := 1.0
+# Clearance between the top of a unit's art and its health bar.
+const HEALTH_BAR_CLEARANCE := 0.28
 # Matched to CameraController's 2D behaviour so the two modes feel the same.
 const EDGE_PAN_MARGIN := 20.0
 const EDGE_PAN_SPEED := 26.0
@@ -125,6 +131,8 @@ var _fog_plane: MeshInstance3D
 var _impassable_marks: MultiMeshInstance3D
 var _drag_camera := false
 var _sprite_pool: Array[Sprite3D] = []
+var _combat_feedback: Node
+var _bar_entries: Array[Dictionary] = []
 var _structure_sprite_pool: Array[Sprite3D] = []
 # archetype -> baked Texture2D (or null while a bake is in flight / impossible).
 var _baked_unit_art: Dictionary = {}
@@ -166,6 +174,7 @@ func _ready() -> void:
 	_build_lighting()
 	_build_camera()
 	_build_unit_layers()
+	_attach_combat_feedback()
 	_suppress_2d_presentation()
 	# Terrain is drawn when generation SAYS it is done, not one frame after
 	# _ready. Generation is now spread across frames, so a deferred call would
@@ -175,6 +184,37 @@ func _ready() -> void:
 			rebuild_terrain()
 		)
 	call_deferred("rebuild_terrain")
+
+# Health bars and damage numbers are drawn in screen space by CombatFeedback,
+# which knows nothing about 3D. It is handed a projection instead, so it works
+# unchanged in the 2D presentation where this node does not exist at all.
+func _attach_combat_feedback() -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	_combat_feedback = parent.get_node_or_null("CombatFeedback")
+	if _combat_feedback == null:
+		return
+	_combat_feedback.set("project_3d", Callable(self, "project_to_screen"))
+
+# Takes either a Vector3 world point (a bar's head position, already lifted) or
+# a Vector2 sim position (a damage number's anchor, lifted here). Returns
+# Vector2.INF when the point is behind the camera -- unproject_position() would
+# otherwise hand back a plausible mirrored position and paint the thing at the
+# wrong end of the screen.
+func project_to_screen(point) -> Vector2:
+	if camera == null or not is_instance_valid(camera):
+		return Vector2.INF
+	var world: Vector3
+	if point is Vector3:
+		world = point
+	elif point is Vector2:
+		world = _instance_transform(point as Vector2, DAMAGE_NUMBER_LIFT).origin
+	else:
+		return Vector2.INF
+	if camera.is_position_behind(world):
+		return Vector2.INF
+	return camera.unproject_position(world)
 
 func _session_wants_3d() -> bool:
 	var session := get_node_or_null("/root/GameSession")
@@ -239,7 +279,8 @@ func _build_lighting() -> void:
 	sun.name = "Sun"
 	sun.rotation_degrees = Vector3(-58.0, -42.0, 0.0)
 	sun.light_energy = 1.1
-	sun.light_color = Color("#CFE3E8")
+	sun.light_color = Color("#F4DFC0")
+	sun.light_angular_distance = 1.2
 	sun.shadow_enabled = true
 	add_child(sun)
 	var environment := WorldEnvironment.new()
@@ -248,13 +289,16 @@ func _build_lighting() -> void:
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color("#10161A")
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("#33505C")
-	env.ambient_light_energy = 0.55
+	env.ambient_light_color = Color("#718E98")
+	env.ambient_light_energy = 0.65
 	env.fog_enabled = true
 	env.fog_light_color = Color("#16242B")
-	env.fog_density = 0.006
+	env.fog_density = 0.003
 	environment.environment = env
 	add_child(environment)
+	var atmosphere := preload("res://scripts/map/observer_lighting.gd").new()
+	atmosphere.name = "ObserverLighting"
+	add_child(atmosphere)
 
 func _build_camera() -> void:
 	_camera_rig = Node3D.new()
@@ -569,11 +613,25 @@ func _sync_units() -> void:
 		while sprite_units.size() > MAX_SPRITE_UNITS:
 			capsule_units.append(sprite_units.pop_back())
 
+	# Health bars are collected DURING the sprite/capsule sync rather than by a
+	# second pass over the world. That pass would need its own copy of the fog
+	# rule, the x-ray rule and the sprite budget, and the first time one of them
+	# changed the bars would start disagreeing with the units they sit over.
+	_bar_entries.clear()
 	_sync_unit_sprites(sprite_units)
 	_sync_unit_xray(sprite_units, get_process_delta_time())
 	_sync_unit_capsules(capsule_units)
 	_live_unit_count = sprite_units.size() + capsule_units.size()
 	_live_sprite_count = sprite_units.size()
+	if _combat_feedback != null and is_instance_valid(_combat_feedback):
+		# Nearest first, so the overlay can cut the list off at a budget and keep
+		# the fight in front of the player rather than an arbitrary slice of it.
+		# Sorted here, once per sync at 20Hz, rather than in the overlay's own
+		# per-frame draw.
+		_bar_entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+			return float(a.get("distance", 0.0)) < float(b.get("distance", 0.0))
+		)
+		_combat_feedback.set("bar_entries", _bar_entries)
 
 # Serves units AND structures: both carry owner_player_id, and both must be
 # concealed by fog. Structures were not checked at all before, which is why
@@ -677,6 +735,8 @@ func _sync_unit_sprites(units: Array[Node2D]) -> void:
 		var sprite := _sprite_at(i)
 		sprite.visible = not bool(unit.get_meta("hide_unit_billboard",false))
 		if art != null:
+			# Directional actors resolve camera-relative artwork before we copy the frame.
+			if art.has_method("sync_view_facing"): art.sync_view_facing()
 			sprite.texture = art.texture
 			sprite.hframes = max(1, int(art.hframes))
 			sprite.vframes = max(1, int(art.vframes))
@@ -699,6 +759,9 @@ func _sync_unit_sprites(units: Array[Node2D]) -> void:
 		# Owner tint and selection highlight, matching the capsule colours so the
 		# two tiers read as the same army.
 		sprite.modulate = _sprite_modulate(int(unit.get("owner_player_id")), bool(unit.get("selected")))
+		if art != null and bool(art.get_meta("preserve_painted_palette",false)):
+			# Faction-authored palettes keep their paint; rings/bars carry ownership.
+			sprite.modulate = art.modulate
 		var transform := _unit_transform(unit)
 		# Lift by half the sprite's world height so its feet sit on the ground.
 		var cell_height := 0.0
@@ -709,8 +772,29 @@ func _sync_unit_sprites(units: Array[Node2D]) -> void:
 		else:
 			transform.origin.y += cell_height*SPRITE_PIXEL_SIZE*0.5
 		sprite.global_transform = transform
+		# Half a cell above the sprite's centre is the top of the art, whatever
+		# its pixel_size or foot anchor -- so a Steel Knight, a Poorper and a
+		# flying blimp each get their bar just clear of their own silhouette
+		# instead of all three sharing one guessed height.
+		if sprite.visible:
+			_record_bar_entry(unit, transform.origin.y
+				+ cell_height * sprite.pixel_size * 0.5 + HEALTH_BAR_CLEARANCE)
 	for i in range(units.size(), _sprite_pool.size()):
 		_sprite_pool[i].visible = false
+
+# One bar entry, in world space, with the camera distance the bar scales by.
+# Weak, because a unit can die between this sync and the next draw and the
+# overlay must not be what keeps its node alive.
+func _record_bar_entry(unit: Node2D, head_y: float) -> void:
+	if _combat_feedback == null or not is_instance_valid(_combat_feedback):
+		return
+	var ground: Vector3 = _renderer.call("sim_to_world_3d", unit.global_position, 0.0)
+	var head := Vector3(ground.x, head_y, ground.z)
+	_bar_entries.append({
+		"unit": weakref(unit),
+		"head": head,
+		"distance": Vector2(head.x - _camera_focus.x, head.z - _camera_focus.z).length(),
+	})
 
 func _sync_unit_capsules(units: Array[Node2D]) -> void:
 	var multimesh := _unit_multimesh.multimesh
@@ -718,8 +802,10 @@ func _sync_unit_capsules(units: Array[Node2D]) -> void:
 	for unit in units:
 		if index >= MAX_UNIT_INSTANCES:
 			break
-		multimesh.set_instance_transform(index, _unit_transform(unit, UNIT_MESH_HEIGHT * 0.5))
+		var transform := _unit_transform(unit, UNIT_MESH_HEIGHT * 0.5)
+		multimesh.set_instance_transform(index, transform)
 		multimesh.set_instance_color(index, _owner_color(int(unit.get("owner_player_id")), bool(unit.get("selected"))))
+		_record_bar_entry(unit, transform.origin.y + UNIT_MESH_HEIGHT * 0.5 + HEALTH_BAR_CLEARANCE)
 		index += 1
 	multimesh.visible_instance_count = index
 
@@ -740,6 +826,7 @@ func spawn_painted_unit_death(unit: Node2D, art: Sprite2D) -> void:
 	corpse.shaded=false
 	corpse.alpha_cut=SpriteBase3D.ALPHA_CUT_DISCARD
 	corpse.modulate=_sprite_modulate(int(unit.get("owner_player_id")),false)
+	if bool(art.get_meta("preserve_painted_palette",false)): corpse.modulate=art.modulate
 	_sprite_root.add_child(corpse)
 	var half_height:=float(art.texture.get_height())/art.vframes*0.5
 	corpse.global_transform=_unit_transform(unit,(float(art.get_meta("foot_anchor_y",210.0))-half_height)*corpse.pixel_size)
@@ -988,6 +1075,16 @@ func _sync_block_gates() -> void:
 	for builder: BlockStructureBuilder in _block_structure_root.get_children():
 		for key in builder.definition.gate_cells:
 			builder.set_gate_open(key, bool(world.gate_states.get(str(key), false)))
+		if builder.definition.art.get("bespoke_skin", "") == "steel_barracks_hd_v1":
+			var occupied := false
+			var skin: Node3D = builder.get_node("GothicDetails")
+			for unit in get_tree().get_nodes_in_group("units"):
+				if not is_instance_valid(unit) or not unit is RTSUnit or not unit.selected: continue
+				var local: Vector3 = skin.to_local(_unit_transform(unit).origin)
+				if local.x>0.8 and local.x<8.2 and local.z>7.6 and local.z<13.4 and local.y>=0 and local.y<=5:
+					occupied=true
+					break
+			builder.set_interior_view(occupied)
 
 func _on_block_structures_placed(placements: Array) -> void:
 	if _block_structure_root == null or not is_instance_valid(_block_structure_root):

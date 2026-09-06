@@ -1,0 +1,33 @@
+extends SceneTree
+const Puppet := preload("res://tools/steel_force/poorper_puppet.gd")
+
+func _initialize() -> void: call_deferred("run")
+
+func run() -> void:
+	var viewport := SubViewport.new()
+	viewport.size = Vector2i(512, 512)
+	viewport.transparent_bg = true
+	viewport.disable_3d = true
+	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	root.add_child(viewport)
+	var puppet := Puppet.new()
+	puppet.scale = Vector2.ONE * 2
+	viewport.add_child(puppet)
+	for direction in 8:
+		puppet.load_direction(direction)
+		var sheet := Image.create(2048, 1280, false, Image.FORMAT_RGBA8)
+		for row in 5:
+			puppet.row = row
+			for f in 8:
+				puppet.phase = float(f) / (7.0 if row >= 2 else 8.0)
+				puppet.queue_redraw()
+				await process_frame
+				await RenderingServer.frame_post_draw
+				var img := viewport.get_texture().get_image()
+				img.resize(256, 256, Image.INTERPOLATE_LANCZOS)
+				sheet.blit_rect(img, Rect2i(0, 0, 256, 256), Vector2i(f * 256, row * 256))
+		assert(sheet.save_png(Puppet.ROOT + "poorper_" + Puppet.DIRECTIONS[direction] + ".png") == OK)
+		print("[PoorperBake] ", Puppet.DIRECTIONS[direction], " 40 frames")
+	viewport.queue_free()
+	await process_frame
+	quit()

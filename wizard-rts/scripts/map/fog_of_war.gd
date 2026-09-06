@@ -123,7 +123,7 @@ func _rebuild() -> void:
 	# throughput, and hiding half the units would invalidate that. It is now ON
 	# for seeded_grid_frontier, the real game map, which the texture-based
 	# renderer above makes affordable.
-	if str(map.get("map_type_id")) in ["ai_testing_ground", "fortress_ai_arena", "plot_generator_test", "build_sandbox"]:
+	if map.has_method("is_benchmark_map") and bool(map.call("is_benchmark_map")):
 		visible = false
 		set_process(false)
 		_show_all_entities()

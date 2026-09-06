@@ -188,6 +188,13 @@ static func _availability(archetype: StringName, build_system: Node) -> Dictiona
 		return {"available": false, "reason": "Unleashed, never trained"}
 	if build_system == null or not is_instance_valid(build_system):
 		return {"available": true, "reason": ""}
+	# Conscripted units are gated by Steel Conscription, not by Kon's hybrid
+	# tiers -- reporting a Poorper as "available" because it is tier 1 would put
+	# a card in the gallery saying you can build something you cannot.
+	if UnitCatalog.is_foreign_recruit(archetype):
+		if bool(build_system.call("can_recruit", archetype)):
+			return {"available": true, "reason": ""}
+		return {"available": false, "reason": str(build_system.call("recruitment_locked_reason", archetype))}
 	if tier > int(build_system.call("unlocked_tier", 1)):
 		return {"available": false, "reason": "Requires Tier %d Hybrids" % tier}
 	return {"available": true, "reason": ""}
