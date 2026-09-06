@@ -1267,6 +1267,9 @@ func _die(source: Node = null) -> void:
 	if _dying:
 		return
 	_dying = true
+	var session := get_node_or_null("/root/GameSession")
+	if session != null:
+		session.record_felled(unit_archetype, owner_player_id, _owner_id_for_node(source))
 	_apply_death_passives(source)
 	_spawn_death_fx(source)
 	queue_free()

@@ -27,11 +27,16 @@ func _ready() -> void:
 	call_deferred("_refresh_camera_bounds")
 
 func _process(delta: float) -> void:
+	if get_viewport().has_meta("observer_archive_open"):
+		_drag_active = false
+		return
 	_handle_keyboard_pan(delta)
 	_handle_edge_pan(delta)
 	_clamp_to_map()
 
 func _input(event: InputEvent) -> void:
+	if get_viewport().has_meta("observer_archive_open"):
+		return
 	_handle_zoom(event)
 	_handle_mouse_drag(event)
 

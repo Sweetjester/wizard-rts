@@ -15,11 +15,25 @@ var new_game_requested: bool = false
 # system are identical either way. See scripts/map/map_3d_view.gd.
 var render_3d: bool = false
 var _rng := RandomNumberGenerator.new()
+signal specimen_discovered(archetype: StringName)
+# Run-local discoveries survive scene reloads, but never a new expedition.
+var felled_specimens: Dictionary = {}
+
+func record_felled(archetype: StringName, victim_owner: int, killer_owner: int) -> void:
+	if killer_owner != 1 or victim_owner == 1 or victim_owner < 0:
+		return
+	if not UnitCatalog.DEFINITIONS.has(archetype):
+		return
+	var first := not felled_specimens.has(archetype)
+	felled_specimens[archetype] = int(felled_specimens.get(archetype, 0)) + 1
+	if first:
+		specimen_discovered.emit(archetype)
 
 func _ready() -> void:
 	_rng.randomize()
 
 func start_new_game(seed_text: String = "", selected_wizard_class_id: String = "bad_kon_willow", selected_map_type_id: String = DEFAULT_MAP_TYPE, selected_objective_id: String = "", use_3d_view: bool = false) -> void:
+	felled_specimens.clear()
 	render_3d = use_3d_view
 	map_type_id = selected_map_type_id
 	wizard_class_id = selected_wizard_class_id
@@ -32,6 +46,7 @@ func start_new_game(seed_text: String = "", selected_wizard_class_id: String = "
 	print("[GameSession] New game seed: ", map_seed_text, " objective: ", objective_id, " view: ", "3D" if render_3d else "2D")
 
 func use_default_game() -> void:
+	felled_specimens.clear()
 	map_type_id = DEFAULT_MAP_TYPE
 	map_seed_text = ""
 	wizard_class_id = "bad_kon_willow"

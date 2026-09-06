@@ -2,6 +2,7 @@ extends Control
 
 const GAME_SCENE := "res://scripts/map/main_map.tscn"
 const MAP_EDITOR_SCENE := "res://scenes/map/map_editor.tscn"
+const MenuSkin := preload("res://scripts/ui/observer_menu_skin.gd")
 
 @onready var main_panel: VBoxContainer = %MainPanel
 @onready var audio_panel: VBoxContainer = %AudioPanel
@@ -23,6 +24,7 @@ var map_list: VBoxContainer = null
 @onready var performance_check: CheckBox = %PerformanceCheck
 
 var selected_character_id := ""
+var _starting_game := false
 var selected_map_type_id := ""
 # Presentation only. The map, the systems and the rules are identical either
 # way -- see scripts/map/map_3d_view.gd.
@@ -42,6 +44,8 @@ func _ready() -> void:
 	_add_fortress_map_button()
 	_prepare_map_card_click_targets()
 	_show_main()
+	MenuSkin.install(self)
+	get_node("RootMargin/Layout/MainPanel/StartButton").grab_focus()
 
 func _on_start_pressed() -> void:
 	selected_character_id = ""
@@ -108,10 +112,14 @@ func _select_map_and_begin(map_type_id: String) -> void:
 	_on_begin_pressed()
 
 func _on_begin_pressed() -> void:
+	if _starting_game:
+		return
 	if selected_character_id.is_empty():
 		return
 	if selected_map_type_id.is_empty():
 		return
+	_starting_game = true
+	begin_button.disabled = true
 	GameSession.start_new_game("", selected_character_id, selected_map_type_id, "", use_3d_view)
 	AudioManager.play_map_music()
 	get_tree().change_scene_to_file(GAME_SCENE)
@@ -169,6 +177,7 @@ func _show_main() -> void:
 	display_panel.hide()
 	character_panel.hide()
 	map_panel.hide()
+	MenuSkin.layout(self)
 
 func _show_audio() -> void:
 	main_panel.hide()
@@ -176,6 +185,7 @@ func _show_audio() -> void:
 	display_panel.hide()
 	character_panel.hide()
 	map_panel.hide()
+	MenuSkin.layout(self)
 
 func _show_display() -> void:
 	main_panel.hide()
@@ -183,6 +193,7 @@ func _show_display() -> void:
 	display_panel.show()
 	character_panel.hide()
 	map_panel.hide()
+	MenuSkin.layout(self)
 
 func _show_character() -> void:
 	main_panel.hide()
@@ -190,6 +201,7 @@ func _show_character() -> void:
 	display_panel.hide()
 	character_panel.show()
 	map_panel.hide()
+	MenuSkin.layout(self)
 
 func _show_map() -> void:
 	main_panel.hide()
@@ -197,6 +209,7 @@ func _show_map() -> void:
 	display_panel.hide()
 	character_panel.hide()
 	map_panel.show()
+	MenuSkin.layout(self)
 
 func _prepare_map_card_click_targets() -> void:
 	if map_panel == null:

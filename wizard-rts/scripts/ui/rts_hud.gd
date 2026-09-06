@@ -43,7 +43,9 @@ var detail_meta_label: Label
 var evolution_bar: ProgressBar
 var evolution_label: Label
 var alert_label: Label
-var command_container: HBoxContainer
+var command_container: HFlowContainer
+var observer_vault: CanvasLayer
+var command_dock: PanelContainer
 var ai_test_container: HBoxContainer
 var map_tool_container: HBoxContainer
 var _fog_button: Button
@@ -72,6 +74,8 @@ func _ready() -> void:
 	combat_system = get_node_or_null(combat_system_path)
 	kon_vertical_slice = get_node_or_null(kon_vertical_slice_path)
 	_build_ui()
+	observer_vault = preload("res://scripts/ui/observer_vault.gd").new()
+	add_child(observer_vault)
 	if kon_vertical_slice != null and kon_vertical_slice.has_signal("defeat_triggered"):
 		kon_vertical_slice.defeat_triggered.connect(func(reason: String) -> void:
 			_start_defeat_return_countdown(reason)
@@ -135,6 +139,7 @@ func _ready() -> void:
 	if selection_controller != null:
 		selection_controller.selection_changed.connect(func(_selected: Array[Node]) -> void:
 			_update_selection_panel(true)
+			_open_selected_vault()
 		)
 		# Control-group counts refresh on the manager's own signal (assign /
 		# add / recall / a grouped unit dying), never from _process. At
@@ -216,6 +221,8 @@ func _build_ui() -> void:
 	row.add_child(selection_label)
 	row.add_child(control_group_label)
 	row.add_child(commands)
+	commands.visible = _is_testing_mode()
+	selection_label.visible = _is_testing_mode()
 
 	alert_label = _make_label()
 	alert_label.visible = false
@@ -228,12 +235,14 @@ func _build_ui() -> void:
 	add_child(alert_label)
 
 	var bottom := PanelContainer.new()
+	command_dock = bottom
 	bottom.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	bottom.offset_left = 16
 	bottom.offset_right = -16
 	bottom.offset_top = -154
 	bottom.offset_bottom = -12
 	add_child(bottom)
+	bottom.theme = preload("res://scripts/ui/observer_theme.gd").make()
 
 	var bottom_row := HBoxContainer.new()
 	bottom_row.add_theme_constant_override("separation", 14)
@@ -263,7 +272,7 @@ func _build_ui() -> void:
 	command_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bottom_row.add_child(command_column)
 
-	command_container = HBoxContainer.new()
+	command_container = HFlowContainer.new()
 	command_container.add_theme_constant_override("separation", 8)
 	command_column.add_child(command_container)
 
@@ -620,11 +629,147 @@ func _add_stat_roster_section(parent: VBoxContainer, title: String, entries: Arr
 		button.pressed.connect(_show_unit_stat_card.bind(archetype, detail_body))
 		parent.add_child(button)
 
+# --- the observer's ledger --------------------------------------------------
+
+const LEDGER_GAIN := Color("#7BC47F")
+const LEDGER_LOSS := Color("#E0A857")
+const LEDGER_MUTED := Color("#8A9AA6")
+const LEDGER_LOCKED := Color("#E85A5A")
+
+# One unit's record for THIS run: how far its numbers have moved, what moved
+# them, what it turns into, and whether you can field it at all.
+func _build_ledger_panel(ledger: Dictionary) -> Control:
+	var panel := PanelContainer.new()
+	var body := VBoxContainer.new()
+	body.add_theme_constant_override("separation", 8)
+	panel.add_child(body)
+
+	var header := Label.new()
+	header.text = "Observer's Ledger"
+	header.add_theme_font_size_override("font_size", 20)
+	body.add_child(header)
+
+	var census := int(ledger.get("field", 0))
+	var standing := Label.new()
+	standing.add_theme_font_size_override("font_size", 14)
+	# The census is the only line about right now rather than about the run.
+	standing.text = "%d in the field" % census if census > 0 else "None in the field"
+	standing.add_theme_color_override("font_color", LEDGER_MUTED)
+	body.add_child(standing)
+
+	var availability: Dictionary = ledger.get("availability", {})
+	if not bool(availability.get("available", true)):
+		var locked := Label.new()
+		locked.text = "Unavailable -- %s" % str(availability.get("reason", ""))
+		locked.add_theme_color_override("font_color", LEDGER_LOCKED)
+		body.add_child(locked)
+
+	body.add_child(_build_ledger_stats(ledger))
+
+	var changes: Array = ledger.get("changes", [])
+	if changes.is_empty():
+		var untouched := Label.new()
+		untouched.text = "Unmodified. Nothing this run has changed it yet."
+		untouched.add_theme_color_override("font_color", LEDGER_MUTED)
+		untouched.add_theme_font_size_override("font_size", 14)
+		body.add_child(untouched)
+	else:
+		for change in changes:
+			body.add_child(_build_ledger_change(change))
+
+	var lineage_row := _build_ledger_lineage(ledger.get("lineage", {}), ledger)
+	if lineage_row != null:
+		body.add_child(lineage_row)
+	return panel
+
+# Base and current side by side, and only where they differ does anything shout.
+func _build_ledger_stats(ledger: Dictionary) -> Control:
+	var base: Dictionary = ledger.get("base", {})
+	var live: Dictionary = ledger.get("live", {})
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 18)
+	for row in [
+		["Health", "max_health", false],
+		["Damage", "attack_damage", false],
+		["Regen/s", "regeneration_per_second", true],
+	]:
+		var key := str(row[1])
+		var is_float := bool(row[2])
+		var from_value := float(base.get(key, 0))
+		var to_value := float(live.get(key, 0))
+		if from_value == 0.0 and to_value == 0.0:
+			continue
+		var name_label := Label.new()
+		name_label.text = str(row[0])
+		name_label.add_theme_color_override("font_color", LEDGER_MUTED)
+		grid.add_child(name_label)
+		var value_label := Label.new()
+		value_label.text = ("%.0f" % to_value) if not is_float else ("%.1f" % to_value)
+		grid.add_child(value_label)
+		var delta_label := Label.new()
+		if is_equal_approx(from_value, to_value):
+			delta_label.text = "-"
+			delta_label.add_theme_color_override("font_color", LEDGER_MUTED)
+		else:
+			var delta := to_value - from_value
+			delta_label.text = "%s%s from %s" % [
+				"+" if delta > 0.0 else "",
+				("%.0f" % delta) if not is_float else ("%.1f" % delta),
+				("%.0f" % from_value) if not is_float else ("%.1f" % from_value)]
+			delta_label.add_theme_color_override("font_color",
+				LEDGER_GAIN if delta > 0.0 else LEDGER_LOSS)
+		grid.add_child(delta_label)
+	return grid
+
+# Provenance. The point of the whole screen: not that it is stronger, but what
+# made it stronger, so the next purchase is an informed one.
+func _build_ledger_change(change: Dictionary) -> Control:
+	var row := VBoxContainer.new()
+	var title := Label.new()
+	title.text = "%s   %s" % [str(change.get("label", "")), str(change.get("effect", ""))]
+	title.add_theme_color_override("font_color", LEDGER_GAIN)
+	row.add_child(title)
+	var note := str(change.get("note", ""))
+	if note != "":
+		var flavour := Label.new()
+		flavour.text = note
+		flavour.add_theme_font_size_override("font_size", 13)
+		flavour.add_theme_color_override("font_color", LEDGER_MUTED)
+		row.add_child(flavour)
+	return row
+
+# What it was and what it becomes -- the arc of the run rather than of the unit.
+func _build_ledger_lineage(lineage: Dictionary, ledger: Dictionary) -> Control:
+	var came_from := StringName(lineage.get("from", &""))
+	var becomes: Array = lineage.get("to", [])
+	if came_from == &"" and becomes.is_empty():
+		return null
+	var chain: Array[String] = []
+	if came_from != &"":
+		chain.append(str(UnitCatalog.get_definition(came_from).get("display_name", str(came_from))))
+	chain.append(str(ledger.get("display_name", "")))
+	for step in becomes:
+		chain.append(str(UnitCatalog.get_definition(step).get("display_name", str(step))))
+	var label := Label.new()
+	label.text = "Lineage:  " + "  ->  ".join(chain)
+	label.add_theme_font_size_override("font_size", 14)
+	label.add_theme_color_override("font_color", LEDGER_MUTED)
+	if bool(ledger.get("evolves_on_its_own", false)):
+		label.text += "   (evolves on its own, every %ds)" % int(ledger.get("evolution_seconds", 0.0))
+	return label
+
 func _show_unit_stat_card(archetype: StringName, detail_body: VBoxContainer) -> void:
 	for child in detail_body.get_children():
 		detail_body.remove_child(child)
 		child.queue_free()
 	detail_body.add_child(_build_stat_card(archetype))
+	# The run's own record, above the catalog sheet: what has happened to this
+	# unit since the run started, and what caused it.
+	var ledger := RosterLedger.entry_for(archetype, build_system, rts_world)
+	if not ledger.is_empty():
+		detail_body.add_child(_build_ledger_panel(ledger))
+		detail_body.move_child(detail_body.get_child(detail_body.get_child_count() - 1), 0)
 	if _is_testing_mode() and _is_spawnable_test_unit(archetype):
 		var actions := HBoxContainer.new()
 		actions.add_theme_constant_override("separation", 10)
@@ -990,6 +1135,26 @@ func _update_selection_panel(force_rebuild: bool) -> void:
 		_last_selection_signature = signature
 		_rebuild_context_commands(selected)
 	_update_selection_details(selected)
+	if get_node("/root/GameSession").wizard_class_id == "bad_kon_willow" and not _is_testing_mode():
+		detail_body_label.hide()
+		detail_meta_label.hide()
+		evolution_bar.hide()
+		evolution_label.hide()
+		detail_name_label.get_parent().custom_minimum_size = Vector2(180, 0)
+		command_dock.visible = not selected.is_empty()
+		command_dock.offset_top = -maxf(78, command_dock.get_combined_minimum_size().y + 12)
+		control_group_label.visible = not control_group_label.text.begins_with("Groups: none")
+		map_tool_container.hide()
+		ai_telemetry_label.hide()
+		if selected.is_empty():
+			detail_name_label.text = ""
+
+func _open_selected_vault() -> void:
+	if not is_instance_valid(observer_vault):
+		return
+	var selected := _valid_selection()
+	if selected.size() == 1 and _archetype_for(selected[0]) == &"terrible_vault":
+		observer_vault.open_archive(selected[0], build_system, rts_world)
 
 func _valid_selection() -> Array[Node]:
 	var selected: Array[Node] = []
@@ -1158,16 +1323,7 @@ func _rebuild_context_commands(selected: Array[Node]) -> void:
 		_add_button(command_container, "Heal Aura", func() -> void: _absorber_upgrade(&"heal_aura"))
 		_add_button(command_container, "Bio Turret", func() -> void: _absorber_upgrade(&"bio_launcher"))
 	elif _selection_has_archetype(selected, &"terrible_vault"):
-		# Tier gates first -- these are what actually open the roster up.
-		_add_research_button(&"tier_two_hybrids", "Tier 2 Hybrids")
-		_add_research_button(&"tier_three_hybrids", "Tier 3 Hybrids")
-		_add_research_button(&"observer_sight", "Observer Sight")
-		_add_research_button(&"observer_command", "Observer Command")
-		_add_research_button(&"observer_oversight", "Oversight")
-		_add_research_button(&"thorned_vines", "Thorned Vines")
-		_add_research_button(&"accelerated_evolution", "Fast Evolution")
-		_add_research_button(&"hardened_horrors", "Harden Horrors")
-		_add_research_button(&"launcher_bile", "Launcher Bile")
+		_add_button(command_container, "Open the Vault", _open_selected_vault)
 	elif _selection_has_archetype(selected, &"bio_launcher"):
 		_add_launcher_buttons(selected)
 	else:
@@ -1257,8 +1413,8 @@ func _add_barracks_training_buttons() -> void:
 	var wizard_class_id := str(session.get("wizard_class_id")) if session != null else ""
 	# The Biospawner is where the player reads the roster, so its command panel
 	# opens the unit cards directly rather than burying them in a debug menu.
-	var roster_button := _add_button(command_container, "Roster", func() -> void: _open_unit_stat_window())
-	roster_button.tooltip_text = "Unit cards: portraits, tiers, stats and abilities for the whole roster"
+	if _is_testing_mode():
+		_add_button(command_container, "Debug Roster", _open_unit_stat_window)
 	for entry in BARRACKS_UNIT_BUTTONS:
 		var archetype: StringName = entry["archetype"]
 		if not UnitCatalog.is_unit_allowed_for_class(archetype, wizard_class_id):
@@ -1266,7 +1422,7 @@ func _add_barracks_training_buttons() -> void:
 		var label := str(entry["label"])
 		var locked := _tier_is_locked(archetype)
 		if locked:
-			label = "%s (T%s)" % [label, UnitCatalog.tier_of(archetype)]
+			label = "Sealed (T%s)" % UnitCatalog.tier_of(archetype)
 		var button := _add_button(command_container, label, func() -> void: _produce_from_selected(archetype))
 		button.disabled = locked
 		button.tooltip_text = "Locked -- research Tier %s Hybrids at the Observer Vault" % UnitCatalog.tier_of(archetype) if locked else str(UnitCatalog.get_definition(archetype).get("role", ""))

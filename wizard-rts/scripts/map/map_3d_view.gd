@@ -1117,6 +1117,9 @@ func focus_on_sim_position(sim_position: Vector2) -> void:
 # pan, middle-mouse drag, wheel zoom and clamping to the map. The first pass
 # shipped keyboard pan only, which is why the map felt stuck.
 func _update_camera_motion(delta: float) -> void:
+	if get_viewport().has_meta("observer_archive_open"):
+		_drag_camera = false
+		return
 	var direction := Vector3.ZERO
 	if Input.is_action_pressed("ui_left"):
 		direction.x -= 1.0
@@ -1137,6 +1140,8 @@ func _update_camera_motion(delta: float) -> void:
 const CAMERA_SMOOTHING := 14.0
 
 func _update_camera_smoothing(delta: float) -> void:
+	if get_viewport().has_meta("observer_archive_open"):
+		return
 	var weight: float = 1.0 - exp(-CAMERA_SMOOTHING * delta)
 	var moved := false
 	if _camera_focus.distance_squared_to(_camera_target) > 0.000001:
