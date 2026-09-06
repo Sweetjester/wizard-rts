@@ -2,6 +2,7 @@ class_name WeaponCatalog
 extends RefCounted
 
 const WEAPONS := {
+	&"proper_blimp": {"kind":&"artillery","damage":10,"speed":320.0,"color":Color("e5bf63"),"aoe_radius":44.0,"ground_attack":true},
 	&"life_wizard": {
 		"kind": &"projectile",
 		"damage": 13,

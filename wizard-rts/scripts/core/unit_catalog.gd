@@ -2,6 +2,32 @@ class_name UnitCatalog
 extends RefCounted
 
 const DEFINITIONS := {
+	&"poorper": {
+		"display_name":"Poorper", "faction":&"steel_force", "unit_family":&"poorper", "tier":1,
+		"intelligence":3,"aggro_range_cells":5,"max_hp":100,"armor":2,"magic_armor":0,
+		"attack_damage":12,"attack_range_cells":1,"attack_speed_seconds":0.9,"attack_type":&"melee",
+		"move_speed_cells":2,"sight_radius_cells":6,"population":1,"cost_bio":40,"train_time_seconds":5.0,
+		"card_portrait":"res://assets_game/units/steel_force/painted_v1/poorper_portrait.png",
+		"role":"Steel Force basic melee infantry. Can crew a landed Proper Blimp.","actives":[],
+	},
+	&"steel_knight": {
+		"display_name":"Steel Knight", "faction":&"steel_force", "unit_family":&"steel_knight", "tier":2,
+		"intelligence":3,"aggro_range_cells":5,"max_hp":340,"armor":10,"magic_armor":2,
+		"attack_damage":38,"attack_range_cells":1,"attack_speed_seconds":1.4,"attack_type":&"melee",
+		"move_speed_cells":1,"sight_radius_cells":6,"population":3,"cost_bio":140,"train_time_seconds":14.0,
+		"card_portrait":"res://assets_game/units/steel_force/painted_v1/steel_knight_portrait.png",
+		"role":"Slow, heavily armoured Steel Force melee infantry.","actives":[],
+	},
+	&"proper_blimp": {
+		"display_name":"Proper Blimp", "faction":&"steel_force", "unit_family":&"proper_blimp", "tier":2,
+		"intelligence":3,"aggro_range_cells":7,"max_hp":280,"armor":4,"magic_armor":0,
+		"attack_damage":10,"attack_range_cells":6,"attack_speed_seconds":2.5,"attack_type":&"ranged_splash",
+		"attack_splash_radius_cells":0.7,"projectile_speed":320,"ignores_terrain":true,
+		"move_speed_cells":2,"sight_radius_cells":8,"population":3,"cost_bio":180,"train_time_seconds":18.0,
+		"transport_capacity":3,"card_portrait":"res://assets_game/units/steel_force/painted_v1/proper_blimp_portrait.png",
+		"role":"Flying weak artillery. Land to board or unload up to three allied Poorpers. Requires crew to fire.",
+		"actives":["Land","Take Off","Board Poorpers","Unload Poorpers"],
+	},
 	&"life_wizard": {
 		"intelligence": 3,
 		"aggro_range_cells": 5,

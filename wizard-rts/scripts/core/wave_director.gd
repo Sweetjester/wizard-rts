@@ -17,6 +17,7 @@ signal boss_defeated()
 @export var stone_face_serpent_scene: PackedScene = preload("res://scenes/units/stone_face_serpent.tscn")
 @export var deom_legion_scene: PackedScene = preload("res://scenes/units/deom_legion_unit.tscn")
 @export var enabled: bool = true
+@export_enum("deom", "steel_force") var enemy_faction: String = "deom"
 # A settling period at the start of a run before the wave clock starts at all.
 # Everything downstream -- phases, waves and the boss -- is measured from the end
 # of it, so raising this pushes the whole schedule back rather than compressing
@@ -459,6 +460,8 @@ func _scene_for_kon_unit(archetype: StringName) -> PackedScene:
 	return null
 
 func _scene_for_test_unit(archetype: StringName) -> PackedScene:
+	var steel := _steel_scene(archetype)
+	if steel != null: return steel
 	var kon_scene := _scene_for_kon_unit(archetype)
 	if kon_scene != null:
 		return kon_scene
@@ -501,7 +504,8 @@ func _process_target_dummies() -> void:
 			unit.set("health", int(maximum))
 
 func _spawn_enemy(archetype: StringName, spawn_cell: Vector2i, parent: Node, preferred_target: Vector2 = Vector2.ZERO) -> Node:
-	var enemy := enemy_scene.instantiate()
+	var steel := _steel_scene(archetype)
+	var enemy := (steel if steel != null else enemy_scene).instantiate()
 	enemy.set("owner_player_id", 2)
 	enemy.set("unit_archetype", archetype)
 	if _has_property(enemy, "enemy_archetype"):
@@ -511,6 +515,16 @@ func _spawn_enemy(archetype: StringName, spawn_cell: Vector2i, parent: Node, pre
 	parent.add_child(enemy)
 	enemy.set("owner_player_id", 2)
 	enemy.global_position = map_generator.cell_to_world(map_generator.nearest_walkable_cell(spawn_cell, 10))
+	if archetype == &"proper_blimp":
+		for i in 3:
+			var crew := preload("res://scenes/units/poorper.tscn").instantiate()
+			crew.owner_player_id = 2
+			parent.add_child(crew)
+			crew.global_position = enemy.global_position+Vector2(70+i*20,0)
+			crew.nav_level = enemy.nav_level
+			enemy.landed = true
+			enemy.board(crew)
+			enemy.landed = false
 	_log_combat_entity("spawn_enemy", enemy)
 	call_deferred("_send_enemy_to_player_target", enemy, preferred_target)
 	return enemy
@@ -558,6 +572,10 @@ func get_boss_seconds_remaining() -> int:
 	return maxi(0, ceili(boss_arrival_seconds - combat_time_elapsed()))
 
 func _enemy_archetype_for_wave(index: int) -> StringName:
+	if enemy_faction == "steel_force":
+		if wave_index >= 4 and index%7 == 0: return &"proper_blimp"
+		if wave_index >= 2 and index%3 == 0: return &"steel_knight"
+		return &"poorper"
 	if wave_index <= 1:
 		return &"deom_scout" if index % 3 == 0 else &"deom_blade"
 	if wave_index <= 3:
@@ -571,6 +589,13 @@ func _enemy_archetype_for_wave(index: int) -> StringName:
 	if wave_index >= 7 and index % 9 == 0:
 		return &"deom_odden"
 	return &"deom_crosshirran" if index % 3 == 0 else &"deom_blade"
+
+func _steel_scene(archetype: StringName) -> PackedScene:
+	match archetype:
+		&"poorper": return preload("res://scenes/units/poorper.tscn")
+		&"steel_knight": return preload("res://scenes/units/steel_knight.tscn")
+		&"proper_blimp": return preload("res://scenes/units/proper_blimp.tscn")
+	return null
 
 func _retarget_enemy_army() -> void:
 	var target := _player_target_world()

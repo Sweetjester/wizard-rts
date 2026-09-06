@@ -1455,6 +1455,7 @@ func _is_spawnable_test_unit(archetype: StringName) -> bool:
 	if wave_director == null or not wave_director.has_method("spawn_ai_test_player_unit"):
 		return false
 	return archetype in [
+		&"poorper", &"steel_knight", &"proper_blimp",
 		&"terrible_thing",
 		&"oaven_spear",
 		&"horror",
@@ -1636,8 +1637,16 @@ func _add_unit_active_buttons(selected: Array[Node]) -> void:
 		return
 	var archetype := _archetype_for(selected[0])
 	var definition := UnitCatalog.get_definition(archetype)
+	if archetype == &"proper_blimp":
+		var crew_label := Label.new()
+		crew_label.text = "Crew %d/3" % selected[0].get("passengers").size()
+		command_container.add_child(crew_label)
 	for active in definition.get("actives", []):
 		match str(active):
+			"Land": _add_button(command_container,"Land",func() -> void: _activate_selected("activate_land","Land"))
+			"Take Off": _add_button(command_container,"Take Off",func() -> void: _activate_selected("activate_takeoff","Take Off"))
+			"Board Poorpers": _add_button(command_container,"Board Poorpers",func() -> void: _activate_selected("activate_board_nearby","Board Poorpers"))
+			"Unload Poorpers": _add_button(command_container,"Unload Poorpers",func() -> void: _activate_selected("activate_unload","Unload Poorpers"))
 			"Leap Slam":
 				var caster := selected[0]
 				var leap_button := _add_button(command_container, "Leap Slam", func() -> void:

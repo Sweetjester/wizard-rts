@@ -1382,6 +1382,9 @@ func _node_has_property(node: Node, property_name: String) -> bool:
 
 func _scene_for_unit(archetype: StringName) -> PackedScene:
 	match archetype:
+		&"poorper": return preload("res://scenes/units/poorper.tscn")
+		&"steel_knight": return preload("res://scenes/units/steel_knight.tscn")
+		&"proper_blimp": return preload("res://scenes/units/proper_blimp.tscn")
 		&"mangler", &"winged_mangler":
 			return preload("res://scenes/units/mangler.tscn")
 		&"terrible_thing", &"awful_thing":
